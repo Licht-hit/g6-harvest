@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(app_url('buyer/index.php'));
         }
 
-        $statement = $pdo->prepare(
+        $statement = $db->prepare(
             'SELECT v.name, i.quantity
              FROM vegetables AS v
              JOIN inventory AS i ON i.vegetable_id = v.id
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 continue;
             }
 
-            $statement = $pdo->prepare(
+            $statement = $db->prepare(
                 'SELECT i.quantity
                  FROM vegetables AS v
                  JOIN inventory AS i ON i.vegetable_id = v.id
@@ -94,7 +94,7 @@ if ($cart) {
     $ids = array_map('intval', array_keys($cart));
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
-    $statement = $pdo->prepare(
+    $statement = $db->prepare(
         "SELECT
             v.id,
             v.name,

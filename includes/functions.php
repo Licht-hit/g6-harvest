@@ -34,6 +34,34 @@ function current_user(): ?array
     return $_SESSION['user'] ?? null;
 }
 
+function log_activity(
+    string $action,
+    string $entityType,
+    ?int $entityId = null,
+    string $details = '',
+    ?int $userId = null
+): void {
+    global $db;
+
+    $user = current_user();
+    $actorId = $userId ?? ($user ? (int) $user['id'] : null);
+    $statement = $db->prepare(
+        'INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
+         VALUES (?, ?, ?, ?, ?)'
+    );
+    $statement->execute([$actorId, $action, $entityType, $entityId, $details ?: null]);
+}
+
+function is_valid_date($value): bool
+{
+    if (!is_string($value)) {
+        return false;
+    }
+
+    $date = DateTime::createFromFormat('!Y-m-d', $value);
+    return $date !== false && $date->format('Y-m-d') === $value;
+}
+
 function require_login(): void
 {
     if (!is_logged_in()) {
@@ -42,8 +70,8 @@ function require_login(): void
     }
 
     // Check the database so an old session cannot bypass email verification.
-    global $pdo;
-    $statement = $pdo->prepare('SELECT email_verified_at FROM users WHERE id = ?');
+    global $db;
+    $statement = $db->prepare('SELECT email_verified_at FROM users WHERE id = ?');
     $statement->execute([(int) current_user()['id']]);
     $verifiedAt = $statement->fetchColumn();
     if (!$verifiedAt) {
@@ -144,7 +172,7 @@ function email_verification_url(string $token): string
         . '?token=' . rawurlencode($token);
 }
 
-function send_email_verification(PDO $pdo, array $user): string
+function send_email_verification(MySQLiDatabase $db, array $user): string
 {
     $token = bin2hex(random_bytes(32));
     $verificationUrl = email_verification_url($token);
@@ -153,7 +181,7 @@ function send_email_verification(PDO $pdo, array $user): string
     if ($emailConfig['mode'] === 'development') {
         $tokenHash = hash('sha256', $token);
 
-        $statement = $pdo->prepare(
+        $statement = $db->prepare(
             'INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at)
              VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 24 HOUR), CURRENT_TIMESTAMP)
              ON DUPLICATE KEY UPDATE
@@ -193,7 +221,7 @@ function send_email_verification(PDO $pdo, array $user): string
 
     // Store only the token hash so the original link is not saved in the database.
     $tokenHash = hash('sha256', $token);
-    $statement = $pdo->prepare(
+    $statement = $db->prepare(
         'INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at)
          VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 24 HOUR), CURRENT_TIMESTAMP)
          ON DUPLICATE KEY UPDATE
@@ -218,7 +246,7 @@ function send_email_verification(PDO $pdo, array $user): string
         error_log('Verification email delivery failed: ' . $exception->getMessage());
 
         // Remove the token if delivery fails, so a failed email cannot leave an unusable link.
-        $deleteToken = $pdo->prepare('DELETE FROM email_verification_tokens WHERE user_id = ? AND token_hash = ?');
+        $deleteToken = $db->prepare('DELETE FROM email_verification_tokens WHERE user_id = ? AND token_hash = ?');
         $deleteToken->execute([(int) $user['id'], $tokenHash]);
         throw $exception;
     }

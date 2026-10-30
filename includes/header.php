@@ -36,6 +36,9 @@ if ($user && $user['role'] === 'buyer') {
                 <a href="<?= h(app_url('modules/sales.php')) ?>">Sales</a>
                 <a href="<?= h(app_url('modules/quality_inspection.php')) ?>">Quality</a>
                 <a href="<?= h(app_url('modules/reports.php')) ?>">Reports</a>
+                <?php if ($user['role'] === 'admin'): ?>
+                    <a href="<?= h(app_url('modules/activity_logs.php')) ?>">Activity</a>
+                <?php endif; ?>
             <?php endif; ?>
         </nav>
         <div class="account">

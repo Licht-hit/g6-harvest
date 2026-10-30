@@ -7,6 +7,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 verify_csrf();
 
+$user = current_user();
+if ($user) {
+    log_activity('logout', 'user', (int) $user['id'], 'User signed out.');
+}
+
 // Clear the session data and expire the session cookie.
 $_SESSION = [];
 if (ini_get('session.use_cookies')) {

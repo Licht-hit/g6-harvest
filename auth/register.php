@@ -16,14 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Enter your name, a valid email address, and a password of at least 10 characters.';
     } else {
         try {
-            $statement = $pdo->prepare(
+            $statement = $db->prepare(
                 "INSERT INTO users (name, email, password, role, email_verified_at)
                  VALUES (?, ?, ?, 'buyer', NULL)"
             );
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
             $statement->execute([$name, $email, $hashedPassword]);
-        } catch (PDOException $exception) {
-            if ($exception->getCode() === '23000') {
+        } catch (mysqli_sql_exception $exception) {
+            if ((int) $exception->getCode() === 1062) {
                 $error = 'That email address is already registered. '
                     . 'If it is not verified, request a new verification link.';
             } else {
@@ -31,14 +31,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         if ($error === '') {
+            $newUserId = (int) $db->lastInsertId();
+            log_activity('account_created', 'user', $newUserId, 'Buyer account registered.', $newUserId);
             $user = [
-                'id' => (int) $pdo->lastInsertId(),
+                'id' => $newUserId,
                 'name' => $name,
                 'email' => $email,
             ];
 
             try {
-                $deliveryStatus = send_email_verification($pdo, $user);
+                $deliveryStatus = send_email_verification($db, $user);
             } catch (RuntimeException $exception) {
                 error_log('Unable to prepare verification email: ' . $exception->getMessage());
                 $deliveryStatus = 'failed';

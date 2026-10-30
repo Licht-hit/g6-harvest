@@ -5,52 +5,134 @@ require_role('admin', 'staff');
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
+    $action = $_POST['action'] ?? 'create';
+    $harvestId = (int) ($_POST['harvest_id'] ?? 0);
     $plantingId = (int) ($_POST['planting_id'] ?? 0);
     $quantity = filter_var($_POST['quantity'] ?? null, FILTER_VALIDATE_FLOAT);
     $harvestedOn = $_POST['harvested_on'] ?? '';
+    $notes = trim($_POST['quality_notes'] ?? '');
 
-    if ($plantingId < 1 || $quantity === false || $quantity <= 0 || !$harvestedOn) {
-        $error = 'Choose a planting and enter a positive quantity and harvest date.';
-    } else {
+    if ($action === 'create'
+        && ($plantingId < 1 || $quantity === false || $quantity <= 0 || !is_valid_date($harvestedOn))) {
+        $error = 'Choose a planting and enter a positive quantity and valid harvest date.';
+    } elseif ($action === 'update'
+        && ($harvestId < 1 || $quantity === false || $quantity <= 0 || !is_valid_date($harvestedOn))) {
+        $error = 'Enter a positive quantity and valid harvest date.';
+    } elseif (in_array($action, ['create', 'update', 'archive'], true)) {
         try {
-            $pdo->beginTransaction();
+            $db->beginTransaction();
 
-            // Lock the planting so two staff members cannot harvest it at once.
-            $statement = $pdo->prepare(
-                "SELECT id, vegetable_id
-                 FROM plantings
-                 WHERE id = ? AND status = 'growing'
-                 FOR UPDATE"
-            );
-            $statement->execute([$plantingId]);
-            $planting = $statement->fetch();
+            if ($action === 'create') {
+                // Lock the planting so two staff members cannot harvest it at once.
+                $statement = $db->prepare(
+                    "SELECT id, vegetable_id
+                     FROM plantings
+                     WHERE id = ? AND status = 'growing'
+                     FOR UPDATE"
+                );
+                $statement->execute([$plantingId]);
+                $planting = $statement->fetch();
+                if (!$planting) {
+                    throw new RuntimeException('That planting is no longer available for harvest.');
+                }
 
-            if (!$planting) {
-                throw new RuntimeException('That planting is no longer available for harvest.');
+                $insert = $db->prepare(
+                    'INSERT INTO harvests (planting_id, quantity, harvested_on, quality_notes)
+                     VALUES (?, ?, ?, ?)'
+                );
+                $insert->execute([$plantingId, $quantity, $harvestedOn, $notes ?: null]);
+                $harvestId = (int) $db->lastInsertId();
+
+                $stock = $db->prepare(
+                    'INSERT INTO inventory (vegetable_id, quantity)
+                     VALUES (?, ?)
+                     ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)'
+                );
+                $stock->execute([(int) $planting['vegetable_id'], $quantity]);
+                log_activity('harvest_created', 'harvest', $harvestId, 'Harvest recorded.');
+                $successMessage = 'Harvest recorded and inventory updated.';
+            } else {
+                $statement = $db->prepare(
+                    'SELECT h.id, h.quantity, p.vegetable_id
+                     FROM harvests AS h
+                     JOIN plantings AS p ON p.id = h.planting_id
+                     WHERE h.id = ? AND h.archived_at IS NULL
+                     FOR UPDATE'
+                );
+                $statement->execute([$harvestId]);
+                $harvest = $statement->fetch();
+                if (!$harvest) {
+                    throw new RuntimeException('That harvest is no longer available.');
+                }
+
+                $stockId = (int) $harvest['vegetable_id'];
+                $stockCheck = $db->prepare('SELECT quantity FROM inventory WHERE vegetable_id = ? FOR UPDATE');
+                $stockCheck->execute([$stockId]);
+                $stock = $stockCheck->fetch();
+
+                if ($action === 'update') {
+                    $difference = round((float) $quantity - (float) $harvest['quantity'], 2);
+                    if ($difference > 0) {
+                        $changeStock = $db->prepare(
+                            'INSERT INTO inventory (vegetable_id, quantity)
+                             VALUES (?, ?)
+                             ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)'
+                        );
+                        $changeStock->execute([$stockId, $difference]);
+                    } elseif ($difference < 0) {
+                        $amountToRemove = abs($difference);
+                        $changeStock = $db->prepare(
+                            'UPDATE inventory
+                             SET quantity = quantity - ?
+                             WHERE vegetable_id = ? AND quantity >= ?'
+                        );
+                        $changeStock->execute([$amountToRemove, $stockId, $amountToRemove]);
+                        if ($changeStock->rowCount() !== 1) {
+                            throw new RuntimeException('Stock is too low to reduce this harvest quantity.');
+                        }
+                    }
+
+                    $update = $db->prepare(
+                        'UPDATE harvests SET quantity = ?, harvested_on = ?, quality_notes = ? WHERE id = ?'
+                    );
+                    $update->execute([$quantity, $harvestedOn, $notes ?: null, $harvestId]);
+                    log_activity('harvest_updated', 'harvest', $harvestId, 'Harvest details updated.');
+                    $successMessage = 'Harvest updated and inventory adjusted.';
+                } else {
+                    if (!$stock || (float) $stock['quantity'] < (float) $harvest['quantity']) {
+                        throw new RuntimeException(
+                            'Cannot archive this harvest because some of its stock has already been sold or removed.'
+                        );
+                    }
+
+                    $removeStock = $db->prepare(
+                        'UPDATE inventory
+                         SET quantity = quantity - ?
+                         WHERE vegetable_id = ? AND quantity >= ?'
+                    );
+                    $removeStock->execute([
+                        $harvest['quantity'],
+                        $stockId,
+                        $harvest['quantity'],
+                    ]);
+                    if ($removeStock->rowCount() !== 1) {
+                        throw new RuntimeException('Stock changed. Reload the page and try again.');
+                    }
+
+                    $archive = $db->prepare('UPDATE harvests SET archived_at = CURRENT_TIMESTAMP WHERE id = ?');
+                    $archive->execute([$harvestId]);
+                    log_activity('harvest_archived', 'harvest', $harvestId, 'Harvest archived from active inventory.');
+                    $successMessage = 'Harvest archived and inventory adjusted.';
+                }
             }
 
-            $insert = $pdo->prepare(
-                'INSERT INTO harvests (planting_id, quantity, harvested_on, quality_notes)
-                 VALUES (?, ?, ?, ?)'
-            );
-            $notes = trim($_POST['quality_notes'] ?? '');
-            $insert->execute([$plantingId, $quantity, $harvestedOn, $notes ?: null]);
-
-            // Record the harvest and add the same amount to available stock.
-            $stock = $pdo->prepare(
-                'INSERT INTO inventory (vegetable_id, quantity)
-                 VALUES (?, ?)
-                 ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)'
-            );
-            $stock->execute([(int) $planting['vegetable_id'], $quantity]);
-
-            // Both database changes succeed together or are rolled back together.
-            $pdo->commit();
-            flash('success', 'Harvest recorded and inventory updated.');
+            // Record the change and its inventory adjustment as one transaction.
+            $db->commit();
+            flash('success', $successMessage);
             redirect(app_url('modules/harvests.php'));
         } catch (Throwable $exception) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
             }
             if ($exception instanceof RuntimeException) {
                 $error = $exception->getMessage();
@@ -58,17 +140,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw $exception;
             }
         }
+    } else {
+        $error = 'Choose a valid harvest action.';
     }
 }
 
-$plantings = $pdo->query(
+$editingHarvest = null;
+$editId = filter_var($_GET['edit'] ?? null, FILTER_VALIDATE_INT);
+if ($editId && $editId > 0) {
+    $statement = $db->prepare(
+        'SELECT h.*, p.vegetable_id, v.name AS vegetable
+         FROM harvests AS h
+         JOIN plantings AS p ON p.id = h.planting_id
+         JOIN vegetables AS v ON v.id = p.vegetable_id
+         WHERE h.id = ? AND h.archived_at IS NULL'
+    );
+    $statement->execute([$editId]);
+    $editingHarvest = $statement->fetch() ?: null;
+}
+
+$plantings = $db->query(
     "SELECT p.id, p.planted_on, v.name
      FROM plantings AS p
      JOIN vegetables AS v ON v.id = p.vegetable_id
      WHERE p.status = 'growing'
      ORDER BY p.planted_on"
 )->fetchAll();
-$harvests = $pdo->query(
+$harvests = $db->query(
     'SELECT h.*, v.name AS vegetable, p.id AS planting_number
      FROM harvests AS h
      JOIN plantings AS p ON p.id = h.planting_id
@@ -82,30 +180,44 @@ require __DIR__ . '/../includes/header.php';
 <div class="page-heading"><h1>Harvests</h1></div>
 
 <section class="panel section">
-    <h2>Record harvest</h2>
+    <h2><?= $editingHarvest ? 'Edit harvest' : 'Record harvest' ?></h2>
 
     <?php if ($error): ?>
         <div class="notice error"><?= h($error) ?></div>
     <?php endif; ?>
 
-    <?php if (!$plantings): ?>
+    <?php if (!$plantings && !$editingHarvest): ?>
         <p class="muted">There are no growing plantings available to harvest.</p>
     <?php else: ?>
         <form method="post">
             <?= csrf_field() ?>
+            <?php if ($editingHarvest): ?>
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="harvest_id" value="<?= (int) $editingHarvest['id'] ?>">
+                <p>
+                    Editing harvest #<?= (int) $editingHarvest['id'] ?> —
+                    <?= h($editingHarvest['vegetable']) ?>,
+                    planting #<?= (int) $editingHarvest['planting_id'] ?>.
+                    <a href="<?= h(app_url('modules/harvests.php')) ?>">Cancel editing</a>
+                </p>
+            <?php else: ?>
+                <input type="hidden" name="action" value="create">
+            <?php endif; ?>
             <div class="form-grid">
-                <div class="field">
-                    <label for="planting_id">Planting</label>
-                    <select id="planting_id" name="planting_id" required>
-                        <option value="">Choose planting</option>
-                        <?php foreach ($plantings as $planting): ?>
-                            <option value="<?= (int) $planting['id'] ?>">
-                                #<?= (int) $planting['id'] ?> ·
-                                <?= h($planting['name']) ?> (<?= h($planting['planted_on']) ?>)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
+                <?php if (!$editingHarvest): ?>
+                    <div class="field">
+                        <label for="planting_id">Planting</label>
+                        <select id="planting_id" name="planting_id" required>
+                            <option value="">Choose planting</option>
+                            <?php foreach ($plantings as $planting): ?>
+                                <option value="<?= (int) $planting['id'] ?>">
+                                    #<?= (int) $planting['id'] ?> ·
+                                    <?= h($planting['name']) ?> (<?= h($planting['planted_on']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
                 <div class="field">
                     <label for="quantity">Quantity harvested</label>
                     <input
@@ -114,6 +226,7 @@ require __DIR__ . '/../includes/header.php';
                         min="0.01"
                         step="0.01"
                         name="quantity"
+                        value="<?= h($editingHarvest['quantity'] ?? '') ?>"
                         required
                     >
                 </div>
@@ -123,7 +236,7 @@ require __DIR__ . '/../includes/header.php';
                         id="harvested_on"
                         type="date"
                         name="harvested_on"
-                        value="<?= date('Y-m-d') ?>"
+                        value="<?= h($editingHarvest['harvested_on'] ?? date('Y-m-d')) ?>"
                         required
                     >
                 </div>
@@ -131,10 +244,10 @@ require __DIR__ . '/../includes/header.php';
 
             <div class="field">
                 <label for="quality_notes">Notes</label>
-                <textarea id="quality_notes" name="quality_notes"></textarea>
+                <textarea id="quality_notes" name="quality_notes"><?= h($editingHarvest['quality_notes'] ?? '') ?></textarea>
             </div>
 
-            <button type="submit">Save harvest</button>
+            <button type="submit"><?= $editingHarvest ? 'Save changes' : 'Save harvest' ?></button>
         </form>
     <?php endif; ?>
 </section>
@@ -154,6 +267,8 @@ require __DIR__ . '/../includes/header.php';
                         <th>Planting</th>
                         <th>Quantity</th>
                         <th>Notes</th>
+                        <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -164,6 +279,20 @@ require __DIR__ . '/../includes/header.php';
                             <td>#<?= (int) $harvest['planting_number'] ?></td>
                             <td><?= number_format((float) $harvest['quantity'], 2) ?></td>
                             <td><?= h($harvest['quality_notes'] ?? '—') ?></td>
+                            <td><?= $harvest['archived_at'] ? 'Archived' : 'Active' ?></td>
+                            <td>
+                                <?php if (!$harvest['archived_at']): ?>
+                                    <a href="<?= h(app_url('modules/harvests.php?edit=' . (int) $harvest['id'])) ?>">Edit</a>
+                                    <form method="post">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="archive">
+                                        <input type="hidden" name="harvest_id" value="<?= (int) $harvest['id'] ?>">
+                                        <button class="button secondary" type="submit">Archive</button>
+                                    </form>
+                                <?php else: ?>
+                                    <span class="muted">History retained</span>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

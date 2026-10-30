@@ -10,10 +10,10 @@ if ($tokenValidFormat && $_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 
     try {
-        $pdo->beginTransaction();
+        $db->beginTransaction();
 
         // Lock the token row while changing verification status.
-        $statement = $pdo->prepare(
+        $statement = $db->prepare(
             'SELECT t.user_id, u.email_verified_at
              FROM email_verification_tokens AS t
              JOIN users AS u ON u.id = t.user_id
@@ -25,24 +25,31 @@ if ($tokenValidFormat && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($record) {
             $alreadyVerified = $record['email_verified_at'] !== null;
-            $update = $pdo->prepare(
+            $update = $db->prepare(
                 'UPDATE users
                  SET email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP)
                  WHERE id = ?'
             );
             $update->execute([(int) $record['user_id']]);
 
-            $delete = $pdo->prepare('DELETE FROM email_verification_tokens WHERE user_id = ?');
+            $delete = $db->prepare('DELETE FROM email_verification_tokens WHERE user_id = ?');
             $delete->execute([(int) $record['user_id']]);
+            log_activity(
+                'email_verified',
+                'user',
+                (int) $record['user_id'],
+                'Email address verified.',
+                (int) $record['user_id']
+            );
 
-            $pdo->commit();
+            $db->commit();
             $verified = true;
         } else {
-            $pdo->rollBack();
+            $db->rollBack();
         }
     } catch (Throwable $exception) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
+        if ($db->inTransaction()) {
+            $db->rollBack();
         }
 
         throw $exception;
@@ -51,7 +58,7 @@ if ($tokenValidFormat && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $tokenRecord = null;
 if ($tokenValidFormat && !$verified) {
-    $statement = $pdo->prepare(
+    $statement = $db->prepare(
         'SELECT u.email_verified_at, t.expires_at
          FROM email_verification_tokens AS t
          JOIN users AS u ON u.id = t.user_id

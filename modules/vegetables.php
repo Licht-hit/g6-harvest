@@ -5,43 +5,109 @@ require_role('admin', 'staff');
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    if (($_POST['action'] ?? '') === 'toggle') {
-        $statement = $pdo->prepare('UPDATE vegetables SET active = 1 - active WHERE id = ?');
-        $statement->execute([(int) ($_POST['id'] ?? 0)]);
+    $action = $_POST['action'] ?? 'create';
+    if ($action === 'toggle') {
+        $vegetableId = (int) ($_POST['id'] ?? 0);
+        if ($vegetableId < 1) {
+            flash('error', 'Choose a valid vegetable.');
+            redirect(app_url('modules/vegetables.php'));
+        }
+        $statement = $db->prepare('UPDATE vegetables SET active = 1 - active WHERE id = ?');
+        $statement->execute([$vegetableId]);
+        if ($statement->rowCount() !== 1) {
+            flash('error', 'That vegetable could not be found.');
+            redirect(app_url('modules/vegetables.php'));
+        }
+        log_activity('availability_changed', 'vegetable', $vegetableId, 'Vegetable availability changed.');
         flash('success', 'Vegetable availability updated.');
         redirect(app_url('modules/vegetables.php'));
     }
+    if (!in_array($action, ['create', 'update'], true)) {
+        flash('error', 'Choose a valid vegetable action.');
+        redirect(app_url('modules/vegetables.php'));
+    }
+
+    $vegetableId = (int) ($_POST['id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
     $variety = trim($_POST['variety'] ?? '');
     $unit = trim($_POST['unit'] ?? 'kg');
     $price = filter_var($_POST['price'] ?? null, FILTER_VALIDATE_FLOAT);
+    $description = trim($_POST['description'] ?? '');
 
-    if ($name === '' || $unit === '' || $price === false || $price < 0) {
+    if (($action === 'update' && $vegetableId < 1)
+        || $name === ''
+        || strlen($name) > 120
+        || $unit === ''
+        || strlen($unit) > 30
+        || $price === false
+        || $price < 0) {
         $error = 'Enter a vegetable name, unit, and a non-negative price.';
     } else {
-        $statement = $pdo->prepare(
-            'INSERT INTO vegetables (name, variety, description, unit, price)
-             VALUES (?, ?, ?, ?, ?)'
-        );
-        $description = trim($_POST['description'] ?? '');
-        $statement->execute([
-            $name,
-            $variety ?: null,
-            $description ?: null,
-            $unit,
-            $price,
-        ]);
-        flash('success', 'Vegetable added.');
+        if ($action === 'update') {
+            $existing = $db->prepare('SELECT id FROM vegetables WHERE id = ?');
+            $existing->execute([$vegetableId]);
+            if (!$existing->fetch()) {
+                $error = 'That vegetable could not be found.';
+            } else {
+                $statement = $db->prepare(
+                    'UPDATE vegetables
+                     SET name = ?, variety = ?, description = ?, unit = ?, price = ?
+                     WHERE id = ?'
+                );
+                $statement->execute([
+                    $name,
+                    $variety ?: null,
+                    $description ?: null,
+                    $unit,
+                    $price,
+                    $vegetableId,
+                ]);
+                log_activity('vegetable_updated', 'vegetable', $vegetableId, 'Vegetable details updated.');
+                flash('success', 'Vegetable updated.');
+                redirect(app_url('modules/vegetables.php'));
+            }
+        } else {
+            $statement = $db->prepare(
+                'INSERT INTO vegetables (name, variety, description, unit, price)
+                 VALUES (?, ?, ?, ?, ?)'
+            );
+            $statement->execute([
+                $name,
+                $variety ?: null,
+                $description ?: null,
+                $unit,
+                $price,
+            ]);
+            $vegetableId = (int) $db->lastInsertId();
+            log_activity('vegetable_created', 'vegetable', $vegetableId, 'Vegetable added to catalog.');
+            flash('success', 'Vegetable added.');
+        }
         redirect(app_url('modules/vegetables.php'));
     }
 }
 
-$vegetables = $pdo->query(
-    'SELECT v.*, COALESCE(i.quantity, 0) AS stock
-     FROM vegetables AS v
-     LEFT JOIN inventory AS i ON i.vegetable_id = v.id
-     ORDER BY v.name'
-)->fetchAll();
+$search = trim($_GET['q'] ?? '');
+$editingVegetable = null;
+$editId = filter_var($_GET['edit'] ?? null, FILTER_VALIDATE_INT);
+if ($editId && $editId > 0) {
+    $statement = $db->prepare('SELECT * FROM vegetables WHERE id = ?');
+    $statement->execute([$editId]);
+    $editingVegetable = $statement->fetch() ?: null;
+}
+
+$vegetableSql = 'SELECT v.*, COALESCE(i.quantity, 0) AS stock
+                 FROM vegetables AS v
+                 LEFT JOIN inventory AS i ON i.vegetable_id = v.id';
+if ($search !== '') {
+    $statement = $db->prepare(
+        $vegetableSql . ' WHERE v.name LIKE ? OR v.variety LIKE ? ORDER BY v.name'
+    );
+    $like = '%' . $search . '%';
+    $statement->execute([$like, $like]);
+    $vegetables = $statement->fetchAll();
+} else {
+    $vegetables = $db->query($vegetableSql . ' ORDER BY v.name')->fetchAll();
+}
 
 $pageTitle = 'Vegetables';
 require __DIR__ . '/../includes/header.php';
@@ -51,27 +117,35 @@ require __DIR__ . '/../includes/header.php';
 </div>
 
 <section class="panel section">
-    <h2>Add vegetable</h2>
+    <h2><?= $editingVegetable ? 'Edit vegetable' : 'Add vegetable' ?></h2>
 
     <?php if ($error): ?>
         <div class="notice error"><?= h($error) ?></div>
     <?php endif; ?>
 
+    <?php if ($editingVegetable): ?>
+        <p><a href="<?= h(app_url('modules/vegetables.php')) ?>">Cancel editing</a></p>
+    <?php endif; ?>
+
     <form method="post">
         <?= csrf_field() ?>
+        <?php if ($editingVegetable): ?>
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="id" value="<?= (int) $editingVegetable['id'] ?>">
+        <?php endif; ?>
 
         <div class="form-grid">
             <div class="field">
                 <label for="name">Name</label>
-                <input id="name" name="name" required>
+                <input id="name" name="name" maxlength="120" required value="<?= h($editingVegetable['name'] ?? '') ?>">
             </div>
             <div class="field">
                 <label for="variety">Variety</label>
-                <input id="variety" name="variety">
+                <input id="variety" name="variety" maxlength="120" value="<?= h($editingVegetable['variety'] ?? '') ?>">
             </div>
             <div class="field">
                 <label for="unit">Unit (e.g. kg, bunch)</label>
-                <input id="unit" name="unit" value="kg" required>
+                <input id="unit" name="unit" maxlength="30" value="<?= h($editingVegetable['unit'] ?? 'kg') ?>" required>
             </div>
             <div class="field">
                 <label for="price">Price per unit</label>
@@ -81,21 +155,32 @@ require __DIR__ . '/../includes/header.php';
                     min="0"
                     step="0.01"
                     name="price"
+                    value="<?= h($editingVegetable['price'] ?? '') ?>"
                     required>
             </div>
         </div>
 
         <div class="field">
             <label for="description">Description</label>
-            <textarea id="description" name="description"></textarea>
+            <textarea id="description" name="description"><?= h($editingVegetable['description'] ?? '') ?></textarea>
         </div>
 
-        <button type="submit">Add vegetable</button>
+        <button type="submit"><?= $editingVegetable ? 'Save changes' : 'Add vegetable' ?></button>
     </form>
 </section>
 
 <section class="panel section">
     <h2>Vegetable list</h2>
+    <form method="get" class="inline-form section">
+        <div class="field">
+            <label for="q">Search vegetables</label>
+            <input id="q" name="q" value="<?= h($search) ?>" placeholder="Name or variety">
+        </div>
+        <button type="submit">Search</button>
+        <?php if ($search !== ''): ?>
+            <a class="button secondary" href="<?= h(app_url('modules/vegetables.php')) ?>">Clear</a>
+        <?php endif; ?>
+    </form>
 
     <?php if (!$vegetables): ?>
         <p class="empty">No vegetables have been added.</p>
@@ -109,6 +194,7 @@ require __DIR__ . '/../includes/header.php';
                         <th>Unit price</th>
                         <th>Stock</th>
                         <th>Status</th>
+                        <th>Edit</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -123,6 +209,7 @@ require __DIR__ . '/../includes/header.php';
                             </td>
                             <td><?= number_format((float) $vegetable['stock'], 2) ?></td>
                             <td><?= $vegetable['active'] ? 'Active' : 'Inactive' ?></td>
+                            <td><a href="<?= h(app_url('modules/vegetables.php?edit=' . (int) $vegetable['id'])) ?>">Edit</a></td>
                             <td>
                                 <form method="post">
                                     <?= csrf_field() ?>

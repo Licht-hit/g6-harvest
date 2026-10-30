@@ -10,7 +10,7 @@ if (!$cart) {
 
 $ids = array_map('intval', array_keys($cart));
 $placeholders = implode(',', array_fill(0, count($ids), '?'));
-$statement = $pdo->prepare(
+$statement = $db->prepare(
     "SELECT
         v.id,
         v.name,
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 
     try {
-        $pdo->beginTransaction();
+        $db->beginTransaction();
 
         // Lock and reload stock so another shopper cannot buy the same stock.
         $statement->execute($ids);
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $orderCode = 'VS-' . strtoupper(bin2hex(random_bytes(5)));
-        $insert = $pdo->prepare(
+        $insert = $db->prepare(
             "INSERT INTO sales (
                 order_code,
                 buyer_id,
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 status
             ) VALUES (?, ?, ?, ?, ?, ?, 'paid')"
         );
-        $update = $pdo->prepare('UPDATE inventory SET quantity = quantity - ? WHERE vegetable_id = ? AND quantity >= ?');
+        $update = $db->prepare('UPDATE inventory SET quantity = quantity - ? WHERE vegetable_id = ? AND quantity >= ?');
 
         foreach ($cart as $productId => $quantity) {
             $product = $byId[(int) $productId];
@@ -90,14 +90,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        log_activity('order_placed', 'order', null, 'Order ' . $orderCode . ' placed.');
+
         // Save all order items together, or roll them all back if any step fails.
-        $pdo->commit();
+        $db->commit();
         unset($_SESSION['cart']);
         flash('success', 'Your order has been placed.');
         redirect(app_url('buyer/order_details.php?order=' . rawurlencode($orderCode)));
     } catch (Throwable $exception) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
+        if ($db->inTransaction()) {
+            $db->rollBack();
         }
         if ($exception instanceof RuntimeException) {
             flash('error', $exception->getMessage());

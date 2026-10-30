@@ -12,23 +12,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Choose a vegetable and enter a non-negative stock quantity.';
     } else {
         // Create the inventory row, or replace its quantity if it already exists.
-        $statement = $pdo->prepare(
+        $statement = $db->prepare(
             'INSERT INTO inventory (vegetable_id, quantity)
              VALUES (?, ?)
              ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)'
         );
         $statement->execute([$vegetableId, $quantity]);
+        log_activity('inventory_adjusted', 'vegetable', $vegetableId, 'Inventory quantity manually adjusted.');
         flash('success', 'Inventory quantity updated.');
         redirect(app_url('modules/inventory.php'));
     }
 }
 
-$vegetables = $pdo->query(
+$vegetables = $db->query(
     'SELECT id, name
      FROM vegetables
      ORDER BY name'
 )->fetchAll();
-$inventory = $pdo->query(
+$inventory = $db->query(
     'SELECT
         v.id,
         v.name,

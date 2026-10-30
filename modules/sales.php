@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_role('admin', 'staff');
 
-$sales = $pdo->query(
+$sales = $db->query(
     'SELECT s.*, u.name AS buyer, v.name AS vegetable, v.unit
      FROM sales AS s
      JOIN users AS u ON u.id = s.buyer_id

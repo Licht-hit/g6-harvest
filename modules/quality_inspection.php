@@ -9,10 +9,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $grade = $_POST['grade'] ?? '';
     $date = $_POST['inspected_on'] ?? '';
 
-    if ($harvestId < 1 || !in_array($grade, ['A', 'B', 'C', 'Rejected'], true) || !$date) {
+    if ($harvestId < 1 || !in_array($grade, ['A', 'B', 'C', 'Rejected'], true) || !is_valid_date($date)) {
         $error = 'Choose a harvest, grade, and inspection date.';
     } else {
-        $statement = $pdo->prepare(
+        $statement = $db->prepare(
             'INSERT INTO quality_inspections (
                 harvest_id,
                 inspector_id,
@@ -29,19 +29,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $notes ?: null,
             $date,
         ]);
+        $inspectionId = (int) $db->lastInsertId();
+        log_activity('quality_inspection_created', 'quality_inspection', $inspectionId, 'Quality inspection recorded.');
         flash('success', 'Quality inspection recorded.');
         redirect(app_url('modules/quality_inspection.php'));
     }
 }
 
-$harvests = $pdo->query(
+$harvests = $db->query(
     'SELECT h.id, h.harvested_on, v.name
      FROM harvests AS h
      JOIN plantings AS p ON p.id = h.planting_id
      JOIN vegetables AS v ON v.id = p.vegetable_id
+     WHERE h.archived_at IS NULL
      ORDER BY h.harvested_on DESC'
 )->fetchAll();
-$inspections = $pdo->query(
+$inspections = $db->query(
     'SELECT q.*, v.name AS vegetable, u.name AS inspector
      FROM quality_inspections AS q
      JOIN harvests AS h ON h.id = q.harvest_id

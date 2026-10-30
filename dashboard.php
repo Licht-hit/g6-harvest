@@ -3,13 +3,13 @@ require_once __DIR__ . '/includes/auth.php';
 require_role('admin', 'staff');
 
 // Load the summary values shown in the dashboard cards.
-$vegetableCount = (int) $pdo
+$vegetableCount = (int) $db
     ->query('SELECT COUNT(*) FROM vegetables WHERE active = 1')
     ->fetchColumn();
-$inventoryCount = (float) $pdo
+$inventoryCount = (float) $db
     ->query('SELECT COALESCE(SUM(quantity), 0) FROM inventory')
     ->fetchColumn();
-$salesToday = (float) $pdo
+$salesToday = (float) $db
     ->query(
         'SELECT COALESCE(SUM(total), 0)
          FROM sales
@@ -18,7 +18,7 @@ $salesToday = (float) $pdo
     )
     ->fetchColumn();
 
-$recentSales = $pdo->query(
+$recentSales = $db->query(
     'SELECT
         s.order_code,
         s.quantity,

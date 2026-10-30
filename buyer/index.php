@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_role('buyer');
 
-$vegetables = $pdo->query(
+$vegetables = $db->query(
     'SELECT
         v.id,
         v.name,

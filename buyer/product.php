@@ -8,7 +8,7 @@ if (!$productId || $productId < 1) {
     exit('Product not found.');
 }
 
-$statement = $pdo->prepare(
+$statement = $db->prepare(
     'SELECT v.*, COALESCE(i.quantity, 0) AS stock
      FROM vegetables AS v
      LEFT JOIN inventory AS i ON i.vegetable_id = v.id

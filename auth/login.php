@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
     $password = $_POST['password'] ?? '';
 
-    $statement = $pdo->prepare(
+    $statement = $db->prepare(
         'SELECT id, name, email, password, role, email_verified_at
          FROM users
          WHERE email = ?'
@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         unset($user['password'], $user['email_verified_at']);
         $_SESSION['user'] = $user;
+        log_activity('login', 'user', (int) $user['id'], 'User signed in.');
 
         redirect(app_url('index.php'));
     }

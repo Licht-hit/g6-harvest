@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $validatedEmail = filter_var($email, FILTER_VALIDATE_EMAIL);
     if ($validatedEmail) {
-        $statement = $pdo->prepare(
+        $statement = $db->prepare(
             'SELECT id, name, email
              FROM users
              WHERE email = ? AND email_verified_at IS NULL'
@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $statement->fetch();
 
         if ($user) {
-            $cooldown = $pdo->prepare(
+            $cooldown = $db->prepare(
                 'SELECT COUNT(*) FROM email_verification_tokens
                  WHERE user_id = ? AND created_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 SECOND)'
             );
@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ((int) $cooldown->fetchColumn() === 0) {
                 try {
-                    $deliveryStatus = send_email_verification($pdo, $user);
+                    $deliveryStatus = send_email_verification($db, $user);
                     if ($deliveryStatus === 'failed') {
                         error_log('Unable to send email verification message for a resend request.');
                     }

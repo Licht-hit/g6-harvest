@@ -8,7 +8,7 @@ if (!preg_match('/^VS-[A-F0-9]{10}$/', $orderCode)) {
     exit('Order not found.');
 }
 
-$statement = $pdo->prepare(
+$statement = $db->prepare(
     'SELECT
         s.order_code,
         s.quantity,

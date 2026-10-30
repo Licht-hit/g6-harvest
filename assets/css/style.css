@@ -569,6 +569,16 @@ th {
     white-space: nowrap;
 }
 
+.report-filter-actions {
+    display: flex;
+    align-items: end;
+    gap: .6rem;
+}
+
+.report-filter-actions .button {
+    text-align: center;
+}
+
 @media (max-width: 720px) {
     .site-header {
         gap: .75rem;
@@ -621,5 +631,45 @@ th {
     .product-card-form {
         align-items: stretch;
         flex-direction: column;
+    }
+}
+
+@media print {
+    @page {
+        margin: 1.5cm;
+    }
+
+    body {
+        color: #000;
+        background: #fff;
+        font-size: 11pt;
+    }
+
+    .site-header,
+    .site-footer,
+    .report-filters,
+    .print-button {
+        display: none !important;
+    }
+
+    .container {
+        width: 100%;
+        min-height: 0;
+        margin: 0;
+    }
+
+    .panel {
+        padding: .5rem 0;
+        border: 0;
+        box-shadow: none;
+        break-inside: avoid;
+    }
+
+    .report-content {
+        display: block;
+    }
+
+    table {
+        font-size: 10pt;
     }
 }
