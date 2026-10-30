@@ -108,7 +108,7 @@ require __DIR__ . '/../includes/header.php';
                     <?php foreach ($inventory as $item): ?>
                         <tr>
                             <td><?= h($item['name']) ?></td>
-                            <td><?= number_format((float) $item['quantity'], 2) ?></td>
+                            <td><?= number_format((int) $item['quantity'], 2) ?></td>
                             <td><?= h($item['unit']) ?></td>
                             <td><?= h($item['updated_at'] ?? '—') ?></td>
                         </tr>

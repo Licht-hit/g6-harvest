@@ -153,7 +153,7 @@ require __DIR__ . '/../includes/header.php';
                     id="price"
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     name="price"
                     value="<?= h($editingVegetable['price'] ?? '') ?>"
                     required>
@@ -207,7 +207,7 @@ require __DIR__ . '/../includes/header.php';
                                 <?= money($vegetable['price']) ?>
                                 / <?= h($vegetable['unit']) ?>
                             </td>
-                            <td><?= number_format((float) $vegetable['stock'], 2) ?></td>
+                            <td><?= number_format((int) $vegetable['stock'], 2) ?></td>
                             <td><?= $vegetable['active'] ? 'Active' : 'Inactive' ?></td>
                             <td><a href="<?= h(app_url('modules/vegetables.php?edit=' . (int) $vegetable['id'])) ?>">Edit</a></td>
                             <td>
