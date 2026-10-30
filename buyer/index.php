@@ -20,46 +20,68 @@ $vegetables = $pdo->query(
 $pageTitle = 'Farm shop';
 require __DIR__ . '/../includes/header.php';
 ?>
-<div class="page-heading">
-    <div>
+<section class="shop-hero">
+    <div class="shop-hero-copy">
+        <p class="shop-eyebrow">Good food, grown close to home</p>
         <h1>Fresh from the farm</h1>
-        <p class="muted">Browse available vegetables and add them to your cart.</p>
+        <p>Shop seasonal vegetables grown with care. Fresh picks, fair prices, and a little goodness in every basket.</p>
     </div>
-    <a class="button secondary" href="<?= h(app_url('buyer/cart.php')) ?>">
-        View cart (<?= cart_count() ?>)
+    <a class="button shop-hero-button" href="<?= h(app_url('buyer/cart.php')) ?>">
+        View your cart <span aria-hidden="true">→</span>
+        <span class="cart-count"><?= cart_count() ?></span>
     </a>
+</section>
+
+<section class="shop-highlights" aria-label="Why shop with us">
+    <div><span aria-hidden="true">🌱</span><strong>Freshly harvested</strong><small>Picked with care</small></div>
+    <div><span aria-hidden="true">🥕</span><strong>Seasonal produce</strong><small>Good things in season</small></div>
+    <div><span aria-hidden="true">🤝</span><strong>Support local farms</strong><small>Good for our community</small></div>
+</section>
+
+<div class="shop-section-heading">
+    <div>
+        <p class="shop-eyebrow">From our fields to your table</p>
+        <h2>Shop the harvest</h2>
+    </div>
+    <p class="muted">Choose your favorites and add them to your basket.</p>
 </div>
 
 <?php if (!$vegetables): ?>
-    <section class="panel empty">There is no produce in the catalog yet.</section>
+    <section class="panel empty">There is no produce in the catalog yet. Please check back soon.</section>
 <?php else: ?>
     <div class="card-grid">
     <?php foreach ($vegetables as $vegetable): ?>
-        <article class="card">
-            <div class="product-image" aria-hidden="true">✿</div>
-            <h2><?= h($vegetable['name']) ?></h2>
+        <article class="card product-card">
+            <div class="product-image" aria-hidden="true"><span>🥬</span><small>FRESH PICK</small></div>
+            <div class="product-card-content">
+                <div class="product-card-heading">
+                    <h3><?= h($vegetable['name']) ?></h3>
+                    <?php if ($vegetable['variety']): ?>
+                        <span class="product-variety"><?= h($vegetable['variety']) ?></span>
+                    <?php endif; ?>
+                </div>
 
-            <?php if ($vegetable['variety']): ?>
-                <p class="muted"><?= h($vegetable['variety']) ?></p>
-            <?php endif; ?>
+                <p class="product-description"><?= h($vegetable['description'] ?? 'Fresh seasonal produce.') ?></p>
 
-            <p><?= h($vegetable['description'] ?? 'Fresh seasonal produce.') ?></p>
-            <p>
-                <strong><?= money($vegetable['price']) ?></strong>
-                / <?= h($vegetable['unit']) ?>
-            </p>
-            <p class="muted">
-                <?= number_format((float) $vegetable['stock'], 2) ?>
-                <?= h($vegetable['unit']) ?> available
-            </p>
-            <p>
-                <a href="<?= h(app_url('buyer/product.php?id=' . (int) $vegetable['id'])) ?>">
-                    Product details
+                <div class="product-price">
+                    <strong><?= money($vegetable['price']) ?></strong>
+                    <span>per <?= h($vegetable['unit']) ?></span>
+                </div>
+                <p class="product-stock <?= (float) $vegetable['stock'] > 0 ? '' : 'out-of-stock' ?>">
+                    <span aria-hidden="true"></span>
+                    <?php if ((float) $vegetable['stock'] > 0): ?>
+                        <?= number_format((float) $vegetable['stock'], 2) ?> <?= h($vegetable['unit']) ?> available
+                    <?php else: ?>
+                        Currently out of stock
+                    <?php endif; ?>
+                </p>
+                <a class="product-details-link" href="<?= h(app_url('buyer/product.php?id=' . (int) $vegetable['id'])) ?>">
+                    See product details <span aria-hidden="true">→</span>
                 </a>
-            </p>
+            </div>
 
             <?php if ((float) $vegetable['stock'] > 0): ?>
-                <form method="post" action="<?= h(app_url('buyer/cart.php')) ?>">
+                <form class="product-card-form" method="post" action="<?= h(app_url('buyer/cart.php')) ?>">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="add">
                     <input
@@ -69,9 +91,7 @@ require __DIR__ . '/../includes/header.php';
                     >
 
                     <div class="field">
-                        <label for="quantity-<?= (int) $vegetable['id'] ?>">
-                            Quantity (<?= h($vegetable['unit']) ?>)
-                        </label>
+                        <label for="quantity-<?= (int) $vegetable['id'] ?>">Quantity (<?= h($vegetable['unit']) ?>)</label>
                         <input
                             id="quantity-<?= (int) $vegetable['id'] ?>"
                             class="quantity-input"
@@ -84,11 +104,8 @@ require __DIR__ . '/../includes/header.php';
                             required
                         >
                     </div>
-
-                    <button type="submit">Add to cart</button>
+                    <button type="submit">Add to cart <span aria-hidden="true">+</span></button>
                 </form>
-            <?php else: ?>
-                <span class="muted">Out of stock</span>
             <?php endif; ?>
         </article>
     <?php endforeach; ?>

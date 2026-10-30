@@ -20,7 +20,7 @@ if ($user && $user['role'] === 'buyer') {
 </head>
 <body>
 <header class="site-header">
-    <a class="brand" href="<?= h(app_url($homePage)) ?>">Greenfield</a>
+    <a class="brand" href="<?= h(app_url($homePage)) ?>">Harvest</a>
     <?php if ($user): ?>
         <nav class="main-nav" aria-label="Main navigation">
             <?php if ($user['role'] === 'buyer'): ?>

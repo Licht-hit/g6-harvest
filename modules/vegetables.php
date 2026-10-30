@@ -46,7 +46,9 @@ $vegetables = $pdo->query(
 $pageTitle = 'Vegetables';
 require __DIR__ . '/../includes/header.php';
 ?>
-<div class="page-heading"><h1>Vegetables</h1></div>
+<div class="page-heading">
+    <h1>Vegetables</h1>
+</div>
 
 <section class="panel section">
     <h2>Add vegetable</h2>
@@ -79,8 +81,7 @@ require __DIR__ . '/../includes/header.php';
                     min="0"
                     step="0.01"
                     name="price"
-                    required
-                >
+                    required>
             </div>
         </div>
 
@@ -129,8 +130,7 @@ require __DIR__ . '/../includes/header.php';
                                     <input
                                         type="hidden"
                                         name="id"
-                                        value="<?= (int) $vegetable['id'] ?>"
-                                    >
+                                        value="<?= (int) $vegetable['id'] ?>">
                                     <button class="button secondary" type="submit">
                                         <?= $vegetable['active'] ? 'Deactivate' : 'Activate' ?>
                                     </button>
