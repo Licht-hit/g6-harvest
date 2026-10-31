@@ -1,5 +1,7 @@
 <?php
 
+// This file loads payment settings from environment variables or a local config file.
+// Beginner reminder: do not put real secret keys in the app code if you can help it.
 $localSettingsFile = __DIR__ . '/payment.local.php';
 $localSettings = file_exists($localSettingsFile) ? require $localSettingsFile : [];
 

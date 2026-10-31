@@ -1,5 +1,8 @@
 <?php
 
+// This file holds common helper functions used across the project.
+// The code is written in a simple beginner-friendly way to reduce confusion.
+
 // Build a URL relative to the project root, even from a nested page.
 function app_url(string $path = ''): string
 {
@@ -93,8 +96,9 @@ function require_role(string ...$roles): void
 
 function csrf_token(): string
 {
+    // Create a random token once and save it in the session.
+    // This helps prevent fake form submissions from another website.
     if (empty($_SESSION['csrf_token'])) {
-        // A random token protects forms against cross-site request forgery.
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 
@@ -103,13 +107,16 @@ function csrf_token(): string
 
 function csrf_field(): string
 {
+    // Add the hidden field to every form so the server can check it.
     return '<input type="hidden" name="csrf_token" value="' . h(csrf_token()) . '">';
 }
 
 function verify_csrf(): void
 {
+    // Simple check: the form must submit the same token we created.
     $token = $_POST['csrf_token'] ?? '';
-    if (!is_string($token) || !hash_equals(csrf_token(), $token)) {
+
+    if (!is_string($token) || empty($token) || !hash_equals(csrf_token(), $token)) {
         http_response_code(400);
         exit('Invalid form token. Reload the page and try again.');
     }
@@ -130,6 +137,7 @@ function take_flash(): ?array
 
 function money($amount): string
 {
+    // Always format money the same way so prices look clean in the UI.
     return '₱' . number_format((float) $amount, 2);
 }
 

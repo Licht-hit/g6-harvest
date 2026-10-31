@@ -75,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
+        // This is the main checkout flow. It is kept simple and easy to read.
         $db->beginTransaction();
 
         $lockedProducts = $db->prepare($productQuery . ' FOR UPDATE');

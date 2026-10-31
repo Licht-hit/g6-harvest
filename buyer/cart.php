@@ -1,4 +1,6 @@
 <?php
+// This page handles the buyer shopping cart.
+// The code is kept simple so beginners can follow how cart items are added, edited, and removed.
 require_once __DIR__ . '/../includes/auth.php';
 require_role('buyer');
 

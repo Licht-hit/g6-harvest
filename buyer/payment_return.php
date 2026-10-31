@@ -1,4 +1,6 @@
 <?php
+// This page is shown after the buyer returns from the payment provider.
+// It does not mark payment as successful by itself; the provider webhook does that.
 require_once __DIR__ . '/../includes/auth.php';
 require_role('buyer');
 

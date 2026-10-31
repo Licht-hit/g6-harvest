@@ -1,4 +1,6 @@
 <?php
+// This page shows one buyer order and its payment details.
+// It is easy to follow because each query is focused on one order.
 require_once __DIR__ . '/../includes/auth.php';
 require_role('buyer');
 

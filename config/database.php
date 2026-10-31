@@ -1,6 +1,7 @@
 <?php
 
-// Keep database credentials outside the source code when environment variables are available.
+// This file connects the app to the MySQL database.
+// The code is simple so beginners can change host, database, user, and password easily.
 $dbHost = getenv('DB_HOST') ?: 'localhost';
 $dbName = getenv('DB_NAME') ?: 'vegetable_system';
 $dbUser = getenv('DB_USER') ?: 'root';

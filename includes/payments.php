@@ -1,5 +1,8 @@
 <?php
 
+// This file handles the PayMongo integration.
+// The code is written in a simple way so beginners can understand how the app checks
+// if payment is configured before creating a real checkout session.
 function paymongo_config(): array
 {
     static $configuration;
@@ -12,20 +15,28 @@ function paymongo_config(): array
 
 function paymongo_is_configured(): bool
 {
+    // This is a simple safety check before we create a real online payment.
+    // If anything is missing, the app refuses to start online checkout.
     $configuration = paymongo_config();
     $url = parse_url($configuration['app_url']);
 
-    return str_starts_with($configuration['paymongo_secret_key'], 'sk_')
-        && $configuration['paymongo_webhook_secret'] !== ''
-        && $url !== false
+    $hasSecretKey = str_starts_with($configuration['paymongo_secret_key'], 'sk_');
+    $hasWebhookSecret = $configuration['paymongo_webhook_secret'] !== '';
+    $hasValidUrl = $url !== false
         && ($url['scheme'] ?? '') === 'https'
         && !empty($url['host'])
         && !isset($url['user'])
         && !isset($url['pass'])
         && !isset($url['query'])
-        && !isset($url['fragment'])
-        && extension_loaded('openssl')
-        && ini_get('allow_url_fopen');
+        && !isset($url['fragment']);
+    $hasOpenSsl = extension_loaded('openssl');
+    $canUseFopen = (bool) ini_get('allow_url_fopen');
+
+    return $hasSecretKey
+        && $hasWebhookSecret
+        && $hasValidUrl
+        && $hasOpenSsl
+        && $canUseFopen;
 }
 
 function paymongo_unavailable_message(): string

@@ -7,6 +7,13 @@ if (is_logged_in()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Beginner-friendly registration flow:
+    // 1. check the CSRF token
+    // 2. read the required user fields
+    // 3. validate the data
+    // 4. hash the password with password_hash()
+    // 5. save the account
+    // 6. send verification email
     verify_csrf();
     $name = trim($_POST['name'] ?? '');
     $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);

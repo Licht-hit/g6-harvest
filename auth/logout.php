@@ -1,4 +1,5 @@
 <?php
+// This page logs the user out and destroys the session.
 require_once __DIR__ . '/../includes/auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -12,7 +13,7 @@ if ($user) {
     log_activity('logout', 'user', (int) $user['id'], 'User signed out.');
 }
 
-// Clear the session data and expire the session cookie.
+// Clear every session value and destroy the session cookie.
 $_SESSION = [];
 if (ini_get('session.use_cookies')) {
     $params = session_get_cookie_params();

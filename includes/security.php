@@ -1,7 +1,10 @@
 <?php
 
+// Beginner-friendly security helper file.
+// This file sets basic browser protection and secure session settings.
 function request_uses_https(): bool
 {
+    // Check if the current request is on HTTPS or uses port 443.
     return (
         isset($_SERVER['HTTPS'])
         && $_SERVER['HTTPS'] !== ''
@@ -15,6 +18,7 @@ function apply_security_headers(): void
         return;
     }
 
+    // Simple browser security headers for safer pages.
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: strict-origin-when-cross-origin');
@@ -43,6 +47,8 @@ function start_secure_session(): void
     }
 
     $https = request_uses_https();
+
+    // Turn on secure session settings.
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.use_trans_sid', '0');

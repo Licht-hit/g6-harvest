@@ -7,6 +7,13 @@ if (is_logged_in()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Basic beginner-friendly login flow:
+    // 1. verify the hidden CSRF token
+    // 2. read the email and password
+    // 3. check the user in the database
+    // 4. verify the password using password_verify()
+    // 5. check if the email is verified
+    // 6. create a new session after login
     verify_csrf();
 
     $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
@@ -26,7 +33,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $unverifiedEmail = $user['email'];
         $error = 'Please verify your email address before logging in.';
     } else {
-        // Change the session ID after login to prevent session fixation.
         session_regenerate_id(true);
 
         unset($user['password'], $user['email_verified_at']);

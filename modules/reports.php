@@ -1,4 +1,6 @@
 <?php
+// This page displays sales and harvest reports for admin/staff.
+// The logic is written in a beginner-friendly style using simple SQL queries and summaries.
 require_once __DIR__ . '/../includes/auth.php';
 require_role('admin', 'staff');
 
