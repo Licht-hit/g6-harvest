@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     log_activity('harvest_updated', 'harvest', $harvestId, 'Harvest details updated.');
                     $successMessage = 'Harvest updated and inventory adjusted.';
                 } else {
-                    if (!$stock || (int) $stock['quantity'] < (int) $harvest['quantity']) {
+                    if (!$stock || (float) $stock['quantity'] < (float) $harvest['quantity']) {
                         throw new RuntimeException(
                             'Cannot archive this harvest because some of its stock has already been sold or removed.'
                         );
@@ -277,7 +277,7 @@ require __DIR__ . '/../includes/header.php';
                             <td><?= h($harvest['harvested_on']) ?></td>
                             <td><?= h($harvest['vegetable']) ?></td>
                             <td>#<?= (int) $harvest['planting_number'] ?></td>
-                            <td><?= number_format((int) $harvest['quantity'], 2) ?></td>
+                            <td><?= number_format((float) $harvest['quantity'], 2) ?></td>
                             <td><?= h($harvest['quality_notes'] ?? '—') ?></td>
                             <td><?= $harvest['archived_at'] ? 'Archived' : 'Active' ?></td>
                             <td>

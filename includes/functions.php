@@ -391,5 +391,6 @@ function cart_contents(): array
 
 function cart_count(): int
 {
-    return array_sum(array_map('intval', cart_contents()));
+    // The badge counts product lines, not kilograms or other fractional quantities.
+    return count(cart_contents());
 }

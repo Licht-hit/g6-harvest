@@ -17,6 +17,19 @@ $vegetables = $db->query(
      ORDER BY v.name'
 )->fetchAll();
 
+$productPictures = [
+    'tomato' => ['file' => 'tomato.svg', 'icon' => '🍅'],
+    'carrot' => ['file' => 'OIP (2).webp', 'icon' => '🥕'],
+    'lettuce' => ['file' => 'lettuce.svg', 'icon' => '🥬'],
+    'cucumber' => ['file' => 'cart.jpeg', 'icon' => '🥒'],
+    'spinach' => ['file' => 'spinach.svg', 'icon' => '🥬'],
+    'bell pepper' => ['file' => 'OIP.webp', 'icon' => '🫑'],
+    'zucchini' => ['file' => 'zucchini.svg', 'icon' => '🥒'],
+    'broccoli' => ['file' => 'OIP (1).webp', 'icon' => '🥦'],
+    'kale' => ['file' => 'kale.svg', 'icon' => '🥬'],
+    'green beans' => ['file' => 'R.jpeg', 'icon' => '🫛'],
+];
+
 $pageTitle = 'Farm shop';
 require __DIR__ . '/../includes/header.php';
 ?>
@@ -43,16 +56,42 @@ require __DIR__ . '/../includes/header.php';
         <p class="shop-eyebrow">From our fields to your table</p>
         <h2>Shop the harvest</h2>
     </div>
-    <p class="muted">Choose your favorites and add them to your basket.</p>
+    <p class="muted">Fresh picks, ready for your table.</p>
 </div>
 
 <?php if (!$vegetables): ?>
     <section class="panel empty">There is no produce in the catalog yet. Please check back soon.</section>
 <?php else: ?>
-    <div class="card-grid">
+    <div class="card-grid shop-product-grid">
     <?php foreach ($vegetables as $vegetable): ?>
+        <?php
+        $productName = strtolower(trim($vegetable['name']));
+        $picture = $productPictures[$productName] ?? [
+            'file' => null,
+            'icon' => '🥬',
+        ];
+        $picturePath = $picture['file']
+            ? __DIR__ . '/../assets/images/' . $picture['file']
+            : null;
+        $pictureUrl = $picturePath && is_file($picturePath)
+            ? app_url('assets/images/' . rawurlencode($picture['file']))
+            : null;
+        ?>
         <article class="card product-card">
-            <div class="product-image" aria-hidden="true"><span>🥬</span><small>FRESH PICK</small></div>
+            <div class="product-image">
+                <?php if ($pictureUrl): ?>
+                    <img
+                        src="<?= h($pictureUrl) ?>"
+                        alt="<?= h($vegetable['name']) ?>"
+                        loading="lazy"
+                        decoding="async"
+                    >
+                <?php endif; ?>
+                <span class="product-image-fallback" aria-hidden="true" <?= $pictureUrl ? 'hidden' : '' ?>>
+                    <?= h($picture['icon']) ?>
+                </span>
+                <span class="product-image-label">FRESH PICK</span>
+            </div>
             <div class="product-card-content">
                 <div class="product-card-heading">
                     <h3><?= h($vegetable['name']) ?></h3>
@@ -61,22 +100,26 @@ require __DIR__ . '/../includes/header.php';
                     <?php endif; ?>
                 </div>
 
-                <p class="product-description"><?= h($vegetable['description'] ?? 'Fresh seasonal produce.') ?></p>
-
-                <div class="product-price">
-                    <strong><?= money($vegetable['price']) ?></strong>
-                    <span>per <?= h($vegetable['unit']) ?></span>
-                </div>
-                <p class="product-stock <?= (float) $vegetable['stock'] > 0 ? '' : 'out-of-stock' ?>">
-                    <span aria-hidden="true"></span>
-                    <?php if ((float) $vegetable['stock'] > 0): ?>
-                        <?= number_format((float) $vegetable['stock'], 2) ?> <?= h($vegetable['unit']) ?> available
-                    <?php else: ?>
-                        Currently out of stock
-                    <?php endif; ?>
+                <p class="product-description">
+                    <?= h($vegetable['description'] ?: 'Fresh seasonal produce, picked with care.') ?>
                 </p>
+
+                <div class="product-card-meta">
+                    <div class="product-price">
+                        <strong><?= money($vegetable['price']) ?></strong>
+                        <span>per <?= h($vegetable['unit']) ?></span>
+                    </div>
+                    <p class="product-stock <?= (float) $vegetable['stock'] > 0 ? '' : 'out-of-stock' ?>">
+                        <span aria-hidden="true"></span>
+                        <?php if ((float) $vegetable['stock'] > 0): ?>
+                            <?= number_format((float) $vegetable['stock'], 2) ?> <?= h($vegetable['unit']) ?> available
+                        <?php else: ?>
+                            Currently out of stock
+                        <?php endif; ?>
+                    </p>
+                </div>
                 <a class="product-details-link" href="<?= h(app_url('buyer/product.php?id=' . (int) $vegetable['id'])) ?>">
-                    See product details <span aria-hidden="true">→</span>
+                    View details <span aria-hidden="true">→</span>
                 </a>
             </div>
 

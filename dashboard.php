@@ -6,10 +6,10 @@ require_role('admin', 'staff');
 $vegetableCount = (int) $db
     ->query('SELECT COUNT(*) FROM vegetables WHERE active = 1')
     ->fetchColumn();
-$inventoryCount = (int) $db
+$inventoryCount = (float) $db
     ->query('SELECT COALESCE(SUM(quantity), 0) FROM inventory')
     ->fetchColumn();
-$salesToday = (int) $db
+$salesToday = (float) $db
     ->query(
         'SELECT COALESCE(SUM(total), 0)
          FROM sales
@@ -82,7 +82,7 @@ require __DIR__ . '/includes/header.php';
                             <td><?= h($sale['order_code']) ?></td>
                             <td><?= h($sale['buyer']) ?></td>
                             <td><?= h($sale['vegetable']) ?></td>
-                            <td><?= number_format((int) $sale['quantity'], 2) ?></td>
+                            <td><?= number_format((float) $sale['quantity'], 2) ?></td>
                             <td><?= money($sale['total']) ?></td>
                             <td><?= h($sale['created_at']) ?></td>
                         </tr>

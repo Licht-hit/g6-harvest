@@ -211,7 +211,7 @@ require __DIR__ . '/../includes/header.php';
                         <tr>
                             <td><?= h($planting['vegetable']) ?></td>
                             <td>
-                                <?= number_format((int) $planting['quantity_planted'], 2) ?>
+                                <?= number_format((float) $planting['quantity_planted'], 2) ?>
                             </td>
                             <td><?= h($planting['planted_on']) ?></td>
                             <td><?= h($planting['expected_harvest_on'] ?? '—') ?></td>
