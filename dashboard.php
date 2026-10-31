@@ -12,9 +12,9 @@ $inventoryCount = (float) $db
     ->fetchColumn();
 $salesToday = (float) $db
     ->query(
-        "SELECT COALESCE(SUM(total), 0)
-         FROM sales
-         WHERE status = 'paid'
+        "SELECT COALESCE(SUM(final_total), 0)
+         FROM orders
+         WHERE payment_status = 'paid'
             AND DATE(created_at) = CURDATE()"
     )
     ->fetchColumn();
@@ -35,9 +35,9 @@ $lowStockItems = array_values(array_filter(
 ));
 
 $dailySalesRows = $db->query(
-    "SELECT DATE(created_at) AS sale_day, SUM(total) AS revenue
-     FROM sales
-     WHERE status = 'paid'
+    "SELECT DATE(created_at) AS sale_day, SUM(final_total) AS revenue
+     FROM orders
+     WHERE payment_status = 'paid'
         AND created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
         AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
      GROUP BY DATE(created_at)
@@ -64,17 +64,17 @@ foreach ($dailyHarvestRows as $row) {
 
 $recentSales = $db->query(
     'SELECT
-        s.order_code,
-        s.quantity,
-        s.total,
-        s.created_at,
-        s.status,
-        v.name AS vegetable,
-        u.name AS buyer
-     FROM sales AS s
-     JOIN vegetables AS v ON v.id = s.vegetable_id
-     JOIN users AS u ON u.id = s.buyer_id
-     ORDER BY s.created_at DESC
+        o.order_code,
+        o.eligible_quantity AS quantity,
+        o.final_total AS total,
+        o.created_at,
+        o.payment_status,
+        o.order_status,
+        u.name AS buyer,
+        (SELECT COUNT(*) FROM sales AS si WHERE si.order_code = o.order_code) AS item_count
+     FROM orders AS o
+     JOIN users AS u ON u.id = o.buyer_id
+     ORDER BY o.created_at DESC
      LIMIT 8'
 )->fetchAll();
 $recentHarvests = $db->query(
@@ -302,16 +302,16 @@ require __DIR__ . '/includes/header.php';
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>Order</th><th>Buyer</th><th>Produce</th><th>Total</th><th>Status</th></tr>
+                        <tr><th>Order</th><th>Buyer</th><th>Items</th><th>Total</th><th>Payment / delivery</th></tr>
                     </thead>
                     <tbody>
                         <?php foreach ($recentSales as $sale): ?>
                             <tr>
                                 <td><strong><?= h($sale['order_code']) ?></strong><small class="table-secondary"><?= h(date('M j, g:i a', strtotime($sale['created_at']))) ?></small></td>
                                 <td><?= h($sale['buyer']) ?></td>
-                                <td><?= h($sale['vegetable']) ?><small class="table-secondary"><?= number_format((float) $sale['quantity'], 2) ?> sold</small></td>
+                                <td><?= number_format((int) $sale['item_count']) ?> product(s)<small class="table-secondary"><?= number_format((float) $sale['quantity'], 2) ?> units</small></td>
                                 <td><strong><?= money($sale['total']) ?></strong></td>
-                                <td><span class="status-badge status-<?= h($sale['status']) ?>"><?= h(ucfirst($sale['status'])) ?></span></td>
+                                <td><?= h(ucwords(str_replace('_', ' ', $sale['payment_status']))) ?><small class="table-secondary"><?= h(ucwords(str_replace('_', ' ', $sale['order_status']))) ?></small></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

@@ -13,18 +13,23 @@ if (($from !== '' && !is_valid_date($from)) || ($to !== '' && !is_valid_date($to
     $filterError = 'The start date must be on or before the end date.';
 }
 
-$salesConditions = ["s.status = 'paid'"];
+$salesConditions = [];
 $salesParameters = [];
 if ($from !== '') {
-    $salesConditions[] = 's.created_at >= ?';
+    $salesConditions[] = 'o.created_at >= ?';
     $salesParameters[] = $from . ' 00:00:00';
 }
 if ($to !== '') {
-    $salesConditions[] = 's.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+    $salesConditions[] = 'o.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
     $salesParameters[] = $to;
 }
 if ($search !== '') {
-    $salesConditions[] = '(s.order_code LIKE ? OR v.name LIKE ? OR u.name LIKE ?)';
+    $salesConditions[] = '(o.order_code LIKE ? OR u.name LIKE ? OR EXISTS (
+        SELECT 1
+        FROM sales AS sx
+        JOIN vegetables AS vx ON vx.id = sx.vegetable_id
+        WHERE sx.order_code = o.order_code AND vx.name LIKE ?
+    ))';
     $searchTerm = '%' . $search . '%';
     array_push($salesParameters, $searchTerm, $searchTerm, $searchTerm);
 }
@@ -44,7 +49,15 @@ if ($search !== '') {
     $harvestParameters[] = '%' . $search . '%';
 }
 
-$salesSummary = ['revenue' => 0, 'transactions' => 0, 'quantity' => 0];
+$salesSummary = [
+    'revenue' => 0,
+    'subtotal' => 0,
+    'discounts' => 0,
+    'net_sales' => 0,
+    'transactions' => 0,
+    'quantity' => 0,
+    'discount_orders' => 0,
+];
 $harvestSummary = ['records' => 0];
 $harvestQuantitiesByUnit = [];
 $dailySales = [];
@@ -52,6 +65,10 @@ $harvestTotals = [];
 $salesRecords = [];
 $harvestRecords = [];
 $inventoryGroups = [];
+$paymentBreakdown = [];
+$discountHistory = [];
+$discountedVegetables = [];
+$paymentSummary = ['cod' => 0, 'online' => 0, 'pending_payment' => 0, 'paid' => 0];
 $reportPeriod = 'All dates';
 if ($from !== '' && $to !== '') {
     $reportPeriod = $from . ' to ' . $to;
@@ -62,27 +79,32 @@ if ($from !== '' && $to !== '') {
 }
 
 if ($filterError === '') {
-    $salesWhere = implode(' AND ', $salesConditions);
+    $orderFilters = $salesConditions
+        ? '(' . implode(' AND ', $salesConditions) . ') AND '
+        : '';
+    $salesWhere = $orderFilters . "o.payment_status = 'paid'";
     $salesSummaryStatement = $db->prepare(
         'SELECT
-            COALESCE(SUM(s.total), 0) AS revenue,
-            COUNT(DISTINCT s.order_code) AS transactions,
-            COALESCE(SUM(s.quantity), 0) AS quantity
-         FROM sales AS s
-         JOIN vegetables AS v ON v.id = s.vegetable_id
-         JOIN users AS u ON u.id = s.buyer_id
+            COALESCE(SUM(o.final_total), 0) AS revenue,
+            COALESCE(SUM(o.subtotal), 0) AS subtotal,
+            COALESCE(SUM(o.discount_amount), 0) AS discounts,
+            COALESCE(SUM(o.subtotal - o.discount_amount), 0) AS net_sales,
+            COUNT(*) AS transactions,
+            COALESCE(SUM(o.eligible_quantity), 0) AS quantity,
+            COALESCE(SUM(o.discount_amount > 0), 0) AS discount_orders
+         FROM orders AS o
+         JOIN users AS u ON u.id = o.buyer_id
          WHERE ' . $salesWhere
     );
     $salesSummaryStatement->execute($salesParameters);
     $salesSummary = $salesSummaryStatement->fetch();
 
     $dailyStatement = $db->prepare(
-        'SELECT DATE(s.created_at) AS sale_day, SUM(s.total) AS revenue
-         FROM sales AS s
-         JOIN vegetables AS v ON v.id = s.vegetable_id
-         JOIN users AS u ON u.id = s.buyer_id
+        'SELECT DATE(o.created_at) AS sale_day, SUM(o.final_total) AS revenue
+         FROM orders AS o
+         JOIN users AS u ON u.id = o.buyer_id
          WHERE ' . $salesWhere . '
-         GROUP BY DATE(s.created_at)
+         GROUP BY DATE(o.created_at)
          ORDER BY sale_day DESC
          LIMIT 30'
     );
@@ -96,10 +118,13 @@ if ($filterError === '') {
             s.quantity,
             s.unit_price,
             s.total,
+            o.payment_method,
+            o.payment_status,
             v.name AS vegetable,
             v.unit,
             u.name AS buyer
          FROM sales AS s
+         JOIN orders AS o ON o.order_code = s.order_code
          JOIN vegetables AS v ON v.id = s.vegetable_id
          JOIN users AS u ON u.id = s.buyer_id
          WHERE ' . $salesWhere . '
@@ -108,6 +133,62 @@ if ($filterError === '') {
     );
     $salesRecordsStatement->execute($salesParameters);
     $salesRecords = $salesRecordsStatement->fetchAll();
+
+    $paymentBreakdownStatement = $db->prepare(
+        'SELECT o.payment_method, o.payment_status, COUNT(*) AS order_count
+         FROM orders AS o
+         JOIN users AS u ON u.id = o.buyer_id
+         ' . ($salesConditions ? 'WHERE ' . implode(' AND ', $salesConditions) : '') . '
+         GROUP BY o.payment_method, o.payment_status
+         ORDER BY o.payment_method, o.payment_status'
+    );
+    $paymentBreakdownStatement->execute($salesParameters);
+    $paymentBreakdown = $paymentBreakdownStatement->fetchAll();
+    foreach ($paymentBreakdown as $paymentRow) {
+        if (isset($paymentSummary[$paymentRow['payment_method']])) {
+            $paymentSummary[$paymentRow['payment_method']] += (int) $paymentRow['order_count'];
+        }
+        if (isset($paymentSummary[$paymentRow['payment_status']])) {
+            $paymentSummary[$paymentRow['payment_status']] += (int) $paymentRow['order_count'];
+        }
+    }
+
+    $discountHistoryStatement = $db->prepare(
+        'SELECT
+            o.order_code,
+            o.created_at,
+            o.subtotal,
+            o.discount_percentage,
+            o.discount_amount,
+            o.final_total,
+            o.payment_method,
+            u.name AS buyer
+         FROM orders AS o
+         JOIN users AS u ON u.id = o.buyer_id
+         WHERE ' . $salesWhere . ' AND o.discount_amount > 0
+         ORDER BY o.created_at DESC
+         LIMIT 100'
+    );
+    $discountHistoryStatement->execute($salesParameters);
+    $discountHistory = $discountHistoryStatement->fetchAll();
+
+    $discountedVegetablesStatement = $db->prepare(
+        'SELECT
+            v.name,
+            v.unit,
+            COUNT(DISTINCT s.order_code) AS discounted_orders,
+            SUM(s.quantity) AS quantity
+         FROM sales AS s
+         JOIN orders AS o ON o.order_code = s.order_code
+         JOIN vegetables AS v ON v.id = s.vegetable_id
+         JOIN users AS u ON u.id = s.buyer_id
+         WHERE ' . $salesWhere . ' AND o.discount_amount > 0
+         GROUP BY v.id, v.name, v.unit
+         ORDER BY discounted_orders DESC, quantity DESC, v.name
+         LIMIT 10'
+    );
+    $discountedVegetablesStatement->execute($salesParameters);
+    $discountedVegetables = $discountedVegetablesStatement->fetchAll();
 
     $harvestWhere = implode(' AND ', $harvestConditions);
     $harvestSummaryStatement = $db->prepare(
@@ -188,7 +269,7 @@ require __DIR__ . '/../includes/header.php';
         <h1>Reports</h1>
         <p>Review sales, harvest production, and current stock from recorded data.</p>
     </div>
-    <button type="button" class="button print-button" onclick="window.print()">Print report</button>
+    <button type="button" class="button print-button" data-print>Print report</button>
 </section>
 
 <section class="report-print-summary" aria-label="Report details">
@@ -204,9 +285,44 @@ require __DIR__ . '/../includes/header.php';
 <section class="module-stat-grid" aria-label="Report summary">
     <article class="module-stat-card">
         <span class="module-stat-icon" aria-hidden="true">₱</span>
-        <span>Total sales revenue</span>
+        <span>Paid final totals</span>
         <strong><?= money($salesSummary['revenue']) ?></strong>
-        <small>Paid sales matching the filters</small>
+        <small>Includes delivery fees, after discounts</small>
+    </article>
+    <article class="module-stat-card">
+        <span>Sales before discount</span>
+        <strong><?= money($salesSummary['subtotal']) ?></strong>
+        <small>Paid orders matching the filters</small>
+    </article>
+    <article class="module-stat-card">
+        <span>Discounts given</span>
+        <strong><?= money($salesSummary['discounts']) ?></strong>
+        <small><?= number_format((int) $salesSummary['discount_orders']) ?> paid orders discounted</small>
+    </article>
+    <article class="module-stat-card">
+        <span>Sales after discount</span>
+        <strong><?= money($salesSummary['net_sales']) ?></strong>
+        <small>Before delivery fees</small>
+    </article>
+    <article class="module-stat-card">
+        <span>COD orders</span>
+        <strong><?= number_format($paymentSummary['cod']) ?></strong>
+        <small>All matching payment statuses</small>
+    </article>
+    <article class="module-stat-card">
+        <span>Online payment orders</span>
+        <strong><?= number_format($paymentSummary['online']) ?></strong>
+        <small>All matching payment statuses</small>
+    </article>
+    <article class="module-stat-card">
+        <span>Pending payments</span>
+        <strong><?= number_format($paymentSummary['pending_payment']) ?></strong>
+        <small>Awaiting cash collection or provider confirmation</small>
+    </article>
+    <article class="module-stat-card">
+        <span>Paid transactions</span>
+        <strong><?= number_format($paymentSummary['paid']) ?></strong>
+        <small>Confirmed payments</small>
     </article>
     <article class="module-stat-card">
         <span class="module-stat-icon" aria-hidden="true">⌁</span>
@@ -385,6 +501,106 @@ require __DIR__ . '/../includes/header.php';
             </div>
         </section>
     <?php endif; ?>
+
+    <section class="panel section module-table-panel">
+        <div class="module-table-heading">
+            <div>
+                <h2>Discounted vegetables</h2>
+                <p class="muted">Vegetables included in paid orders that received a bulk discount.</p>
+            </div>
+        </div>
+        <?php if (!$discountedVegetables): ?>
+            <p class="empty">No discounted paid orders match these filters.</p>
+        <?php else: ?>
+            <div class="table-wrap module-table-wrap">
+                <table class="module-table">
+                    <thead>
+                        <tr><th>Vegetable</th><th>Discounted orders</th><th>Quantity</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($discountedVegetables as $vegetable): ?>
+                            <tr>
+                                <td><?= h($vegetable['name']) ?></td>
+                                <td><?= number_format((int) $vegetable['discounted_orders']) ?></td>
+                                <td>
+                                    <?= number_format((float) $vegetable['quantity'], 2) ?>
+                                    <?= h($vegetable['unit']) ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
+
+    <section class="panel section module-table-panel">
+        <div class="module-table-heading">
+            <div>
+                <h2>Payment method totals</h2>
+                <p class="muted">COD and online orders grouped by payment status.</p>
+            </div>
+        </div>
+        <?php if (!$paymentBreakdown): ?>
+            <p class="empty">No payment transactions match these filters.</p>
+        <?php else: ?>
+            <div class="table-wrap module-table-wrap">
+                <table class="module-table">
+                    <thead>
+                        <tr><th>Method</th><th>Payment status</th><th>Orders</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($paymentBreakdown as $paymentRow): ?>
+                            <tr>
+                                <td><?= h(strtoupper($paymentRow['payment_method'])) ?></td>
+                                <td><?= h(ucwords(str_replace('_', ' ', $paymentRow['payment_status']))) ?></td>
+                                <td><?= number_format((int) $paymentRow['order_count']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
+
+    <section class="panel section module-table-panel">
+        <div class="module-table-heading">
+            <div>
+                <h2>Discount usage history</h2>
+                <p class="muted">Latest 100 paid orders with applied bulk discounts.</p>
+            </div>
+        </div>
+        <?php if (!$discountHistory): ?>
+            <p class="empty">No discounted orders match these filters.</p>
+        <?php else: ?>
+            <div class="table-wrap module-table-wrap">
+                <table class="module-table">
+                    <thead>
+                        <tr>
+                            <th>Order</th><th>Date</th><th>Buyer</th>
+                            <th>Subtotal</th><th>Discount</th><th>Final total</th><th>Method</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($discountHistory as $discountOrder): ?>
+                            <tr>
+                                <td><?= h($discountOrder['order_code']) ?></td>
+                                <td><?= h($discountOrder['created_at']) ?></td>
+                                <td><?= h($discountOrder['buyer']) ?></td>
+                                <td><?= money($discountOrder['subtotal']) ?></td>
+                                <td>
+                                    <?= number_format((float) $discountOrder['discount_percentage'], 0) ?>% ·
+                                    <?= money($discountOrder['discount_amount']) ?>
+                                </td>
+                                <td><?= money($discountOrder['final_total']) ?></td>
+                                <td><?= h(strtoupper($discountOrder['payment_method'])) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
 
     <section class="panel section module-table-panel">
         <div class="module-table-heading">

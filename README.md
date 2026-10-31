@@ -54,6 +54,44 @@ When showing database or user-provided text in HTML, use `h($value)` to escape i
 
 If upgrading an existing database, back it up and run `database-upgrade.sql`. Importing the complete `database.sql` again also reapplies the sample data.
 
+## Orders, bulk discounts, and payments
+
+Checkout stores one order summary in `orders` and keeps the existing `sales` rows as its vegetable line items. The server sums all quantities in the cart, including quantities with different catalog units, as requested. Orders with a combined quantity of 20 or more get 10% off the vegetable subtotal; the delivery fee is not discounted. The current delivery fee is a fixed ₱20 and can be changed in `includes/orders.php`.
+
+The checkout saves the delivery address with the order and supports:
+
+- **Cash on Delivery:** starts as `Pending Payment`. Admins and staff move the order through the delivery statuses in Sales. Cash collection can be confirmed only for an out-for-delivery or delivered COD order.
+- **Online Payment:** uses PayMongo's hosted checkout. GCash and card are requested; the merchant account must have the chosen methods enabled. The site never receives card numbers, security codes, PINs, or banking passwords. Only a signed PayMongo webhook can mark an online order paid.
+
+Online checkout is hidden unless the secret key, webhook secret, public HTTPS application URL, and PHP OpenSSL support are available. For local setup, create `config/payment.local.php` (this file is ignored by Git) with:
+
+```php
+<?php
+return [
+    'paymongo_secret_key' => 'sk_test_...',
+    'paymongo_webhook_secret' => 'whsk_...',
+    'app_url' => 'https://your-public-https-url',
+];
+```
+
+Use your PayMongo test keys first. The `app_url` is the public base URL of the application, including any project subfolder. In the PayMongo dashboard, register this webhook endpoint:
+
+```text
+https://your-public-https-url/webhooks/paymongo.php
+```
+
+Subscribe to `checkout_session.payment.paid` and, if your dashboard offers them, `checkout_session.payment.failed` and `payment.refunded`. Configure the secret generated for that webhook as `paymongo_webhook_secret`. Enable the PHP OpenSSL extension and `allow_url_fopen`; do not commit real credentials. For production, use HTTPS and live credentials. If the gateway cannot create a checkout session, the order transaction is rolled back and checkout reports the failure instead of claiming payment succeeded. A buyer's cancel redirect alone never changes payment status; it remains pending unless a verified provider event reports failure or payment.
+
+### Test the ordering flow
+
+1. Import `database.sql` for a new database, or back up an existing database and run `database-upgrade.sql`.
+2. Sign in as a buyer, add produce, and open checkout. Confirm the subtotal, automatic discount, ₱20 fee, delivery address, and payment choices.
+3. Place an order with a combined quantity below 20; verify the discount is ₱0. Try exactly 20 units across products; verify the 10% discount is based only on the vegetable subtotal.
+4. Choose COD. As admin/staff, progress the order to Out for Delivery, confirm cash collection, then check that payment becomes Paid and the collection staff/date appear in order details.
+5. Configure PayMongo test credentials and a publicly reachable HTTPS webhook. Choose Online Payment and complete a test GCash/card checkout. Confirm that the buyer return page remains pending until the signed webhook arrives, then verify the order becomes Paid. Cancel a test checkout and confirm it is not shown as paid.
+6. Review Sales and Reports for original subtotal, discounts, final totals, payment method/status, discount history, and discounted vegetables.
+7. Run `php tests\\checkout_calculation_test.php` and `php -l` on the changed PHP files.
+
 ## Shop product pictures
 
 The `product_picture()` helper in `includes/functions.php` maps vegetable names to image files in `assets/images/`. The shop and product details page use the same mapping and show a small vegetable icon if an image is unavailable.
@@ -74,6 +112,14 @@ To add or replace an image, copy it into `assets/images/` and update the matchin
 - Dashboard summaries, searchable vegetable records, filtered reports, and a print-friendly report view
 - Administrator-only activity log for account and farm operations
 - CSRF tokens, input validation, prepared database statements, and escaped HTML output
+
+## Production security settings
+
+The shared PHP bootstrap applies a restrictive Content Security Policy and baseline browser security headers. It also starts cookie-only, strict-mode sessions with HttpOnly and SameSite=Lax cookies. Session cookies are marked Secure when PHP detects a direct HTTPS request. Set `APP_ENV=production` to enable HSTS on HTTPS responses.
+
+Terminate TLS at the web server or trusted reverse proxy and redirect all HTTP traffic to HTTPS there. Do not rely on an untrusted forwarded-protocol header to detect HTTPS. When TLS terminates at a proxy, configure the web server/PHP environment so PHP can reliably detect the HTTPS request before enabling online checkout; never mark session cookies secure based on arbitrary client-supplied headers. Confirm HTTPS detection and cookie attributes using the deployed web server, because PHP CLI settings do not necessarily match Apache/PHP-FPM.
+
+The session is browser-lifetime and logout destroys it. Configure web-server/PHP error display off in production, keep secrets out of the web root where possible, use a least-privilege MySQL account, and restrict file and backup permissions. Those hosting settings cannot be verified or changed by this repository.
 
 ## Data structure used
 

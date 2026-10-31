@@ -6,9 +6,9 @@ $buyerId = (int) current_user()['id'];
 
 $summaryStatement = $db->prepare(
     'SELECT
-        COUNT(DISTINCT order_code) AS order_count,
-        COALESCE(SUM(CASE WHEN status = \'paid\' THEN total ELSE 0 END), 0) AS total_spent
-     FROM sales
+        COUNT(*) AS order_count,
+        COALESCE(SUM(CASE WHEN payment_status = \'paid\' THEN final_total ELSE 0 END), 0) AS total_spent
+     FROM orders
      WHERE buyer_id = ?'
 );
 $summaryStatement->execute([$buyerId]);
@@ -20,14 +20,15 @@ $vegetableCount = (int) $db
 
 $ordersStatement = $db->prepare(
     'SELECT
-        order_code,
-        MIN(created_at) AS order_date,
-        SUM(total) AS order_total,
-        COUNT(*) AS item_count
-     FROM sales
-     WHERE buyer_id = ?
-     GROUP BY order_code
-     ORDER BY order_date DESC
+        o.order_code,
+        o.created_at AS order_date,
+        o.final_total AS order_total,
+        o.eligible_quantity AS item_count,
+        o.payment_status,
+        o.order_status
+     FROM orders AS o
+     WHERE o.buyer_id = ?
+     ORDER BY o.created_at DESC
      LIMIT 5'
 );
 $ordersStatement->execute([$buyerId]);
@@ -102,11 +103,12 @@ require __DIR__ . '/../includes/header.php';
                             <td><strong><?= h($order['order_code']) ?></strong></td>
                             <td><?= h(date('M j, Y', strtotime($order['order_date']))) ?></td>
                             <td>
-                                <?= number_format((int) $order['item_count']) ?>
-                                <?= (int) $order['item_count'] === 1 ? 'item' : 'items' ?>
+                                <?= number_format((float) $order['item_count'], 2) ?> units
                             </td>
                             <td><strong><?= money($order['order_total']) ?></strong></td>
                             <td>
+                                <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?><br>
+                                <?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?><br>
                                 <a href="<?= h(app_url(
                                     'buyer/order_details.php?order=' . rawurlencode($order['order_code'])
                                 )) ?>">

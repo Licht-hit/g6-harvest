@@ -51,6 +51,12 @@ document.addEventListener('click', (event) => {
         return;
     }
 
+    const printButton = target.closest('[data-print]');
+    if (printButton instanceof HTMLButtonElement) {
+        window.print();
+        return;
+    }
+
     const button = target.closest('[data-quantity-step]');
     if (!(button instanceof HTMLButtonElement)) {
         return;
