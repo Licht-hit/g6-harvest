@@ -279,7 +279,11 @@ require __DIR__ . '/../includes/header.php';
                             <td>#<?= (int) $harvest['planting_number'] ?></td>
                             <td><?= number_format((float) $harvest['quantity'], 2) ?></td>
                             <td><?= h($harvest['quality_notes'] ?? '—') ?></td>
-                            <td><?= $harvest['archived_at'] ? 'Archived' : 'Active' ?></td>
+                            <td>
+                                <span class="status-badge <?= $harvest['archived_at'] ? 'status-archived' : 'status-active' ?>">
+                                    <?= $harvest['archived_at'] ? 'Archived' : 'Active' ?>
+                                </span>
+                            </td>
                             <td>
                                 <?php if (!$harvest['archived_at']): ?>
                                     <a href="<?= h(app_url('modules/harvests.php?edit=' . (int) $harvest['id'])) ?>">Edit</a>

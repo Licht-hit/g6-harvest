@@ -1,6 +1,6 @@
 </main>
 <footer class="site-footer">
-    Vegetable System · Farm operations and produce sales
+    <p>&copy; <?= date('Y') ?> Harvest. Farm operations and produce sales.</p>
 </footer>
 </body>
 </html>

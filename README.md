@@ -10,7 +10,7 @@ This project uses PHP to build pages and handle form submissions. MySQL stores a
 
 - `index.php` sends a signed-in user to the correct starting page.
 - `auth/` contains login, registration, logout, and email verification pages.
-- `buyer/` contains the produce shop, cart, checkout, and order pages.
+- `buyer/` contains the buyer dashboard, produce shop, cart, checkout, and order pages.
 - `modules/` contains farm staff pages for vegetables, plantings, harvests, inventory, quality checks, sales, reports, and activity.
 - `includes/auth.php` starts the session and loads shared code.
 - `includes/functions.php` contains helpers shared by many pages, such as URL building, HTML escaping, form protection, and cart helpers.
@@ -56,7 +56,9 @@ If upgrading an existing database, back it up and run `database-upgrade.sql`. Im
 
 ## Shop product pictures
 
-The shop maps image files in `assets/images/` to vegetable names in `buyer/index.php`. All ten sample vegetables have a matching product image: available photos are used for Carrot, Cucumber, Bell Pepper, Broccoli, and Green Beans, and original SVG illustrations are used for Tomato, Lettuce, Spinach, Zucchini, and Kale. Product images use the same fixed-size card area. To add or replace an image, copy it into `assets/images/` and set that vegetable's `file` in `$productPictures`. Use a simple filename without spaces when adding new images.
+The `product_picture()` helper in `includes/functions.php` maps vegetable names to image files in `assets/images/`. The shop and product details page use the same mapping and show a small vegetable icon if an image is unavailable.
+
+To add or replace an image, copy it into `assets/images/` and update the matching entry in `product_picture()`.
 
 ## Database code
 

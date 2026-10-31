@@ -6,7 +6,7 @@ if (!is_logged_in()) {
 }
 
 if (current_user()['role'] === 'buyer') {
-    redirect(app_url('buyer/index.php'));
+    redirect(app_url('buyer/dashboard.php'));
 }
 
 redirect(app_url('dashboard.php'));

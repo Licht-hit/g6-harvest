@@ -72,6 +72,7 @@ $tokenExpired = $tokenRecord
     && strtotime($tokenRecord['expires_at']) <= time();
 
 $pageTitle = 'Verify email';
+$pageClass = 'auth-page';
 require __DIR__ . '/../includes/header.php';
 ?>
 <section class="form-card">

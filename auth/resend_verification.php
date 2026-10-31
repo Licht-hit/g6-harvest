@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Resend verification email';
+$pageClass = 'auth-page';
 require __DIR__ . '/../includes/header.php';
 ?>
 <section class="form-card">

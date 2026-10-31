@@ -130,7 +130,37 @@ function take_flash(): ?array
 
 function money($amount): string
 {
-    return '$' . number_format((float) $amount, 2);
+    return '₱' . number_format((float) $amount, 2);
+}
+
+function product_picture(string $productName): array
+{
+    static $pictures = [
+        'tomato' => ['file' => 'tomato.webp', 'icon' => '🍅'],
+        'carrot' => ['file' => 'OIP (2).webp', 'icon' => '🥕'],
+        'lettuce' => ['file' => 'OIP (3).webp', 'icon' => '🥬'],
+        'cucumber' => ['file' => 'cart.jpeg', 'icon' => '🥒'],
+        'spinach' => ['file' => 'spinach.jpg', 'icon' => '🥬'],
+        'bell pepper' => ['file' => 'OIP.webp', 'icon' => '🫑'],
+        'zucchini' => ['file' => 'imrs.webp', 'icon' => '🥒'],
+        'broccoli' => ['file' => 'OIP (1).webp', 'icon' => '🥦'],
+        'kale' => ['file' => 'OIP (4).webp', 'icon' => '🥬'],
+        'green beans' => ['file' => 'R.jpeg', 'icon' => '🫛'],
+    ];
+
+    $picture = $pictures[strtolower(trim($productName))] ?? [
+        'file' => null,
+        'icon' => '🥬',
+    ];
+    $imagePath = $picture['file']
+        ? __DIR__ . '/../assets/images/' . $picture['file']
+        : null;
+
+    $picture['url'] = $imagePath && is_file($imagePath)
+        ? app_url('assets/images/' . rawurlencode($picture['file']))
+        : null;
+
+    return $picture;
 }
 
 function email_verification_url(string $token): string

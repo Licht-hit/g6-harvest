@@ -31,7 +31,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $variety = trim($_POST['variety'] ?? '');
     $unit = trim($_POST['unit'] ?? 'kg');
-    $price = filter_var($_POST['price'] ?? null, FILTER_VALIDATE_FLOAT);
+    $rawPrice = $_POST['price'] ?? '';
+    $priceInput = is_string($rawPrice) ? trim($rawPrice) : '';
+    $price = $priceInput !== ''
+        ? filter_var($priceInput, FILTER_VALIDATE_FLOAT)
+        : false;
+    $priceHasValidFormat = preg_match('/^\d{1,8}(?:\.\d{1,2})?$/', $priceInput) === 1;
     $description = trim($_POST['description'] ?? '');
 
     if (($action === 'update' && $vegetableId < 1)
@@ -40,8 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         || $unit === ''
         || strlen($unit) > 30
         || $price === false
+        || !$priceHasValidFormat
         || $price < 0) {
-        $error = 'Enter a vegetable name, unit, and a non-negative price.';
+        $error = 'Enter a vegetable name and unit, and a price with up to two decimal places.';
     } else {
         if ($action === 'update') {
             $existing = $db->prepare('SELECT id FROM vegetables WHERE id = ?');
@@ -153,7 +159,8 @@ require __DIR__ . '/../includes/header.php';
                     id="price"
                     type="number"
                     min="0"
-                    step="1"
+                    max="99999999.99"
+                    step="0.01"
                     name="price"
                     value="<?= h($editingVegetable['price'] ?? '') ?>"
                     required>
@@ -208,7 +215,11 @@ require __DIR__ . '/../includes/header.php';
                                 / <?= h($vegetable['unit']) ?>
                             </td>
                             <td><?= number_format((float) $vegetable['stock'], 2) ?></td>
-                            <td><?= $vegetable['active'] ? 'Active' : 'Inactive' ?></td>
+                            <td>
+                                <span class="status-badge <?= $vegetable['active'] ? 'status-active' : 'status-inactive' ?>">
+                                    <?= $vegetable['active'] ? 'Active' : 'Inactive' ?>
+                                </span>
+                            </td>
                             <td><a href="<?= h(app_url('modules/vegetables.php?edit=' . (int) $vegetable['id'])) ?>">Edit</a></td>
                             <td>
                                 <form method="post">

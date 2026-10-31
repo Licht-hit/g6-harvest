@@ -215,7 +215,11 @@ require __DIR__ . '/../includes/header.php';
                             </td>
                             <td><?= h($planting['planted_on']) ?></td>
                             <td><?= h($planting['expected_harvest_on'] ?? '—') ?></td>
-                            <td><?= h(ucfirst($planting['status'])) ?></td>
+                            <td>
+                                <span class="status-badge status-<?= h($planting['status']) ?>">
+                                    <?= h(ucfirst($planting['status'])) ?>
+                                </span>
+                            </td>
                             <td>
                                 <?php if ($planting['status'] === 'growing'): ?>
                                     <a href="<?= h(app_url('modules/plantings.php?edit=' . (int) $planting['id'])) ?>">Edit</a>

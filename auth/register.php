@@ -11,9 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
     $password = $_POST['password'] ?? '';
+    $passwordConfirmation = $_POST['password_confirmation'] ?? '';
 
     if ($name === '' || !$email || strlen($password) < 10) {
         $error = 'Enter your name, a valid email address, and a password of at least 10 characters.';
+    } elseif ($password !== $passwordConfirmation) {
+        $error = 'The password confirmation does not match.';
     } else {
         try {
             $statement = $db->prepare(
@@ -64,58 +67,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Create buyer account';
+$pageClass = 'auth-page';
 require __DIR__ . '/../includes/header.php';
 ?>
-<section class="form-card">
-    <h1>Create buyer account</h1>
-
-    <?php if ($error): ?>
-        <div class="notice error"><?= h($error) ?></div>
-    <?php endif; ?>
-
-    <form method="post">
-        <?= csrf_field() ?>
-
-        <div class="field">
-            <label for="name">Name</label>
-            <input
-                id="name"
-                name="name"
-                required
-                value="<?= h($_POST['name'] ?? '') ?>"
-            >
+<section class="auth-layout">
+    <div class="auth-visual">
+        <div class="auth-visual-content">
+            <span class="auth-visual-tag"><span aria-hidden="true">✦</span> Better harvests, together</span>
+            <h1>Grow your connection to fresh food.</h1>
+            <p>Create an account to explore locally grown produce and follow your orders.</p>
         </div>
+    </div>
+    <div class="auth-form-panel">
+        <div class="auth-form-content">
+            <p class="dashboard-eyebrow">Join the community</p>
+            <h2>Create your account</h2>
+            <p class="auth-form-intro">A few details and you’ll be ready to shop the harvest.</p>
 
-        <div class="field">
-            <label for="email">Email</label>
-            <input
-                id="email"
-                type="email"
-                name="email"
-                autocomplete="email"
-                required
-                value="<?= h($_POST['email'] ?? '') ?>"
-            >
+            <?php if ($error): ?>
+                <div class="notice error" role="alert"><?= h($error) ?></div>
+            <?php endif; ?>
+
+            <form method="post">
+                <?= csrf_field() ?>
+
+                <div class="field">
+                    <label for="name">Full name</label>
+                    <input
+                        id="name"
+                        name="name"
+                        autocomplete="name"
+                        placeholder="Your name"
+                        required
+                        value="<?= h($_POST['name'] ?? '') ?>"
+                    >
+                </div>
+
+                <div class="field">
+                    <label for="email">Email address</label>
+                    <input
+                        id="email"
+                        type="email"
+                        name="email"
+                        autocomplete="email"
+                        placeholder="you@example.com"
+                        required
+                        value="<?= h($_POST['email'] ?? '') ?>"
+                    >
+                </div>
+
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="password-field">
+                        <input
+                            id="password"
+                            type="password"
+                            name="password"
+                            minlength="10"
+                            autocomplete="new-password"
+                            required
+                        >
+                        <button class="password-toggle" type="button" data-password-toggle="password" aria-label="Show password">Show</button>
+                    </div>
+                    <small class="password-help">Use at least 10 characters.</small>
+                </div>
+
+                <div class="field">
+                    <label for="password_confirmation">Confirm password</label>
+                    <div class="password-field">
+                        <input
+                            id="password_confirmation"
+                            type="password"
+                            name="password_confirmation"
+                            minlength="10"
+                            autocomplete="new-password"
+                            required
+                        >
+                        <button class="password-toggle" type="button" data-password-toggle="password_confirmation" aria-label="Show password">Show</button>
+                    </div>
+                </div>
+
+                <button class="auth-submit" type="submit">Create account <span aria-hidden="true">→</span></button>
+            </form>
+
+            <p class="auth-footer">
+                Already have an account?
+                <a href="<?= h(app_url('auth/login.php')) ?>">Sign in</a>
+            </p>
         </div>
-
-        <div class="field">
-            <label for="password">Password (at least 10 characters)</label>
-            <input
-                id="password"
-                type="password"
-                name="password"
-                minlength="10"
-                autocomplete="new-password"
-                required
-            >
-        </div>
-
-        <button type="submit">Register</button>
-    </form>
-
-    <p class="auth-links">
-        Already registered?
-        <a href="<?= h(app_url('auth/login.php')) ?>">Log in</a>.
-    </p>
+    </div>
 </section>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

@@ -38,56 +38,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Log in';
+$pageClass = 'auth-page';
 require __DIR__ . '/../includes/header.php';
 ?>
-<section class="form-card">
-    <h1>Welcome back</h1>
-    <p class="muted">Log in to manage your account or browse farm produce.</p>
-
-    <?php if ($error): ?>
-        <div class="notice error"><?= h($error) ?></div>
-    <?php endif; ?>
-
-    <?php if (!empty($unverifiedEmail)): ?>
-        <p>
-            <a href="<?= h(app_url('auth/resend_verification.php?email=' . rawurlencode($unverifiedEmail))) ?>">
-                Resend verification email
-            </a>
-        </p>
-    <?php endif; ?>
-
-    <form method="post">
-        <?= csrf_field() ?>
-
-        <div class="field">
-            <label for="email">Email</label>
-            <input
-                id="email"
-                type="email"
-                name="email"
-                autocomplete="email"
-                required
-                value="<?= h($_POST['email'] ?? '') ?>"
-            >
+<section class="auth-layout">
+    <div class="auth-visual">
+        <div class="auth-visual-content">
+            <span class="auth-visual-tag"><span aria-hidden="true">✦</span> Grown with care</span>
+            <h1>Good food starts close to home.</h1>
+            <p>Fresh produce and thoughtful farm management, all in one place.</p>
         </div>
+    </div>
+    <div class="auth-form-panel">
+        <div class="auth-form-content">
+            <p class="dashboard-eyebrow">Welcome to Harvest</p>
+            <h2>Welcome back</h2>
+            <p class="auth-form-intro">Sign in to continue to your farm account.</p>
 
-        <div class="field">
-            <label for="password">Password</label>
-            <input
-                id="password"
-                type="password"
-                name="password"
-                autocomplete="current-password"
-                required
-            >
+            <?php if ($error): ?>
+                <div class="notice error" role="alert"><?= h($error) ?></div>
+            <?php endif; ?>
+
+            <?php if (!empty($unverifiedEmail)): ?>
+                <p class="notice">
+                    Need a new verification link?
+                    <a href="<?= h(app_url('auth/resend_verification.php?email=' . rawurlencode($unverifiedEmail))) ?>">
+                        Resend verification email
+                    </a>
+                </p>
+            <?php endif; ?>
+
+            <form method="post">
+                <?= csrf_field() ?>
+
+                <div class="field">
+                    <label for="email">Email address</label>
+                    <input
+                        id="email"
+                        type="email"
+                        name="email"
+                        autocomplete="email"
+                        placeholder="you@example.com"
+                        required
+                        value="<?= h($_POST['email'] ?? '') ?>"
+                    >
+                </div>
+
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="password-field">
+                        <input
+                            id="password"
+                            type="password"
+                            name="password"
+                            autocomplete="current-password"
+                            placeholder="Enter your password"
+                            required
+                        >
+                        <button class="password-toggle" type="button" data-password-toggle="password" aria-label="Show password">Show</button>
+                    </div>
+                </div>
+
+                <button class="auth-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
+            </form>
+
+            <p class="auth-footer">
+                New to Harvest?
+                <a href="<?= h(app_url('auth/register.php')) ?>">Create a buyer account</a>
+            </p>
         </div>
-
-        <button type="submit">Log in</button>
-    </form>
-
-    <p class="auth-links">
-        New buyer?
-        <a href="<?= h(app_url('auth/register.php')) ?>">Create an account</a>.
-    </p>
+    </div>
 </section>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

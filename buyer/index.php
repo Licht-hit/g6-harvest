@@ -17,19 +17,6 @@ $vegetables = $db->query(
      ORDER BY v.name'
 )->fetchAll();
 
-$productPictures = [
-    'tomato' => ['file' => 'tomato.svg', 'icon' => '🍅'],
-    'carrot' => ['file' => 'OIP (2).webp', 'icon' => '🥕'],
-    'lettuce' => ['file' => 'lettuce.svg', 'icon' => '🥬'],
-    'cucumber' => ['file' => 'cart.jpeg', 'icon' => '🥒'],
-    'spinach' => ['file' => 'spinach.svg', 'icon' => '🥬'],
-    'bell pepper' => ['file' => 'OIP.webp', 'icon' => '🫑'],
-    'zucchini' => ['file' => 'zucchini.svg', 'icon' => '🥒'],
-    'broccoli' => ['file' => 'OIP (1).webp', 'icon' => '🥦'],
-    'kale' => ['file' => 'kale.svg', 'icon' => '🥬'],
-    'green beans' => ['file' => 'R.jpeg', 'icon' => '🫛'],
-];
-
 $pageTitle = 'Farm shop';
 require __DIR__ . '/../includes/header.php';
 ?>
@@ -65,29 +52,19 @@ require __DIR__ . '/../includes/header.php';
     <div class="card-grid shop-product-grid">
     <?php foreach ($vegetables as $vegetable): ?>
         <?php
-        $productName = strtolower(trim($vegetable['name']));
-        $picture = $productPictures[$productName] ?? [
-            'file' => null,
-            'icon' => '🥬',
-        ];
-        $picturePath = $picture['file']
-            ? __DIR__ . '/../assets/images/' . $picture['file']
-            : null;
-        $pictureUrl = $picturePath && is_file($picturePath)
-            ? app_url('assets/images/' . rawurlencode($picture['file']))
-            : null;
+        $picture = product_picture($vegetable['name']);
         ?>
         <article class="card product-card">
             <div class="product-image">
-                <?php if ($pictureUrl): ?>
+                <?php if ($picture['url']): ?>
                     <img
-                        src="<?= h($pictureUrl) ?>"
+                        src="<?= h($picture['url']) ?>"
                         alt="<?= h($vegetable['name']) ?>"
                         loading="lazy"
                         decoding="async"
                     >
                 <?php endif; ?>
-                <span class="product-image-fallback" aria-hidden="true" <?= $pictureUrl ? 'hidden' : '' ?>>
+                <span class="product-image-fallback" aria-hidden="true" <?= $picture['url'] ? 'hidden' : '' ?>>
                     <?= h($picture['icon']) ?>
                 </span>
                 <span class="product-image-label">FRESH PICK</span>
