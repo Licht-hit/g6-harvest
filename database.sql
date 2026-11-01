@@ -126,6 +126,9 @@ CREATE TABLE IF NOT EXISTS orders (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_code VARCHAR(24) NOT NULL UNIQUE,
     buyer_id INT UNSIGNED NOT NULL,
+    checkout_token_hash CHAR(64) NULL,
+    checkout_request_hash CHAR(64) NULL,
+    gateway_checkout_url VARCHAR(1000) NULL,
     subtotal DECIMAL(10,2) NOT NULL,
     eligible_quantity DECIMAL(10,2) NOT NULL DEFAULT 0,
     discount_percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
@@ -154,6 +157,7 @@ CREATE TABLE IF NOT EXISTS orders (
     INDEX idx_orders_payment_status (payment_status),
     INDEX idx_orders_created_at (created_at),
     INDEX idx_orders_payment_reference (payment_reference),
+    UNIQUE KEY uq_orders_buyer_checkout_token (buyer_id, checkout_token_hash),
     CONSTRAINT fk_orders_buyer
         FOREIGN KEY (buyer_id) REFERENCES users(id),
     CONSTRAINT fk_orders_payment_confirmer
@@ -210,52 +214,17 @@ CREATE TABLE IF NOT EXISTS activity_logs (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- Sample login accounts:
--- Administrator: admin@example.com / admin123
--- Farm staff:    staff@example.com / staff123
--- Buyer:         buyer@example.com / buyer123
---
--- Passwords are stored as hashes so the login page can verify them securely.
--- Re-running this section resets these three sample account passwords.
-INSERT INTO users (name, email, password, role, email_verified_at) VALUES
-    (
-        'Administrator',
-        'admin@example.com',
-        '$2y$12$EJIjdr.v28JaSK8JF8hd3OagUg8fc9TedG6b8EhCcA1LiZ77W53FO',
-        'admin',
-        CURRENT_TIMESTAMP
-    ),
-    (
-        'Farm Staff',
-        'staff@example.com',
-        '$2y$12$j5PHQ6x6wEBmF5pPVSwc7.ZM3RatTLQPtA5pyBTwnMmed0HMr5ZF.',
-        'staff',
-        CURRENT_TIMESTAMP
-    ),
-    (
-        'Buyer',
-        'buyer@example.com',
-        '$2y$12$pTX1NQd82aAncafWUa.t.upJ0eAqj7CtwWNZO/2cj1h4WYPoTqAne',
-        'buyer',
-        CURRENT_TIMESTAMP
-    )
-ON DUPLICATE KEY UPDATE
-    name = VALUES(name),
-    password = VALUES(password),
-    role = VALUES(role),
-    email_verified_at = VALUES(email_verified_at);
-
 INSERT INTO vegetables (id, name, variety, description, unit, price, active) VALUES
-    (1, 'Tomato', 'Roma', 'Firm, flavorful tomatoes, ideal for salads and cooking.', 'kg', 3.50, 1),
-    (2, 'Carrot', 'Nantes', 'Sweet, crisp carrots freshly harvested from the farm.', 'kg', 2.25, 1),
-    (3, 'Lettuce', 'Butterhead', 'Tender leafy lettuce, harvested to order.', 'head', 1.75, 1),
-    (4, 'Cucumber', 'Marketmore', 'Crisp cucumbers for salads, sandwiches, and pickling.', 'kg', 2.80, 1),
-    (5, 'Spinach', 'Baby Leaf', 'Young, tender spinach leaves, packed fresh.', 'bunch', 2.00, 1),
-    (6, 'Bell Pepper', 'California Wonder', 'Colorful sweet peppers with a crisp texture.', 'kg', 4.25, 1),
-    (7, 'Zucchini', 'Black Beauty', 'Fresh green summer squash, versatile for cooking.', 'kg', 2.60, 1),
-    (8, 'Broccoli', 'Calabrese', 'Compact green florets, rich in flavor.', 'head', 2.40, 1),
-    (9, 'Kale', 'Curly Green', 'Hearty leafy greens for salads, soups, and sautés.', 'bunch', 2.15, 1),
-    (10, 'Green Beans', 'Provider', 'Tender green beans, picked at peak freshness.', 'kg', 3.20, 1)
+    (1, 'Tomato', 'Roma', 'Firm, flavorful tomatoes, ideal for salads and cooking.', 'kg', 40.50, 1),
+    (2, 'Carrot', 'Nantes', 'Sweet, crisp carrots freshly harvested from the farm.', 'kg', 25.25, 1),
+    (3, 'Lettuce', 'Butterhead', 'Tender leafy lettuce, harvested to order.', 'head', 10.75, 1),
+    (4, 'Cucumber', 'Marketmore', 'Crisp cucumbers for salads, sandwiches, and pickling.', 'kg', 10.80, 1),
+    (5, 'Spinach', 'Baby Leaf', 'Young, tender spinach leaves, packed fresh.', 'bunch', 15.00, 1),
+    (6, 'Bell Pepper', 'California Wonder', 'Colorful sweet peppers with a crisp texture.', 'kg', 40.25, 1),
+    (7, 'Zucchini', 'Black Beauty', 'Fresh green summer squash, versatile for cooking.', 'kg', 20.60, 1),
+    (8, 'Broccoli', 'Calabrese', 'Compact green florets, rich in flavor.', 'head', 20.40, 1),
+    (9, 'Kale', 'Curly Green', 'Hearty leafy greens for salads, soups, and sautés.', 'bunch', 20.15, 1),
+    (10, 'Green Beans', 'Provider', 'Tender green beans, picked at peak freshness.', 'kg', 30.20, 1)
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     variety = VALUES(variety),
@@ -325,3 +294,137 @@ WHERE v.id = 3
         WHERE p.vegetable_id = v.id
             AND p.planted_on = '2026-10-01'
     );
+    -- Run this against an existing vegetable_system database after backing it up.
+
+SET @harvest_archive_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'harvests'
+        AND COLUMN_NAME = 'archived_at'
+);
+SET @harvest_archive_migration = IF(
+    @harvest_archive_column_exists = 0,
+    'ALTER TABLE harvests ADD COLUMN archived_at DATETIME NULL AFTER quality_notes',
+    'SELECT 1'
+);
+PREPARE harvest_archive_migration_statement FROM @harvest_archive_migration;
+EXECUTE harvest_archive_migration_statement;
+DEALLOCATE PREPARE harvest_archive_migration_statement;
+
+-- Allow new sale items to remain unpaid until COD collection or a gateway webhook.
+ALTER TABLE sales
+    MODIFY COLUMN status ENUM('pending', 'paid', 'cancelled') NOT NULL DEFAULT 'pending';
+
+-- Store order-wide totals separately from the existing sale-item rows.
+CREATE TABLE IF NOT EXISTS orders (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_code VARCHAR(24) NOT NULL UNIQUE,
+    buyer_id INT UNSIGNED NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    eligible_quantity DECIMAL(10,2) NOT NULL DEFAULT 0,
+    discount_percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
+    discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+    delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+    final_total DECIMAL(10,2) NOT NULL,
+    delivery_address TEXT NOT NULL,
+    payment_method ENUM('cod', 'online', 'legacy') NOT NULL,
+    payment_status ENUM('pending_payment', 'paid', 'failed', 'refunded') NOT NULL DEFAULT 'pending_payment',
+    order_status ENUM(
+        'pending',
+        'confirmed',
+        'preparing',
+        'ready_for_delivery',
+        'out_for_delivery',
+        'delivered',
+        'cancelled'
+    ) NOT NULL DEFAULT 'pending',
+    payment_reference VARCHAR(120) NULL,
+    gateway_session_id VARCHAR(120) NULL,
+    payment_confirmed_by INT UNSIGNED NULL,
+    payment_confirmed_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_orders_buyer_id (buyer_id),
+    INDEX idx_orders_payment_status (payment_status),
+    INDEX idx_orders_created_at (created_at),
+    INDEX idx_orders_payment_reference (payment_reference),
+    CONSTRAINT fk_orders_buyer
+        FOREIGN KEY (buyer_id) REFERENCES users(id),
+    CONSTRAINT fk_orders_payment_confirmer
+        FOREIGN KEY (payment_confirmed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS payment_history (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_code VARCHAR(24) NOT NULL,
+    payment_method ENUM('cod', 'online', 'legacy') NOT NULL,
+    event_type VARCHAR(60) NOT NULL,
+    payment_status ENUM('pending_payment', 'paid', 'failed', 'refunded') NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_reference VARCHAR(120) NULL,
+    provider_event_id VARCHAR(160) NULL UNIQUE,
+    actor_id INT UNSIGNED NULL,
+    details VARCHAR(255) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_payment_history_order (order_code, created_at),
+    CONSTRAINT fk_payment_history_order
+        FOREIGN KEY (order_code) REFERENCES orders(order_code) ON DELETE CASCADE,
+    CONSTRAINT fk_payment_history_actor
+        FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Preserve existing order groups with their historical totals and statuses.
+INSERT INTO orders (
+    order_code,
+    buyer_id,
+    subtotal,
+    eligible_quantity,
+    discount_percentage,
+    discount_amount,
+    delivery_fee,
+    final_total,
+    delivery_address,
+    payment_method,
+    payment_status,
+    order_status,
+    created_at
+)
+SELECT
+    s.order_code,
+    s.buyer_id,
+    SUM(s.total),
+    SUM(s.quantity),
+    0,
+    0,
+    0,
+    SUM(s.total),
+    'No delivery address was recorded for this historical order.',
+    'legacy',
+    CASE
+        WHEN SUM(s.status = 'paid') = COUNT(*) THEN 'paid'
+        WHEN SUM(s.status = 'cancelled') > 0 THEN 'failed'
+        ELSE 'pending_payment'
+    END,
+    CASE
+        WHEN SUM(s.status = 'cancelled') > 0 THEN 'cancelled'
+        ELSE 'confirmed'
+    END,
+    MIN(s.created_at)
+FROM sales AS s
+GROUP BY s.order_code, s.buyer_id
+ON DUPLICATE KEY UPDATE order_code = VALUES(order_code);
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NULL,
+    action VARCHAR(80) NOT NULL,
+    entity_type VARCHAR(60) NOT NULL,
+    entity_id INT UNSIGNED NULL,
+    details VARCHAR(255) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_activity_logs_created_at (created_at),
+    INDEX idx_activity_logs_user_id (user_id),
+    CONSTRAINT fk_activity_logs_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;

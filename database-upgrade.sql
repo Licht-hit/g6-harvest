@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS orders (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_code VARCHAR(24) NOT NULL UNIQUE,
     buyer_id INT UNSIGNED NOT NULL,
+    checkout_token_hash CHAR(64) NULL,
+    checkout_request_hash CHAR(64) NULL,
+    gateway_checkout_url VARCHAR(1000) NULL,
     subtotal DECIMAL(10,2) NOT NULL,
     eligible_quantity DECIMAL(10,2) NOT NULL DEFAULT 0,
     discount_percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
@@ -53,11 +56,76 @@ CREATE TABLE IF NOT EXISTS orders (
     INDEX idx_orders_payment_status (payment_status),
     INDEX idx_orders_created_at (created_at),
     INDEX idx_orders_payment_reference (payment_reference),
+    UNIQUE KEY uq_orders_buyer_checkout_token (buyer_id, checkout_token_hash),
     CONSTRAINT fk_orders_buyer
         FOREIGN KEY (buyer_id) REFERENCES users(id),
     CONSTRAINT fk_orders_payment_confirmer
         FOREIGN KEY (payment_confirmed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+SET @checkout_token_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'orders'
+        AND COLUMN_NAME = 'checkout_token_hash'
+);
+SET @checkout_token_column_migration = IF(
+    @checkout_token_column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN checkout_token_hash CHAR(64) NULL AFTER buyer_id',
+    'SELECT 1'
+);
+PREPARE checkout_token_column_statement FROM @checkout_token_column_migration;
+EXECUTE checkout_token_column_statement;
+DEALLOCATE PREPARE checkout_token_column_statement;
+
+SET @checkout_request_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'orders'
+        AND COLUMN_NAME = 'checkout_request_hash'
+);
+SET @checkout_request_column_migration = IF(
+    @checkout_request_column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN checkout_request_hash CHAR(64) NULL AFTER checkout_token_hash',
+    'SELECT 1'
+);
+PREPARE checkout_request_column_statement FROM @checkout_request_column_migration;
+EXECUTE checkout_request_column_statement;
+DEALLOCATE PREPARE checkout_request_column_statement;
+
+SET @checkout_url_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'orders'
+        AND COLUMN_NAME = 'gateway_checkout_url'
+);
+SET @checkout_url_column_migration = IF(
+    @checkout_url_column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN gateway_checkout_url VARCHAR(1000) NULL AFTER checkout_request_hash',
+    'SELECT 1'
+);
+PREPARE checkout_url_column_statement FROM @checkout_url_column_migration;
+EXECUTE checkout_url_column_statement;
+DEALLOCATE PREPARE checkout_url_column_statement;
+
+SET @checkout_token_index_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'orders'
+        AND INDEX_NAME = 'uq_orders_buyer_checkout_token'
+);
+SET @checkout_token_index_migration = IF(
+    @checkout_token_index_exists = 0,
+    'ALTER TABLE orders ADD UNIQUE KEY uq_orders_buyer_checkout_token (buyer_id, checkout_token_hash)',
+    'SELECT 1'
+);
+PREPARE checkout_token_index_statement FROM @checkout_token_index_migration;
+EXECUTE checkout_token_index_statement;
+DEALLOCATE PREPARE checkout_token_index_statement;
 
 CREATE TABLE IF NOT EXISTS payment_history (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

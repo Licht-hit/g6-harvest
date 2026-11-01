@@ -5,11 +5,6 @@ require_once __DIR__ . '/../includes/payments.php';
 require_role('buyer');
 
 $cart = cart_contents();
-if (!$cart) {
-    flash('error', 'Your cart is empty.');
-    redirect(app_url('buyer/cart.php'));
-}
-
 $cartItems = [];
 $cartIsValid = count($cart) <= 50;
 foreach ($cart as $productId => $quantity) {
@@ -32,6 +27,45 @@ foreach ($cart as $productId => $quantity) {
     $cartItems[(int) $validId] = (float) $validQuantity;
 }
 
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST'
+    && is_string($_POST['checkout_token'] ?? null)
+    && preg_match('/^[a-f0-9]{64}$/', $_POST['checkout_token'])
+) {
+    verify_csrf();
+    $replayedTokenHash = checkout_token_hash($_POST['checkout_token']);
+    $replayedOrderStatement = $db->prepare(
+        'SELECT order_code, payment_method, payment_status, checkout_request_hash, gateway_checkout_url
+         FROM orders
+         WHERE buyer_id = ? AND checkout_token_hash = ?'
+    );
+    $replayedOrderStatement->execute([
+        (int) current_user()['id'],
+        $replayedTokenHash,
+    ]);
+    $replayedOrder = $replayedOrderStatement->fetch();
+    if ($replayedOrder) {
+        $replayedRequestFingerprint = null;
+        if (
+            $cartItems
+            && is_string($_POST['delivery_address'] ?? null)
+            && is_string($_POST['payment_method'] ?? null)
+        ) {
+            $replayedRequestFingerprint = checkout_request_fingerprint(
+                $cartItems,
+                trim($_POST['delivery_address']),
+                $_POST['payment_method']
+            );
+        }
+        redirect_to_existing_checkout($replayedOrder, $replayedRequestFingerprint);
+    }
+}
+
+if (!$cart) {
+    flash('error', 'Your cart is empty.');
+    redirect(app_url('buyer/cart.php'));
+}
+
 if (!$cartItems) {
     flash('error', 'Your cart has invalid quantities. Please update your cart and try again.');
     redirect(app_url('buyer/cart.php'));
@@ -50,12 +84,19 @@ $productQuery = "SELECT
      WHERE v.active = 1 AND v.id IN ({$placeholders})
      ORDER BY v.id";
 
+$checkoutToken = bin2hex(random_bytes(32));
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $deliveryAddress = is_string($_POST['delivery_address'] ?? null)
         ? trim($_POST['delivery_address'])
         : '';
     $paymentMethod = $_POST['payment_method'] ?? '';
+    $submittedCheckoutToken = $_POST['checkout_token'] ?? '';
+
+    if (!is_string($submittedCheckoutToken) || !preg_match('/^[a-f0-9]{64}$/', $submittedCheckoutToken)) {
+        flash('error', 'This checkout form has expired. Reload the page and try again.');
+        redirect(app_url('buyer/checkout.php'));
+    }
 
     if (strlen($deliveryAddress) < 10 || strlen($deliveryAddress) > 1000) {
         flash('error', 'Enter a complete delivery address (10 to 1,000 characters).');
@@ -72,6 +113,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$cartIsValid || count($ids) !== count($cart)) {
         flash('error', 'Your cart contains invalid products or quantities. Please review it.');
         redirect(app_url('buyer/cart.php'));
+    }
+
+    $checkoutTokenHash = checkout_token_hash($submittedCheckoutToken);
+    $requestFingerprint = checkout_request_fingerprint(
+        $cartItems,
+        $deliveryAddress,
+        $paymentMethod
+    );
+    $buyerId = (int) current_user()['id'];
+    $loadExistingOrder = static function () use ($db, $buyerId, $checkoutTokenHash): ?array {
+        $statement = $db->prepare(
+            'SELECT order_code, payment_method, payment_status, checkout_request_hash, gateway_checkout_url
+             FROM orders
+             WHERE buyer_id = ? AND checkout_token_hash = ?'
+        );
+        $statement->execute([$buyerId, $checkoutTokenHash]);
+
+        return $statement->fetch() ?: null;
+    };
+
+    $existingOrder = $loadExistingOrder();
+    if ($existingOrder) {
+        redirect_to_existing_checkout($existingOrder, $requestFingerprint);
     }
 
     try {
@@ -117,11 +181,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $orderCode = 'VS-' . strtoupper(bin2hex(random_bytes(5)));
-        $buyerId = (int) current_user()['id'];
         $insertOrder = $db->prepare(
             "INSERT INTO orders (
                 order_code,
                 buyer_id,
+                checkout_token_hash,
+                checkout_request_hash,
                 subtotal,
                 eligible_quantity,
                 discount_percentage,
@@ -132,11 +197,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 payment_method,
                 payment_status,
                 order_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', 'confirmed')"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', 'confirmed')"
         );
         $insertOrder->execute([
             $orderCode,
             $buyerId,
+            $checkoutTokenHash,
+            $requestFingerprint,
             $totals['subtotal'],
             $totals['eligible_quantity'],
             $totals['discount_percentage'],
@@ -211,10 +278,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $saveGatewaySession = $db->prepare(
                 'UPDATE orders
-                 SET gateway_session_id = ?, payment_reference = ?
+                 SET gateway_session_id = ?, payment_reference = ?, gateway_checkout_url = ?
                  WHERE order_code = ?'
             );
-            $saveGatewaySession->execute([$gatewaySessionId, $gatewaySessionId, $orderCode]);
+            $saveGatewaySession->execute([
+                $gatewaySessionId,
+                $gatewaySessionId,
+                $checkoutUrl,
+                $orderCode,
+            ]);
             $paymentHistory->execute([
                 $orderCode,
                 'online',
@@ -238,6 +310,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $exception) {
         if ($db->inTransaction()) {
             $db->rollBack();
+        }
+        if ($exception instanceof mysqli_sql_exception && (int) $exception->getCode() === 1062) {
+            $existingOrder = $loadExistingOrder();
+            if ($existingOrder) {
+                redirect_to_existing_checkout($existingOrder, $requestFingerprint);
+            }
         }
         if ($exception instanceof RuntimeException) {
             flash('error', $exception->getMessage());
@@ -340,6 +418,7 @@ require __DIR__ . '/../includes/header.php';
 
         <form method="post">
             <?= csrf_field() ?>
+            <input type="hidden" name="checkout_token" value="<?= h($checkoutToken) ?>">
             <div class="field">
                 <label for="delivery-address">Delivery address</label>
                 <textarea

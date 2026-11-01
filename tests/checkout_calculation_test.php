@@ -85,4 +85,60 @@ expect_order_totals(
     ]
 );
 
+$checkoutToken = str_repeat('a', 64);
+if (checkout_token_hash($checkoutToken) !== hash('sha256', $checkoutToken)) {
+    throw new RuntimeException('Checkout token hashing failed.');
+}
+
+$firstFingerprint = checkout_request_fingerprint(
+    [2 => 1.5, 1 => 3],
+    '123 Farm Road, Barangay Green, Sample City',
+    'cod'
+);
+$sameRequestFingerprint = checkout_request_fingerprint(
+    [1 => 3.0, 2 => 1.5],
+    '123 Farm Road, Barangay Green, Sample City',
+    'cod'
+);
+if ($firstFingerprint !== $sameRequestFingerprint) {
+    throw new RuntimeException('Checkout fingerprints should ignore cart insertion order.');
+}
+
+$changedRequestFingerprint = checkout_request_fingerprint(
+    [1 => 3.0, 2 => 1.5],
+    '123 Farm Road, Barangay Green, Sample City',
+    'online'
+);
+if ($firstFingerprint === $changedRequestFingerprint) {
+    throw new RuntimeException('Checkout fingerprints should distinguish payment methods.');
+}
+
+$changedCartFingerprint = checkout_request_fingerprint(
+    [1 => 3.0, 2 => 1.4],
+    '123 Farm Road, Barangay Green, Sample City',
+    'cod'
+);
+if ($firstFingerprint === $changedCartFingerprint) {
+    throw new RuntimeException('Checkout fingerprints should distinguish cart quantities.');
+}
+
+$changedAddressFingerprint = checkout_request_fingerprint(
+    [1 => 3.0, 2 => 1.5],
+    '456 Farm Road, Barangay Green, Sample City',
+    'cod'
+);
+if ($firstFingerprint === $changedAddressFingerprint) {
+    throw new RuntimeException('Checkout fingerprints should distinguish delivery addresses.');
+}
+
+$invalidTokenRejected = false;
+try {
+    checkout_token_hash('not-a-checkout-token');
+} catch (RuntimeException $exception) {
+    $invalidTokenRejected = true;
+}
+if (!$invalidTokenRejected) {
+    throw new RuntimeException('Invalid checkout tokens must be rejected.');
+}
+
 echo "Checkout calculation tests passed.\n";
