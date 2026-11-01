@@ -17,37 +17,62 @@ Do not copy the parent project's local email/payment configuration files into th
 
 ## Deploy to Vercel
 
+Follow these steps in order. Keep the original PHP project in the repository; Vercel will build only the `vercel-app` folder.
+
 ### 1. Create Supabase project and schema
 
 1. Create a Supabase project and keep its database credentials private.
-2. In **SQL Editor**, run `supabase/migrations/001_initial_schema.sql` once, then run `supabase/migrations/002_roles_and_payment_safety.sql`.
-   - If you already ran the initial schema and saw `relation "profiles" already exists`, do **not** rerun or drop tables. Run only migration 002, which upgrades the existing schema.
-   - If migration 001 stopped part-way through, pause before running migration 002 and check which schema objects were created; do not delete data to clear the error.
-3. In **Authentication → URL Configuration**, set the Site URL to your Vercel deployment URL and allow its callback URL. Repeat with your production domain when you add one.
-4. Configure Supabase Auth email delivery and enable email confirmation. Supabase sends verification and password-reset links; the PHP SMTP configuration is not used.
+2. In **SQL Editor**, run `supabase/migrations/001_initial_schema.sql` exactly once. It creates the tables and app functions.
+3. Then run `supabase/migrations/002_roles_and_payment_safety.sql`. It adds the farmer role and safer payment-event handling. It is safe to run again.
+   - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
+   - If migration 001 finished successfully before, run migration 002 only.
+   - If you are unsure whether migration 001 finished, check that the core tables exist with this query:
+
+     ```sql
+     select table_name
+     from information_schema.tables
+     where table_schema = 'public'
+       and table_name in (
+         'profiles', 'vegetables', 'inventory', 'plantings', 'harvests',
+         'orders', 'sales', 'payment_history', 'quality_inspections', 'activity_logs'
+       )
+     order by table_name;
+     ```
+
+     You should see all ten table names. If any are missing, do not delete existing data or blindly rerun migration 001; ask for help checking the incomplete setup first.
+4. In **Authentication → URL Configuration**, set the Site URL to your Vercel deployment URL and allow its callback URL. Repeat with your production domain when you add one.
+5. Configure Supabase Auth email delivery and enable email confirmation. Supabase sends verification and password-reset links; the PHP SMTP configuration is not used.
 
 The schema intentionally starts empty. It does not insert example products or user accounts.
 
 ### 2. Install and deploy the converted folder
 
 1. Push the repository to GitHub without adding any local configuration files or secrets.
-2. Import it in Vercel and set **Root Directory** to `vercel-app`.
-3. Use the Vite defaults, or set:
+2. In Vercel, choose **Add New → Project**, then import this GitHub repository.
+3. Set **Root Directory** to `vercel-app`.
+4. Use these build settings:
    - Install command: `npm install`
    - Build command: `npm run build`
    - Output directory: `dist`
-4. Add the environment variables below to Vercel. Set them for Preview and Production as appropriate, then redeploy.
+5. Add the environment variables below to Vercel. Select **Production** and **Preview** for each variable. Leave **Development** unselected unless you are using Vercel locally.
 
-| Variable | Where it is used |
+| Key to enter in Vercel | Value to paste |
 |---|---|
-| `VITE_SUPABASE_URL` | Browser Supabase client; public project URL |
-| `VITE_SUPABASE_ANON_KEY` | Browser Supabase client; public anon key, protected by database RLS |
-| `SUPABASE_URL` | Vercel Functions and import script |
-| `SUPABASE_ANON_KEY` | Vercel Functions, for requests carrying the signed-in user's token |
-| `SUPABASE_SERVICE_ROLE_KEY` | Vercel Functions/import script only; never use a `VITE_` prefix |
-| `PAYMONGO_SECRET_KEY` | Vercel Functions only |
-| `PAYMONGO_WEBHOOK_SECRET` | Vercel webhook function only |
-| `APP_URL` | Public HTTPS base URL, with no query string or credentials |
+| `VITE_SUPABASE_URL` | Supabase **Project URL** from **Project Settings → API** |
+| `VITE_SUPABASE_ANON_KEY` | Supabase **anon/public** or **publishable** key from **Project Settings → API** |
+| `SUPABASE_URL` | The same Supabase **Project URL** |
+| `SUPABASE_ANON_KEY` | The same Supabase **anon/public** or **publishable** key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase **service_role secret** key. Keep it private; do not add `VITE_` to this name. |
+| `APP_URL` | Your deployed Vercel address, for example `https://your-project.vercel.app` |
+
+Add these only if you are turning on online payments:
+
+| Key to enter in Vercel | Value to paste |
+|---|---|
+| `PAYMONGO_SECRET_KEY` | PayMongo secret key. Start with a test key. |
+| `PAYMONGO_WEBHOOK_SECRET` | The signing secret for the PayMongo webhook you create in its dashboard. |
+
+To find your Supabase values, open your project dashboard, then **Project Settings → API**. Copy the Project URL and the anon/public key. Do not paste the service-role key into either `VITE_` variable. After saving or changing environment variables in Vercel, redeploy so the new values are included.
 
 `VITE_SUPABASE_ANON_KEY` is expected to be visible in the compiled site. It is not a database password; PostgreSQL row-level security is what protects data. Never put the Supabase service-role key, MySQL password, or PayMongo secret in browser code.
 
@@ -110,7 +135,7 @@ COD collection remains a farm-staff action and is allowed only for an out-for-de
 
 ## Local checks
 
-- `npm test` runs checkout calculation and PayMongo signature/event parsing tests.
+- `npm test` checks checkout calculations, PayMongo webhook parsing, and role permissions.
 - `npm run build` builds the static site.
 - For a local end-to-end run of Vercel Functions, install the Vercel CLI and use `vercel dev` with the environment variables set. A plain Vite dev server only serves the browser UI; it does not run `/api` functions.
 - Live Auth, database, email, checkout, and webhook tests require your own Supabase and PayMongo test-project credentials. No credentials are included here.
