@@ -138,7 +138,3 @@ This structure is used in checkout validation and total calculation, rather than
 ## Email and SMS
 
 Email verification supports a configured SMTP sender and expiring one-time links. SMS notifications are optional in the project requirements and are not needed for the core workflows.
-
-## Vercel version
-
-The separate `vercel-app/` folder contains a static HTML/CSS/JavaScript version for Vercel, using Supabase for authentication and PostgreSQL. The PHP project above remains the original local application. See `vercel-app/README.md` for deployment, environment variables, PayMongo setup, and the optional MySQL data import. Existing account passwords must be reset after import.
