@@ -1,0 +1,241 @@
+[hidden] {
+    display: none !important;
+}
+
+.app-actions,
+.app-toolbar,
+.app-inline-form,
+.app-pagination,
+.app-product-actions {
+    display: flex;
+    align-items: end;
+    gap: .7rem;
+    flex-wrap: wrap;
+}
+
+.app-toolbar {
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.app-toolbar h2 {
+    margin: 0;
+}
+
+.app-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+    gap: .8rem 1rem;
+}
+
+.app-form .field {
+    margin: 0;
+}
+
+.app-form .field-wide {
+    grid-column: 1 / -1;
+}
+
+.app-form button,
+.app-form .button {
+    align-self: end;
+    min-height: 44px;
+}
+
+.app-inline-form input,
+.app-inline-form select {
+    min-width: 130px;
+    width: auto;
+}
+
+.app-product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    gap: 1rem;
+}
+
+.app-product-card {
+    overflow: hidden;
+}
+
+.app-product-card .product-image {
+    position: relative;
+    height: 190px;
+    margin: -1.35rem -1.35rem 1rem;
+    overflow: hidden;
+    background: #e8f5e9;
+}
+
+.app-product-card .product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.app-product-card h2 {
+    margin-bottom: .3rem;
+}
+
+.app-product-actions {
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+}
+
+.app-product-actions input {
+    max-width: 100px;
+}
+
+.app-summary {
+    max-width: 520px;
+    margin-left: auto;
+}
+
+.app-summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .5rem 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.app-summary-row.total {
+    color: var(--green-dark);
+    font-size: 1.15rem;
+    font-weight: 750;
+}
+
+.app-status {
+    display: inline-block;
+    padding: .2rem .55rem;
+    color: #285d78;
+    background: #e8f4fa;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.app-status.paid,
+.app-status.delivered {
+    color: #25643d;
+    background: #eaf6ed;
+}
+
+.app-status.cancelled,
+.app-status.failed,
+.app-status.refunded,
+.app-status.rejected {
+    color: #8d2929;
+    background: #fff0ef;
+}
+
+.app-status.pending_payment,
+.app-status.preparing,
+.app-status.growing {
+    color: #805c12;
+    background: #fff5d8;
+}
+
+.app-pagination {
+    justify-content: space-between;
+    margin-top: 1rem;
+}
+
+.app-muted {
+    color: var(--muted);
+}
+
+.app-error {
+    color: var(--danger);
+}
+
+.app-checkout-methods {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.app-checkout-methods label {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+}
+
+.app-checkout-methods input {
+    width: auto;
+}
+
+.app-cart-count {
+    display: inline-grid;
+    min-width: 1.3rem;
+    height: 1.3rem;
+    place-items: center;
+    color: white;
+    background: var(--green);
+    border-radius: 50%;
+    font-size: .72rem;
+}
+
+.app-auth-note {
+    margin-top: 1rem;
+    color: var(--muted);
+    font-size: .85rem;
+}
+
+.app-dashboard-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: .8rem;
+}
+
+.app-dashboard-links a {
+    display: block;
+    padding: 1rem;
+    background: #f7faf6;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.app-dashboard-links a:hover {
+    background: var(--green-light);
+}
+
+.app-table-actions {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    flex-wrap: wrap;
+}
+
+.app-table-actions select {
+    min-width: 155px;
+    width: auto;
+    padding: .4rem;
+}
+
+.app-table-actions button {
+    padding: .45rem .65rem;
+    font-size: .78rem;
+}
+
+.app-alert {
+    padding: .8rem 1rem;
+    background: #fff5d8;
+    border: 1px solid #efdfb3;
+    border-radius: 10px;
+}
+
+@media (max-width: 720px) {
+    .app-inline-form {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .app-inline-form input,
+    .app-inline-form select {
+        width: 100%;
+    }
+}
