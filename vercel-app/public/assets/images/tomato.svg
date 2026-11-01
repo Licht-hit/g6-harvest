@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+    <defs>
+        <linearGradient id="background" x2="1" y2="1">
+            <stop stop-color="#fff5df"/>
+            <stop offset="1" stop-color="#e6f1dc"/>
+        </linearGradient>
+        <radialGradient id="tomato" cx=".35" cy=".25" r=".8">
+            <stop stop-color="#ff7963"/>
+            <stop offset="1" stop-color="#c9302c"/>
+        </radialGradient>
+    </defs>
+    <rect width="800" height="600" fill="url(#background)"/>
+    <ellipse cx="405" cy="500" rx="245" ry="35" fill="#627c4c" opacity=".16"/>
+    <path d="M398 205c-66-98-158-99-214-47 83-8 118 26 157 93-57-57-130-55-168-20 72 9 111 47 142 102l113-38z" fill="#4d8c49"/>
+    <path d="M422 204c62-96 151-107 215-57-83-1-122 32-158 103 58-62 132-65 174-31-73 14-113 55-143 110l-113-40z" fill="#397c43"/>
+    <path d="M400 227c-16-43-15-79 0-113 19 34 19 70 0 113z" fill="#28663b"/>
+    <path d="M400 235c-148-69-258 26-231 153 19 91 103 140 231 115 128 25 212-24 231-115 27-127-83-222-231-153z" fill="url(#tomato)"/>
+    <path d="M400 242c-16 35-45 47-82 40 14 29 10 54-13 76 37 2 65 21 81 57 16-36 44-55 81-57-23-22-27-47-13-76-37 7-66-5-82-40z" fill="#3c8642"/>
+    <ellipse cx="323" cy="335" rx="30" ry="58" fill="#fff" opacity=".1" transform="rotate(25 323 335)"/>
+</svg>
