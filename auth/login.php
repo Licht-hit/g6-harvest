@@ -50,16 +50,22 @@ require __DIR__ . '/../includes/header.php';
 <section class="auth-layout">
     <div class="auth-visual">
         <div class="auth-visual-content">
-            <span class="auth-visual-tag"><span aria-hidden="true">✦</span> Grown with care</span>
-            <h1>Good food starts close to home.</h1>
-            <p>Fresh produce and thoughtful farm management, all in one place.</p>
+            <span class="auth-visual-tag">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                    <path d="M19.5 4.5C12.2 4.8 6.5 7.3 6.5 13.4c0 2.4 1.6 4 3.8 4 6.5 0 8.6-6.5 9.2-12.9Z" fill="currentColor"/>
+                    <path d="M4.5 20c3.4-5.5 6.8-8.1 12-11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                Grown with care
+            </span>
+            <h1>Fresh Harvest, Fresh Choices</h1>
+            <p>Discover fresh vegetables and farm-grown favorites, thoughtfully harvested and ready for your table.</p>
         </div>
     </div>
     <div class="auth-form-panel">
         <div class="auth-form-content">
             <p class="dashboard-eyebrow">Welcome to Harvest</p>
             <h2>Welcome back</h2>
-            <p class="auth-form-intro">Sign in to continue to your farm account.</p>
+            <p class="auth-form-intro">Log in to manage your farm or continue shopping fresh from the harvest.</p>
 
             <?php if ($error): ?>
                 <div class="notice error" role="alert"><?= h($error) ?></div>
@@ -105,7 +111,7 @@ require __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
 
-                <button class="auth-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
+                <button class="auth-submit" type="submit">Log in <span aria-hidden="true">→</span></button>
             </form>
 
             <p class="auth-footer">

@@ -1941,8 +1941,8 @@ main.container:has(> .shop-hero) {
     overflow: hidden;
     color: #fff;
     background:
-        linear-gradient(180deg, #102d1c14 20%, #102d1cd9 100%),
-        url("../images/OIP.webp") center / cover no-repeat,
+        linear-gradient(180deg, #102d1c24 10%, #102d1ce6 100%),
+        url("../images/OIP%20(2).webp") center / cover no-repeat,
         #255637;
 }
 
@@ -2076,6 +2076,90 @@ main.container:has(> .shop-hero) {
 
 .auth-page .site-footer {
     background: #fff;
+}
+
+.auth-page {
+    --green: #245c3a;
+    --green-dark: #183b2a;
+    --green-light: #edf5eb;
+    --background: #f8faf4;
+}
+
+.auth-page .auth-layout {
+    width: min(1180px, 100%);
+    min-height: min(720px, calc(100vh - 220px));
+    border-color: #e7ece2;
+    box-shadow: 0 24px 70px #183b2a16;
+}
+
+.auth-page .auth-visual {
+    background-position: center;
+}
+
+.auth-page .auth-form-panel {
+    background: linear-gradient(145deg, #fff 0%, #fbfcf8 100%);
+}
+
+.auth-page .auth-form-content h2 {
+    font-size: clamp(1.9rem, 3vw, 2.25rem);
+}
+
+.auth-page .auth-form-content .field label {
+    color: #34493b;
+    font-weight: 650;
+}
+
+.auth-page .auth-form-content input {
+    border-radius: 12px;
+}
+
+.auth-page .auth-submit {
+    border-radius: 12px;
+    background: #245c3a;
+    transition: background .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.auth-page .auth-submit:hover {
+    background: #19492e;
+    box-shadow: 0 9px 20px #245c3a30;
+    transform: translateY(-1px);
+}
+
+.auth-page .auth-links {
+    color: var(--muted);
+}
+
+.auth-page .auth-links a {
+    color: #245c3a;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.auth-page .auth-links a:hover {
+    text-decoration: underline;
+}
+
+.auth-page .auth-form-content[data-form="register"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 1rem;
+}
+
+.auth-page .auth-form-content[data-form="register"] h2,
+.auth-page .auth-form-content[data-form="register"] .auth-form-intro,
+.auth-page .auth-form-content[data-form="register"] .auth-submit,
+.auth-page .auth-form-content[data-form="register"] .auth-links {
+    grid-column: 1 / -1;
+}
+
+.auth-page .auth-form-content[data-form="register"] .field {
+    margin-bottom: 1.05rem;
+}
+
+@media (max-width: 900px) {
+    .auth-page .auth-form-content[data-form="register"] {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 1180px) {

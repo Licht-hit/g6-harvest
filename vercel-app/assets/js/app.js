@@ -302,6 +302,7 @@ function guestPage(page) {
 }
 
 function renderAuth(page) {
+    document.body.classList.add('auth-page');
     const title = page === 'register' ? 'Create your account'
         : page === 'forgot' ? 'Reset your password'
             : page === 'reset-password' ? 'Choose a new password'
@@ -310,11 +311,11 @@ function renderAuth(page) {
     if (page === 'register') {
         form = `
             <form class="auth-form-content" data-form="register">
-                <h2>${title}</h2><p class="auth-form-intro">Create an account to order fresh produce.</p>
+                <h2>${title}</h2><p class="auth-form-intro">Join Harvest to order fresh produce and stay connected to the farm.</p>
                 <div class="field"><label for="register-name">Full name</label><input id="register-name" name="name" required maxlength="120" autocomplete="name"></div>
                 <div class="field"><label for="register-email">Email address</label><input id="register-email" name="email" type="email" required autocomplete="email"></div>
-                <div class="field"><label for="register-password">Password</label><input id="register-password" name="password" type="password" required minlength="10" autocomplete="new-password"></div>
-                <div class="field"><label for="register-confirm">Confirm password</label><input id="register-confirm" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"></div>
+                <div class="field"><label for="register-password">Password</label><div class="password-field"><input id="register-password" name="password" type="password" required minlength="10" autocomplete="new-password"><button class="password-toggle" type="button" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
+                <div class="field"><label for="register-confirm">Confirm password</label><div class="password-field"><input id="register-confirm" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"><button class="password-toggle" type="button" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
                 <button class="auth-submit" type="submit">Create account</button>
                 <p class="auth-links">Already registered? <a href="?page=login" data-page="login">Log in</a></p>
             </form>`;
@@ -330,16 +331,16 @@ function renderAuth(page) {
         form = `
             <form class="auth-form-content" data-form="reset-password">
                 <h2>${title}</h2><p class="auth-form-intro">Use at least 10 characters for your new password.</p>
-                <div class="field"><label for="new-password">New password</label><input id="new-password" name="password" type="password" required minlength="10" autocomplete="new-password"></div>
-                <div class="field"><label for="new-password-confirm">Confirm new password</label><input id="new-password-confirm" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"></div>
+                <div class="field"><label for="new-password">New password</label><div class="password-field"><input id="new-password" name="password" type="password" required minlength="10" autocomplete="new-password"><button class="password-toggle" type="button" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
+                <div class="field"><label for="new-password-confirm">Confirm new password</label><div class="password-field"><input id="new-password-confirm" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"><button class="password-toggle" type="button" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
                 <button class="auth-submit" type="submit">Update password</button>
             </form>`;
     } else {
         form = `
             <form class="auth-form-content" data-form="login">
-                <h2>${title}</h2><p class="auth-form-intro">Sign in to your Harvest account.</p>
+                <h2>${title}</h2><p class="auth-form-intro">Sign in to manage your farm operations and order fresh produce.</p>
                 <div class="field"><label for="login-email">Email address</label><input id="login-email" name="email" type="email" required autocomplete="email"></div>
-                <div class="field"><label for="login-password">Password</label><input id="login-password" name="password" type="password" required autocomplete="current-password"></div>
+                <div class="field"><label for="login-password">Password</label><div class="password-field"><input id="login-password" name="password" type="password" required autocomplete="current-password"><button class="password-toggle" type="button" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
                 <button class="auth-submit" type="submit">Log in</button>
                 <p class="auth-links"><a href="?page=forgot" data-page="forgot">Forgot password?</a></p>
                 <p class="auth-links">New here? <a href="?page=register" data-page="register">Create account</a></p>
@@ -350,8 +351,8 @@ function renderAuth(page) {
         <section class="auth-layout">
             <div class="auth-visual"><div class="auth-visual-content">
                 <span class="auth-visual-tag">Fresh from the farm</span>
-                <h1>Good food starts with good growing.</h1>
-                <p>Manage farm operations and order fresh produce from one simple place.</p>
+                <h1>Fresh Harvest,<br>Fresh Choices.</h1>
+                <p>Discover fresh vegetables and farm products, grown with care and brought to your table.</p>
             </div></div>
             <div class="auth-form-panel">${form}</div>
         </section>`;
@@ -1014,6 +1015,7 @@ async function renderPage() {
     if (isStaff() && buyerPages.includes(page)) page = 'dashboard';
     if (page === 'activity' && state.profile.role !== 'admin') page = 'dashboard';
     state.page = page;
+    document.body.classList.remove('auth-page');
     updateNavigation();
 
     try {
@@ -1304,6 +1306,16 @@ async function handleClick(target) {
 
     const action = target.closest('[data-action]');
     if (!action) return;
+    if (action.dataset.action === 'toggle-password') {
+        const input = action.parentElement.querySelector('input');
+        if (!(input instanceof HTMLInputElement)) return;
+        const visible = input.type === 'password';
+        input.type = visible ? 'text' : 'password';
+        action.textContent = visible ? 'Hide' : 'Show';
+        action.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+        action.setAttribute('aria-pressed', String(visible));
+        return;
+    }
     if (action.dataset.action === 'remove-cart') {
         delete state.cart[action.dataset.product];
         saveCart();

@@ -74,15 +74,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Create buyer account';
-$pageClass = 'auth-page';
+$pageClass = 'auth-page register-page';
 require __DIR__ . '/../includes/header.php';
 ?>
 <section class="auth-layout">
     <div class="auth-visual">
         <div class="auth-visual-content">
-            <span class="auth-visual-tag"><span aria-hidden="true">✦</span> Better harvests, together</span>
-            <h1>Grow your connection to fresh food.</h1>
-            <p>Create an account to explore locally grown produce and follow your orders.</p>
+            <span class="auth-visual-tag">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                    <path d="M19.5 4.5C12.2 4.8 6.5 7.3 6.5 13.4c0 2.4 1.6 4 3.8 4 6.5 0 8.6-6.5 9.2-12.9Z" fill="currentColor"/>
+                    <path d="M4.5 20c3.4-5.5 6.8-8.1 12-11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                Farm to table
+            </span>
+            <h1>Fresh Harvest, Fresh Choices</h1>
+            <p>Create your account to discover fresh farm produce and keep track of every order.</p>
         </div>
     </div>
     <div class="auth-form-panel">
