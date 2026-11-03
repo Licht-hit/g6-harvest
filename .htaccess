@@ -1,0 +1,9 @@
+<FilesMatch "(?i)(^\.|\.sql$|\.md$|\.env$|\.log$|\.bak$|\.local\.php$)">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(?:config|includes|tests)(?:/|$) - [F,L]
+    RewriteRule (^|/)\.(?!well-known(?:/|$)) - [F,L]
+</IfModule>

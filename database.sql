@@ -238,13 +238,7 @@ INSERT INTO vegetables (id, name, category, variety, description, unit, price, a
     (9, 'Kale', 'Leafy greens', 'Curly Green', 'Hearty leafy greens for salads, soups, and sautés.', 'bunch', 20.15, 1),
     (10, 'Green Beans', 'Legumes', 'Provider', 'Tender green beans, picked at peak freshness.', 'kg', 30.20, 1)
 ON DUPLICATE KEY UPDATE
-    name = VALUES(name),
-    category = VALUES(category),
-    variety = VALUES(variety),
-    description = VALUES(description),
-    unit = VALUES(unit),
-    price = VALUES(price),
-    active = VALUES(active);
+    id = VALUES(id);
 
 INSERT INTO inventory (vegetable_id, quantity) VALUES
     (1, 45.00),
@@ -257,7 +251,7 @@ INSERT INTO inventory (vegetable_id, quantity) VALUES
     (8, 24.00),
     (9, 20.00),
     (10, 30.00)
-ON DUPLICATE KEY UPDATE quantity = VALUES(quantity);
+ON DUPLICATE KEY UPDATE vegetable_id = VALUES(vegetable_id);
 
 -- Add three sample plantings if they are not already in the database.
 INSERT INTO plantings (vegetable_id, quantity_planted, planted_on, expected_harvest_on, status)

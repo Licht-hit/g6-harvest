@@ -405,8 +405,10 @@ function smtp_send_email(
             'verify_peer_name' => true,
         ],
     ]);
+    $implicitTls = $port === 465;
+    $transport = $implicitTls ? 'ssl://' : 'tcp://';
     $socket = @stream_socket_client(
-        'tcp://' . $host . ':' . $port,
+        $transport . $host . ':' . $port,
         $errorNumber,
         $errorMessage,
         15,
@@ -426,20 +428,24 @@ function smtp_send_email(
     try {
         smtp_expect_response($socket, [220]);
         smtp_send_command($socket, 'EHLO vegetable-system.local', [250]);
-        smtp_send_command($socket, 'STARTTLS', [220]);
 
-        $tlsEnabled = stream_socket_enable_crypto(
-            $socket,
-            true,
-            STREAM_CRYPTO_METHOD_TLS_CLIENT
-        );
-        if ($tlsEnabled !== true) {
-            throw new RuntimeException(
-                'Could not start secure TLS. Enable the OpenSSL extension in php.ini.'
+        if (!$implicitTls) {
+            smtp_send_command($socket, 'STARTTLS', [220]);
+
+            $tlsEnabled = stream_socket_enable_crypto(
+                $socket,
+                true,
+                STREAM_CRYPTO_METHOD_TLS_CLIENT
             );
+            if ($tlsEnabled !== true) {
+                throw new RuntimeException(
+                    'Could not start secure TLS. Enable the OpenSSL extension in php.ini.'
+                );
+            }
+
+            smtp_send_command($socket, 'EHLO vegetable-system.local', [250]);
         }
 
-        smtp_send_command($socket, 'EHLO vegetable-system.local', [250]);
         smtp_send_command($socket, 'AUTH LOGIN', [334]);
         smtp_send_command($socket, base64_encode($username), [334]);
         smtp_send_command($socket, base64_encode($password), [235]);

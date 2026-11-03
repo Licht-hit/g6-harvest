@@ -2,10 +2,34 @@
 
 // This file connects the app to the MySQL database.
 // The code is simple so beginners can change host, database, user, and password easily.
-$dbHost = getenv('DB_HOST') ?: 'localhost';
-$dbName = getenv('DB_NAME') ?: 'vegetable_system';
-$dbUser = getenv('DB_USER') ?: 'root';
-$dbPassword = getenv('DB_PASSWORD') ?: '';
+$appEnvironment = strtolower(trim((string) getenv('APP_ENV')));
+$dbHost = getenv('DB_HOST');
+$dbName = getenv('DB_NAME');
+$dbUser = getenv('DB_USER');
+$dbPassword = getenv('DB_PASSWORD');
+
+if ($appEnvironment === 'production') {
+    if (
+        !is_string($dbHost) || trim($dbHost) === ''
+        || !is_string($dbName) || trim($dbName) === ''
+        || !is_string($dbUser) || trim($dbUser) === ''
+        || !is_string($dbPassword) || $dbPassword === ''
+    ) {
+        error_log('Production database configuration is incomplete.');
+        http_response_code(500);
+        exit('Database configuration is incomplete. Set DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD.');
+    }
+} else {
+    $dbHost = $dbHost ?: 'localhost';
+    $dbName = $dbName ?: 'vegetable_system';
+    $dbUser = $dbUser ?: 'root';
+    $dbPassword = $dbPassword ?: '';
+}
+
+$dbHost = trim((string) $dbHost);
+$dbName = trim((string) $dbName);
+$dbUser = trim((string) $dbUser);
+$dbPassword = (string) $dbPassword;
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
