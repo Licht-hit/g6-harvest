@@ -139,3 +139,5 @@ COD collection remains a farm-staff action and is allowed only for an out-for-de
 - `npm run build` builds the static site.
 - For a local end-to-end run of Vercel Functions, install the Vercel CLI and use `vercel dev` with the environment variables set. A plain Vite dev server only serves the browser UI; it does not run `/api` functions.
 - Live Auth, database, email, checkout, and webhook tests require your own Supabase and PayMongo test-project credentials. No credentials are included here.
+
+If a protected action reports that the session expired, confirm the Supabase project is active and `SUPABASE_URL` and `VITE_SUPABASE_URL` refer to the same project. The server checks these URLs and records Supabase token-validation errors in Vercel function logs. Redeploy after changing Vercel variables. The app attempts to refresh an expired access token once; if Supabase rejects the refresh token, sign in again.

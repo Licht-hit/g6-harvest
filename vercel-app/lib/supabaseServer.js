@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
+import { assertMatchingSupabaseUrl } from '../src/authSession.js';
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 
 if (!supabaseUrl) {
     throw new Error('SUPABASE_URL is not configured.');
 }
+assertMatchingSupabaseUrl(supabaseUrl, process.env.VITE_SUPABASE_URL);
 
 export const serviceClient = createClient(
     supabaseUrl,
@@ -38,6 +40,9 @@ export async function getRequestUser(request) {
     });
     const { data: authData, error: authError } = await client.auth.getUser(match[1]);
     if (authError || !authData.user) {
+        if (authError) {
+            console.error('Supabase rejected the API access token:', authError.message);
+        }
         return { error: 'Your session has expired. Sign in again.', status: 401 };
     }
 

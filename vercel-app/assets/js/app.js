@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getAccessToken, refreshAccessToken } from '../../src/authSession.js';
 import { calculateOrderTotals } from '../../src/orderMath.js';
 import { isFarmStaffRole } from '../../src/roles.js';
 
@@ -1066,19 +1067,63 @@ async function renderPage() {
 }
 
 async function apiRequest(path, payload) {
-    const { data: { session } } = await state.supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('Your session expired. Sign in again.');
-    const response = await fetch(path, {
+    const auth = state.supabase.auth;
+    let accessToken;
+    try {
+        accessToken = await getAccessToken(auth);
+    } catch (error) {
+        if (error?.status === 400 || error?.status === 401) {
+            console.error('Supabase rejected the stored refresh token.', error);
+            await expireClientSession();
+            throw new Error('Your session expired. Sign in again.');
+        }
+        throw error;
+    }
+    if (!accessToken) {
+        await expireClientSession();
+        throw new Error('Your session expired. Sign in again.');
+    }
+
+    const sendRequest = (token) => fetch(path, {
         method: 'POST',
         headers: {
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
     });
+
+    let response = await sendRequest(accessToken);
+    if (response.status === 401) {
+        try {
+            const refreshedToken = await refreshAccessToken(auth);
+            if (refreshedToken && refreshedToken !== accessToken) {
+                accessToken = refreshedToken;
+                response = await sendRequest(accessToken);
+            }
+        } catch (error) {
+            console.error('Could not refresh the Supabase session after an API authorization failure.', error);
+        }
+    }
+
     const result = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+        await expireClientSession();
+        throw new Error(result.error || 'Your session expired. Sign in again.');
+    }
     if (!response.ok) throw new Error(result.error || 'The server could not complete this request.');
     return result;
+}
+
+async function expireClientSession() {
+    const { error } = await state.supabase.auth.signOut({ scope: 'local' });
+    if (error) {
+        console.error('Could not clear the expired local session.', error);
+    }
+    state.session = null;
+    state.profile = null;
+    go('login');
+    notify('Your session expired. Sign in again.', 'error');
 }
 
 async function logAccountAction(action) {
