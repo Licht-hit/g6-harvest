@@ -129,6 +129,65 @@ document.querySelectorAll('[data-password-toggle]').forEach((toggle) => {
     });
 });
 
+const shopProducts = Array.from(document.querySelectorAll('[data-shop-product]'));
+if (shopProducts.length) {
+    const searchInput = document.querySelector('[data-shop-search]');
+    const categorySelect = document.querySelector('[data-shop-category]');
+    const availabilitySelect = document.querySelector('[data-shop-availability]');
+    const sortSelect = document.querySelector('[data-shop-sort]');
+    const resultCount = document.querySelector('[data-shop-count]');
+    const noResults = document.querySelector('[data-shop-no-results]');
+    const productGrid = shopProducts[0].parentElement;
+
+    shopProducts.forEach((product, index) => {
+        product.dataset.originalOrder = String(index);
+    });
+
+    const updateShopProducts = () => {
+        const searchTerm = searchInput.value.trim().toLocaleLowerCase();
+        const category = categorySelect.value;
+        const availability = availabilitySelect.value;
+        const sortBy = sortSelect.value;
+        const matchingProducts = shopProducts.filter((product) => {
+            const matchesSearch = product.dataset.search.toLocaleLowerCase().includes(searchTerm);
+            const matchesCategory = category === 'all' || product.dataset.category === category;
+            const hasStock = Number(product.dataset.stock) > 0;
+            const matchesAvailability = availability === 'all'
+                || (availability === 'available' && hasStock)
+                || (availability === 'out' && !hasStock);
+
+            product.hidden = !matchesSearch || !matchesCategory || !matchesAvailability;
+            return !product.hidden;
+        });
+
+        matchingProducts.sort((first, second) => {
+            if (sortBy === 'name') {
+                return first.dataset.name.localeCompare(second.dataset.name);
+            }
+            if (sortBy === 'price-low') {
+                return Number(first.dataset.price) - Number(second.dataset.price);
+            }
+            if (sortBy === 'price-high') {
+                return Number(second.dataset.price) - Number(first.dataset.price);
+            }
+            return Number(first.dataset.originalOrder) - Number(second.dataset.originalOrder);
+        });
+
+        matchingProducts.forEach((product) => productGrid.append(product));
+        if (resultCount) {
+            resultCount.textContent = `${matchingProducts.length} of ${shopProducts.length} produce items`;
+        }
+        if (noResults) {
+            noResults.hidden = matchingProducts.length > 0;
+        }
+    };
+
+    searchInput.addEventListener('input', updateShopProducts);
+    categorySelect.addEventListener('change', updateShopProducts);
+    availabilitySelect.addEventListener('change', updateShopProducts);
+    sortSelect.addEventListener('change', updateShopProducts);
+}
+
 function renderDashboardChart(canvas) {
     let labels;
     let values;

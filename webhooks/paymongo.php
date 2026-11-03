@@ -185,10 +185,12 @@ try {
         exit;
     }
 
-    $validCurrentStatuses = $newPaymentStatus === 'paid'
-        ? ['pending_payment', 'failed']
-        : ['pending_payment'];
-    if (!in_array($order['payment_status'], $validCurrentStatuses, true)) {
+    $transitionAction = paymongo_payment_transition_action(
+        $order['payment_status'],
+        $newPaymentStatus,
+        $order['order_status']
+    );
+    if ($transitionAction === 'ignore') {
         $db->commit();
         http_response_code(200);
         echo json_encode(['received' => true]);
@@ -248,9 +250,11 @@ try {
         $order['final_total'],
         $paymentId,
         $providerEventId,
-        $newPaymentStatus === 'paid'
-            ? 'Payment confirmed by PayMongo webhook.'
-            : 'PayMongo reported that the checkout payment failed.',
+        $transitionAction === 'late_payment'
+            ? 'Payment completed after the order was cancelled and stock was released. Manual refund or fulfillment review is required.'
+            : ($newPaymentStatus === 'paid'
+                ? 'Payment confirmed by PayMongo webhook.'
+                : 'PayMongo reported that the checkout payment failed.'),
     ]);
 
     if ($history->rowCount() === 0) {

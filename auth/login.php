@@ -111,6 +111,10 @@ require __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
 
+                <p class="auth-forgot-link">
+                    <a href="<?= h(app_url('auth/forgot_password.php')) ?>">Forgot password?</a>
+                </p>
+
                 <button class="auth-submit" type="submit">Log in <span aria-hidden="true">→</span></button>
             </form>
 

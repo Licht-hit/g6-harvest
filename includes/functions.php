@@ -8,7 +8,7 @@ function app_url(string $path = ''): string
 {
     $scriptDirectory = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
     if (in_array(basename($scriptDirectory), ['auth', 'modules', 'buyer'], true)) {
-        $scriptDirectory = dirname($scriptDirectory);
+        $scriptDirectory = str_replace('\\', '/', dirname($scriptDirectory));
     }
 
     $base = rtrim($scriptDirectory, '/');
@@ -141,6 +141,19 @@ function money($amount): string
     return '₱' . number_format((float) $amount, 2);
 }
 
+function vegetable_categories(): array
+{
+    return [
+        'Cruciferous vegetables',
+        'Cucurbits',
+        'Fruiting vegetables',
+        'Leafy greens',
+        'Legumes',
+        'Root vegetables',
+        'Other',
+    ];
+}
+
 function product_picture(string $productName): array
 {
     static $pictures = [
@@ -171,7 +184,7 @@ function product_picture(string $productName): array
     return $picture;
 }
 
-function email_verification_url(string $token): string
+function auth_token_url(string $page, string $token): string
 {
     $emailConfig = require __DIR__ . '/../config/email.php';
     $configuredAppUrl = $emailConfig['app_url'];
@@ -189,7 +202,7 @@ function email_verification_url(string $token): string
         }
 
         $baseUrl = rtrim($configuredAppUrl, '/');
-        return $baseUrl . '/auth/verify_email.php?token=' . rawurlencode($token);
+        return $baseUrl . '/auth/' . $page . '?token=' . rawurlencode($token);
     }
 
     $host = $_SERVER['HTTP_HOST'] ?? '';
@@ -206,8 +219,86 @@ function email_verification_url(string $token): string
 
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     return $scheme . '://' . $host
-        . app_url('auth/verify_email.php')
+        . app_url('auth/' . $page)
         . '?token=' . rawurlencode($token);
+}
+
+function email_verification_url(string $token): string
+{
+    return auth_token_url('verify_email.php', $token);
+}
+
+function password_reset_url(string $token): string
+{
+    return auth_token_url('reset_password.php', $token);
+}
+
+function send_password_reset(MySQLiDatabase $db, array $user): string
+{
+    $token = bin2hex(random_bytes(32));
+    $resetUrl = password_reset_url($token);
+    $emailConfig = require __DIR__ . '/../config/email.php';
+    $tokenHash = hash('sha256', $token);
+
+    $statement = $db->prepare(
+        'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at)
+         VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR), CURRENT_TIMESTAMP)
+         ON DUPLICATE KEY UPDATE
+            token_hash = VALUES(token_hash),
+            expires_at = VALUES(expires_at),
+            created_at = VALUES(created_at)'
+    );
+    $statement->execute([(int) $user['id'], $tokenHash]);
+
+    if ($emailConfig['mode'] === 'development') {
+        $_SESSION['development_password_reset_url'] = $resetUrl;
+        return 'development';
+    }
+
+    try {
+        $host = trim((string) $emailConfig['host']);
+        $port = (int) $emailConfig['port'];
+        $username = trim((string) $emailConfig['username']);
+        $password = preg_replace('/\s+/', '', (string) $emailConfig['password']);
+        $fromAddress = $emailConfig['from'];
+
+        if ($host === '' || $port < 1 || $port > 65535) {
+            throw new RuntimeException('Set a valid SMTP host and port in config/email.local.php.');
+        }
+
+        if (!filter_var($username, FILTER_VALIDATE_EMAIL) || $password === '') {
+            throw new RuntimeException('Set your Gmail address and Google App Password in config/email.local.php.');
+        }
+
+        if (!filter_var($fromAddress, FILTER_VALIDATE_EMAIL) || strcasecmp($fromAddress, $username) !== 0) {
+            throw new RuntimeException('For Gmail, the sender email must match the SMTP username.');
+        }
+
+        $body = "Hello " . $user['name'] . ",\n\n"
+            . "Reset your Harvest password using the link below within one hour:\n"
+            . $resetUrl . "\n\n"
+            . "If you did not request a password reset, you can ignore this message.\n";
+
+        smtp_send_email(
+            $host,
+            $port,
+            $username,
+            $password,
+            $fromAddress,
+            $user['email'],
+            'Reset your Harvest password',
+            $body
+        );
+    } catch (RuntimeException $exception) {
+        error_log('Password reset email delivery failed: ' . $exception->getMessage());
+        $deleteToken = $db->prepare(
+            'DELETE FROM password_reset_tokens WHERE user_id = ? AND token_hash = ?'
+        );
+        $deleteToken->execute([(int) $user['id'], $tokenHash]);
+        throw $exception;
+    }
+
+    return 'sent';
 }
 
 function send_email_verification(MySQLiDatabase $db, array $user): string

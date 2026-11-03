@@ -6,6 +6,7 @@ $vegetables = $db->query(
     'SELECT
         v.id,
         v.name,
+        v.category,
         v.variety,
         v.description,
         v.unit,
@@ -43,18 +44,72 @@ require __DIR__ . '/../includes/header.php';
         <p class="shop-eyebrow">From our fields to your table</p>
         <h2>Shop the harvest</h2>
     </div>
-    <p class="muted">Fresh picks, ready for your table.</p>
+    <p class="muted" data-shop-count aria-live="polite">
+        <?= count($vegetables) ?> <?= count($vegetables) === 1 ? 'produce item' : 'produce items' ?>
+    </p>
 </div>
 
 <?php if (!$vegetables): ?>
     <section class="panel empty">There is no produce in the catalog yet. Please check back soon.</section>
 <?php else: ?>
+    <section class="shop-discovery" aria-label="Find produce">
+        <label class="shop-search">
+            <span class="shop-search-icon" aria-hidden="true">⌕</span>
+            <span class="sr-only">Search produce</span>
+            <input
+                type="search"
+                placeholder="Search vegetables..."
+                autocomplete="off"
+                data-shop-search
+            >
+        </label>
+        <label class="shop-filter">
+            <span>Category</span>
+            <select data-shop-category>
+                <option value="all">All categories</option>
+                <?php foreach (vegetable_categories() as $category): ?>
+                    <option value="<?= h($category) ?>"><?= h($category) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label class="shop-filter">
+            <span>Availability</span>
+            <select data-shop-availability>
+                <option value="all">All produce</option>
+                <option value="available">Available now</option>
+                <option value="out">Out of stock</option>
+            </select>
+        </label>
+        <label class="shop-filter">
+            <span>Sort by</span>
+            <select data-shop-sort>
+                <option value="featured">Featured</option>
+                <option value="name">Name: A to Z</option>
+                <option value="price-low">Price: Low to high</option>
+                <option value="price-high">Price: High to low</option>
+            </select>
+        </label>
+    </section>
     <div class="card-grid shop-product-grid">
     <?php foreach ($vegetables as $vegetable): ?>
         <?php
         $picture = product_picture($vegetable['name']);
+        $searchText = implode(' ', array_filter([
+            $vegetable['name'],
+            $vegetable['category'],
+            $vegetable['variety'],
+            $vegetable['description'],
+        ]));
         ?>
-        <article class="card product-card">
+        <article
+            class="card product-card"
+            data-shop-product
+            data-search="<?= h($searchText) ?>"
+            data-name="<?= h($vegetable['name']) ?>"
+            data-category="<?= h($vegetable['category']) ?>"
+            data-price="<?= h((string) $vegetable['price']) ?>"
+            data-stock="<?= h((string) $vegetable['stock']) ?>"
+        >
             <div class="product-image">
                 <?php if ($picture['url']): ?>
                     <img
@@ -76,6 +131,7 @@ require __DIR__ . '/../includes/header.php';
                         <span class="product-variety"><?= h($vegetable['variety']) ?></span>
                     <?php endif; ?>
                 </div>
+                <span class="product-category"><?= h($vegetable['category']) ?></span>
 
                 <p class="product-description">
                     <?= h($vegetable['description'] ?: 'Fresh seasonal produce, picked with care.') ?>
@@ -131,5 +187,8 @@ require __DIR__ . '/../includes/header.php';
     <?php endforeach; ?>
 
     </div>
+    <p class="shop-no-results empty" data-shop-no-results role="status" hidden>
+        No produce matches those filters. Try a different search or availability setting.
+    </p>
 <?php endif; ?>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

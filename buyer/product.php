@@ -74,6 +74,7 @@ require __DIR__ . '/../includes/header.php';
 
     <div class="product-detail-content">
         <h1><?= h($product['name']) ?></h1>
+        <p class="product-detail-category"><?= h($product['category']) ?></p>
 
         <?php if ($hasVariety): ?>
             <p class="product-detail-variety"><?= h($product['variety']) ?></p>

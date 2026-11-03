@@ -10,9 +10,10 @@ This project uses PHP to build pages and handle form submissions. MySQL stores a
 ### Project map
 
 - `index.php` sends a signed-in user to the correct starting page.
-- `auth/` contains login, registration, logout, and email verification pages.
+- `auth/` contains login, registration, logout, email verification, and password recovery pages.
 - `buyer/` contains the buyer dashboard, produce shop, cart, checkout, and order pages.
 - `modules/` contains farm staff pages for vegetables, plantings, harvests, inventory, quality checks, sales, reports, and activity.
+- Vegetable categories are managed in the staff catalog and can be filtered in the buyer shop.
 - `includes/auth.php` starts the session and loads shared code.
 - `includes/functions.php` contains helpers shared by many pages, such as URL building, HTML escaping, form protection, and cart helpers.
 - `includes/header.php` and `includes/footer.php` contain the shared page layout.
@@ -97,7 +98,18 @@ Subscribe to `checkout_session.payment.paid` and, if your dashboard offers them,
 4. Choose COD. As admin/staff, progress the order to Out for Delivery, confirm cash collection, then check that payment becomes Paid and the collection staff/date appear in order details.
 5. Configure PayMongo test credentials and a publicly reachable HTTPS webhook. Choose Online Payment and complete a test GCash/card checkout. Confirm that the buyer return page remains pending until the signed webhook arrives, then verify the order becomes Paid. Cancel a test checkout and confirm it is not shown as paid.
 6. Review Sales and Reports for original subtotal, discounts, final totals, payment method/status, discount history, and discounted vegetables.
-7. Run `php tests\\checkout_calculation_test.php` and `php -l` on the changed PHP files.
+7. Run `php tests\\checkout_calculation_test.php`, `php tests\\payment_flow_test.php`, and `php -l` on the changed PHP files.
+
+The database-backed order flow check requires a separate test database with the
+project schema imported. Set `HARVEST_TEST_DB` to its name ending in `_test` before
+running `php tests\\order_flow_integration_test.php`; the test validates stock
+reservation, duplicate checkout protection, and payment-event handling, then
+rolls back its data. Never use a production database for tests. See
+[`DEPLOYMENT.md`](./DEPLOYMENT.md) for test setup and backup/restore guidance.
+
+For an existing installation, run `database-upgrade.sql` after taking a backup
+to add produce categories. The migration assigns sensible categories to the
+included sample vegetables and leaves other produce in “Other.”
 
 ## Shop product pictures
 
@@ -112,8 +124,9 @@ To add or replace an image, copy it into `assets/images/` and update the matchin
 ## Main features
 
 - Buyer, staff, and administrator roles with server-side access checks
-- Registration, login, logout, password hashing, session protection, and email verification
+- Registration, login, logout, password hashing, session protection, email verification, and one-time password reset links
 - Vegetable catalog, plantings, harvests, and quality inspection records
+- Produce categories, live shop search, availability filtering, and price sorting
 - Edit and archive actions for vegetables, growing plantings, and harvests; historical records are retained
 - Checkout updates inventory in a database transaction and buyers can only view their own orders
 - Dashboard summaries, searchable vegetable records, filtered reports, and a print-friendly report view
@@ -139,7 +152,7 @@ This structure is used in checkout validation and total calculation, rather than
 
 ## Email and SMS
 
-Email verification supports a configured SMTP sender and expiring one-time links. SMS notifications are optional in the project requirements and are not needed for the core workflows.
+Email verification and password recovery support configured SMTP delivery and expiring, single-use links. For local development, set `EMAIL_MODE=development` (or `mode => 'development'` in the ignored `config/email.local.php`) to display the generated links in the browser instead of sending email. For SMTP, configure the sender credentials and the public `APP_URL` so links point to the deployed application. Existing databases must run `database-upgrade.sql` to create the password-reset token table. SMS notifications are optional in the project requirements and are not needed for the core workflows.
 
 ## Vercel version
 

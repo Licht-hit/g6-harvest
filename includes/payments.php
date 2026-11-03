@@ -109,6 +109,22 @@ function paymongo_expire_checkout_session(string $sessionId): void
     }
 }
 
+function paymongo_payment_transition_action(
+    string $currentStatus,
+    string $incomingStatus,
+    string $orderStatus
+): string {
+    if ($incomingStatus === 'paid' && in_array($currentStatus, ['pending_payment', 'failed'], true)) {
+        return $orderStatus === 'cancelled' ? 'late_payment' : 'apply';
+    }
+
+    if ($incomingStatus === 'failed' && $currentStatus === 'pending_payment' && $orderStatus !== 'cancelled') {
+        return 'apply';
+    }
+
+    return 'ignore';
+}
+
 function paymongo_api_request(string $method, string $path, array $payload): array
 {
     $configuration = paymongo_config();

@@ -8,24 +8,24 @@
 USE vegetable_system;
 
 INSERT INTO users (name, email, password, role, email_verified_at) VALUES
-    (
+   (
         'Administrator',
-        'REPLACE_WITH_ADMIN_EMAIL',
-        'REPLACE_WITH_ADMIN_PASSWORD_HASH',
+        'admin@example.com',
+        '$2y$12$EJIjdr.v28JaSK8JF8hd3OagUg8fc9TedG6b8EhCcA1LiZ77W53FO',
         'admin',
         CURRENT_TIMESTAMP
     ),
     (
         'Farm Staff',
-        'REPLACE_WITH_STAFF_EMAIL',
-        'REPLACE_WITH_STAFF_PASSWORD_HASH',
+        'staff@example.com',
+        '$2y$12$j5PHQ6x6wEBmF5pPVSwc7.ZM3RatTLQPtA5pyBTwnMmed0HMr5ZF.',
         'staff',
         CURRENT_TIMESTAMP
     ),
     (
         'Buyer',
-        'REPLACE_WITH_BUYER_EMAIL',
-        'REPLACE_WITH_BUYER_PASSWORD_HASH',
+        'buyer@example.com',
+        '$2y$12$pTX1NQd82aAncafWUa.t.upJ0eAqj7CtwWNZO/2cj1h4WYPoTqAne',
         'buyer',
         CURRENT_TIMESTAMP
     )

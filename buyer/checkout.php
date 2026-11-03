@@ -226,12 +226,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 status
             ) VALUES (?, ?, ?, ?, ?, ?, 'pending')"
         );
-        $updateStock = $db->prepare(
-            'UPDATE inventory
-             SET quantity = quantity - ?
-             WHERE vegetable_id = ? AND quantity >= ?'
-        );
-
         foreach ($cartItems as $productId => $quantity) {
             $product = $productsById[$productId];
             $lineTotal = round((float) $product['price'] * $quantity, 2);
@@ -243,10 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $product['price'],
                 $lineTotal,
             ]);
-            $updateStock->execute([$quantity, $productId, $quantity]);
-            if ($updateStock->rowCount() !== 1) {
-                throw new RuntimeException('Stock changed during checkout. Please try again.');
-            }
+            reserve_inventory_stock($db, $productId, $quantity);
         }
 
         $paymentHistory = $db->prepare(

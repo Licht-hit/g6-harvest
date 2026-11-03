@@ -31,6 +31,23 @@ function checkout_request_fingerprint(
     ], JSON_THROW_ON_ERROR));
 }
 
+function reserve_inventory_stock(MySQLiDatabase $db, int $vegetableId, float $quantity): void
+{
+    if ($vegetableId < 1 || !is_finite($quantity) || $quantity <= 0) {
+        throw new RuntimeException('An inventory reservation quantity is invalid.');
+    }
+
+    $statement = $db->prepare(
+        'UPDATE inventory
+         SET quantity = quantity - ?
+         WHERE vegetable_id = ? AND quantity >= ?'
+    );
+    $statement->execute([$quantity, $vegetableId, $quantity]);
+    if ($statement->rowCount() !== 1) {
+        throw new RuntimeException('Stock changed during checkout. Please try again.');
+    }
+}
+
 function redirect_to_existing_checkout(array $order, ?string $requestFingerprint = null): void
 {
     if (

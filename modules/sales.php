@@ -524,6 +524,9 @@ require __DIR__ . '/../includes/header.php';
                                                     <?php if ($event['actor_name']): ?>
                                                         · <?= h($event['actor_name']) ?>
                                                     <?php endif; ?>
+                                                    <?php if ($event['details']): ?>
+                                                        <br><?= h($event['details']) ?>
+                                                    <?php endif; ?>
                                                 </li>
                                             <?php endforeach; ?>
                                         </ul>

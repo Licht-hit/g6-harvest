@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $vegetableId = (int) ($_POST['id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
+    $category = trim($_POST['category'] ?? '');
     $variety = trim($_POST['variety'] ?? '');
     $unit = trim($_POST['unit'] ?? 'kg');
     $rawPrice = $_POST['price'] ?? '';
@@ -42,12 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($action === 'update' && $vegetableId < 1)
         || $name === ''
         || strlen($name) > 120
+        || !in_array($category, vegetable_categories(), true)
         || $unit === ''
         || strlen($unit) > 30
         || $price === false
         || !$priceHasValidFormat
         || $price < 0) {
-        $error = 'Enter a vegetable name and unit, and a price with up to two decimal places.';
+        $error = 'Choose a category, enter a vegetable name and unit, and use a price with up to two decimal places.';
     } else {
         if ($action === 'update') {
             $existing = $db->prepare('SELECT id FROM vegetables WHERE id = ?');
@@ -57,11 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $statement = $db->prepare(
                     'UPDATE vegetables
-                     SET name = ?, variety = ?, description = ?, unit = ?, price = ?
+                     SET name = ?, category = ?, variety = ?, description = ?, unit = ?, price = ?
                      WHERE id = ?'
                 );
                 $statement->execute([
                     $name,
+                    $category,
                     $variety ?: null,
                     $description ?: null,
                     $unit,
@@ -74,11 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             $statement = $db->prepare(
-                'INSERT INTO vegetables (name, variety, description, unit, price)
-                 VALUES (?, ?, ?, ?, ?)'
+                'INSERT INTO vegetables (name, category, variety, description, unit, price)
+                 VALUES (?, ?, ?, ?, ?, ?)'
             );
             $statement->execute([
                 $name,
+                $category,
                 $variety ?: null,
                 $description ?: null,
                 $unit,
@@ -106,10 +110,10 @@ $vegetableSql = 'SELECT v.*, COALESCE(i.quantity, 0) AS stock
                  LEFT JOIN inventory AS i ON i.vegetable_id = v.id';
 if ($search !== '') {
     $statement = $db->prepare(
-        $vegetableSql . ' WHERE v.name LIKE ? OR v.variety LIKE ? ORDER BY v.name'
+        $vegetableSql . ' WHERE v.name LIKE ? OR v.category LIKE ? OR v.variety LIKE ? ORDER BY v.name'
     );
     $like = '%' . $search . '%';
-    $statement->execute([$like, $like]);
+    $statement->execute([$like, $like, $like]);
     $vegetables = $statement->fetchAll();
 } else {
     $vegetables = $db->query($vegetableSql . ' ORDER BY v.name')->fetchAll();
@@ -144,6 +148,19 @@ require __DIR__ . '/../includes/header.php';
             <div class="field">
                 <label for="name">Name</label>
                 <input id="name" name="name" maxlength="120" required value="<?= h($editingVegetable['name'] ?? '') ?>">
+            </div>
+            <div class="field">
+                <label for="category">Category</label>
+                <select id="category" name="category" required>
+                    <?php foreach (vegetable_categories() as $categoryOption): ?>
+                        <option
+                            value="<?= h($categoryOption) ?>"
+                            <?= ($editingVegetable['category'] ?? 'Other') === $categoryOption ? 'selected' : '' ?>
+                        >
+                            <?= h($categoryOption) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div class="field">
                 <label for="variety">Variety</label>
@@ -181,7 +198,7 @@ require __DIR__ . '/../includes/header.php';
     <form method="get" class="inline-form section">
         <div class="field">
             <label for="q">Search vegetables</label>
-            <input id="q" name="q" value="<?= h($search) ?>" placeholder="Name or variety">
+            <input id="q" name="q" value="<?= h($search) ?>" placeholder="Name, category, or variety">
         </div>
         <button type="submit">Search</button>
         <?php if ($search !== ''): ?>
@@ -197,6 +214,7 @@ require __DIR__ . '/../includes/header.php';
                 <thead>
                     <tr>
                         <th>Name</th>
+                        <th>Category</th>
                         <th>Variety</th>
                         <th>Unit price</th>
                         <th>Stock</th>
@@ -209,6 +227,7 @@ require __DIR__ . '/../includes/header.php';
                     <?php foreach ($vegetables as $vegetable): ?>
                         <tr>
                             <td><?= h($vegetable['name']) ?></td>
+                            <td><?= h($vegetable['category']) ?></td>
                             <td><?= h($vegetable['variety'] ?? '—') ?></td>
                             <td>
                                 <?= money($vegetable['price']) ?>

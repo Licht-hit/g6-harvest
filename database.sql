@@ -39,16 +39,28 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Stores one-time, expiring password reset tokens.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    user_id INT UNSIGNED PRIMARY KEY,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    CONSTRAINT fk_password_reset_tokens_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Stores products that can be planted, harvested, and sold.
 CREATE TABLE IF NOT EXISTS vegetables (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
+    category VARCHAR(80) NOT NULL DEFAULT 'Other',
     variety VARCHAR(120) NULL,
     description TEXT NULL,
     unit VARCHAR(30) NOT NULL DEFAULT 'kg',
     price DECIMAL(10,2) NOT NULL DEFAULT 0,
     active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_vegetables_category (category)
 ) ENGINE=InnoDB;
 
 -- Stores when and how much of each vegetable was planted.
@@ -214,19 +226,20 @@ CREATE TABLE IF NOT EXISTS activity_logs (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-INSERT INTO vegetables (id, name, variety, description, unit, price, active) VALUES
-    (1, 'Tomato', 'Roma', 'Firm, flavorful tomatoes, ideal for salads and cooking.', 'kg', 40.50, 1),
-    (2, 'Carrot', 'Nantes', 'Sweet, crisp carrots freshly harvested from the farm.', 'kg', 25.25, 1),
-    (3, 'Lettuce', 'Butterhead', 'Tender leafy lettuce, harvested to order.', 'head', 10.75, 1),
-    (4, 'Cucumber', 'Marketmore', 'Crisp cucumbers for salads, sandwiches, and pickling.', 'kg', 10.80, 1),
-    (5, 'Spinach', 'Baby Leaf', 'Young, tender spinach leaves, packed fresh.', 'bunch', 15.00, 1),
-    (6, 'Bell Pepper', 'California Wonder', 'Colorful sweet peppers with a crisp texture.', 'kg', 40.25, 1),
-    (7, 'Zucchini', 'Black Beauty', 'Fresh green summer squash, versatile for cooking.', 'kg', 20.60, 1),
-    (8, 'Broccoli', 'Calabrese', 'Compact green florets, rich in flavor.', 'head', 20.40, 1),
-    (9, 'Kale', 'Curly Green', 'Hearty leafy greens for salads, soups, and sautés.', 'bunch', 20.15, 1),
-    (10, 'Green Beans', 'Provider', 'Tender green beans, picked at peak freshness.', 'kg', 30.20, 1)
+INSERT INTO vegetables (id, name, category, variety, description, unit, price, active) VALUES
+    (1, 'Tomato', 'Fruiting vegetables', 'Roma', 'Firm, flavorful tomatoes, ideal for salads and cooking.', 'kg', 40.50, 1),
+    (2, 'Carrot', 'Root vegetables', 'Nantes', 'Sweet, crisp carrots freshly harvested from the farm.', 'kg', 25.25, 1),
+    (3, 'Lettuce', 'Leafy greens', 'Butterhead', 'Tender leafy lettuce, harvested to order.', 'head', 10.75, 1),
+    (4, 'Cucumber', 'Cucurbits', 'Marketmore', 'Crisp cucumbers for salads, sandwiches, and pickling.', 'kg', 10.80, 1),
+    (5, 'Spinach', 'Leafy greens', 'Baby Leaf', 'Young, tender spinach leaves, packed fresh.', 'bunch', 15.00, 1),
+    (6, 'Bell Pepper', 'Fruiting vegetables', 'California Wonder', 'Colorful sweet peppers with a crisp texture.', 'kg', 40.25, 1),
+    (7, 'Zucchini', 'Cucurbits', 'Black Beauty', 'Fresh green summer squash, versatile for cooking.', 'kg', 20.60, 1),
+    (8, 'Broccoli', 'Cruciferous vegetables', 'Calabrese', 'Compact green florets, rich in flavor.', 'head', 20.40, 1),
+    (9, 'Kale', 'Leafy greens', 'Curly Green', 'Hearty leafy greens for salads, soups, and sautés.', 'bunch', 20.15, 1),
+    (10, 'Green Beans', 'Legumes', 'Provider', 'Tender green beans, picked at peak freshness.', 'kg', 30.20, 1)
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
+    category = VALUES(category),
     variety = VALUES(variety),
     description = VALUES(description),
     unit = VALUES(unit),

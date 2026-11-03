@@ -18,6 +18,33 @@ $salesToday = (float) $db
             AND DATE(created_at) = CURDATE()"
     )
     ->fetchColumn();
+$openOrderCount = (int) $db
+    ->query(
+        "SELECT COUNT(*)
+         FROM orders
+         WHERE order_status NOT IN ('delivered', 'cancelled')"
+    )
+    ->fetchColumn();
+$salesComparison = $db->query(
+    "SELECT
+        COALESCE(SUM(CASE
+            WHEN created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) THEN final_total
+            ELSE 0
+        END), 0) AS current_period,
+        COALESCE(SUM(CASE
+            WHEN created_at < DATE_SUB(CURDATE(), INTERVAL 6 DAY) THEN final_total
+            ELSE 0
+        END), 0) AS previous_period
+     FROM orders
+     WHERE payment_status = 'paid'
+        AND created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+        AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)"
+)->fetch();
+$currentSevenDaySales = (float) $salesComparison['current_period'];
+$previousSevenDaySales = (float) $salesComparison['previous_period'];
+$salesTrendPercent = $previousSevenDaySales > 0
+    ? (($currentSevenDaySales - $previousSevenDaySales) / $previousSevenDaySales) * 100
+    : null;
 $harvestCount = (int) $db
     ->query('SELECT COUNT(*) FROM harvests WHERE archived_at IS NULL')
     ->fetchColumn();
@@ -135,7 +162,27 @@ require __DIR__ . '/includes/header.php';
         <span class="dashboard-stat-label">Sales today</span>
         <strong><?= money($salesToday) ?></strong>
         <small>Paid orders today</small>
+        <?php if ($salesTrendPercent !== null): ?>
+            <small class="dashboard-stat-trend <?= $salesTrendPercent >= 0 ? 'is-positive' : 'is-negative' ?>">
+                <?= $salesTrendPercent >= 0 ? '↑' : '↓' ?>
+                <?= number_format(abs($salesTrendPercent), 1) ?>% vs previous 7 days
+            </small>
+        <?php elseif ($currentSevenDaySales > 0): ?>
+            <small class="dashboard-stat-trend is-positive">Sales recorded this week</small>
+        <?php else: ?>
+            <small class="dashboard-stat-trend">No sales in the last 7 days</small>
+        <?php endif; ?>
     </article>
+    <a
+        class="dashboard-stat-card dashboard-stat-card-link"
+        href="<?= h(app_url('modules/sales.php')) ?>"
+        aria-label="View <?= number_format($openOrderCount) ?> open orders"
+    >
+        <span class="dashboard-stat-icon" aria-hidden="true">▱</span>
+        <span class="dashboard-stat-label">Open orders</span>
+        <strong><?= number_format($openOrderCount) ?></strong>
+        <small>Need fulfillment</small>
+    </a>
     <article class="dashboard-stat-card">
         <span class="dashboard-stat-icon" aria-hidden="true">⌁</span>
         <span class="dashboard-stat-label">Total harvests</span>
@@ -311,7 +358,16 @@ require __DIR__ . '/includes/header.php';
                                 <td><?= h($sale['buyer']) ?></td>
                                 <td><?= number_format((int) $sale['item_count']) ?> product(s)<small class="table-secondary"><?= number_format((float) $sale['quantity'], 2) ?> units</small></td>
                                 <td><strong><?= money($sale['total']) ?></strong></td>
-                                <td><?= h(ucwords(str_replace('_', ' ', $sale['payment_status']))) ?><small class="table-secondary"><?= h(ucwords(str_replace('_', ' ', $sale['order_status']))) ?></small></td>
+                                <td>
+                                    <span class="status-badge status-<?= h($sale['payment_status']) ?>">
+                                        <?= h(ucwords(str_replace('_', ' ', $sale['payment_status']))) ?>
+                                    </span>
+                                    <small class="table-secondary">
+                                        <span class="status-badge status-<?= h($sale['order_status']) ?>">
+                                            <?= h(ucwords(str_replace('_', ' ', $sale['order_status']))) ?>
+                                        </span>
+                                    </small>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

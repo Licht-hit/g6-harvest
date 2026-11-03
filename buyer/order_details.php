@@ -68,6 +68,11 @@ require __DIR__ . '/../includes/header.php';
         <?= h(strtoupper($order['payment_method'])) ?> ·
         <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
     </p>
+    <?php if ($order['order_status'] === 'cancelled' && $order['payment_status'] === 'paid'): ?>
+        <p class="notice error" role="status">
+            Payment completed after this order was cancelled. Please contact Harvest support to arrange a refund or discuss next steps.
+        </p>
+    <?php endif; ?>
     <p>
         <strong>Combined eligible quantity:</strong>
         <?= number_format((float) $order['eligible_quantity'], 2) ?> units

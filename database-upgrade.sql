@@ -16,6 +16,71 @@ PREPARE harvest_archive_migration_statement FROM @harvest_archive_migration;
 EXECUTE harvest_archive_migration_statement;
 DEALLOCATE PREPARE harvest_archive_migration_statement;
 
+-- Add produce categories without changing existing vegetable records.
+SET @vegetable_category_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'vegetables'
+        AND COLUMN_NAME = 'category'
+);
+SET @vegetable_category_migration = IF(
+    @vegetable_category_column_exists = 0,
+    'ALTER TABLE vegetables ADD COLUMN category VARCHAR(80) NOT NULL DEFAULT ''Other'' AFTER name',
+    'SELECT 1'
+);
+PREPARE vegetable_category_migration_statement FROM @vegetable_category_migration;
+EXECUTE vegetable_category_migration_statement;
+DEALLOCATE PREPARE vegetable_category_migration_statement;
+
+SET @vegetable_category_index_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'vegetables'
+        AND INDEX_NAME = 'idx_vegetables_category'
+);
+SET @vegetable_category_index_migration = IF(
+    @vegetable_category_index_exists = 0,
+    'ALTER TABLE vegetables ADD INDEX idx_vegetables_category (category)',
+    'SELECT 1'
+);
+PREPARE vegetable_category_index_statement FROM @vegetable_category_index_migration;
+EXECUTE vegetable_category_index_statement;
+DEALLOCATE PREPARE vegetable_category_index_statement;
+
+SET @vegetable_category_backfill = IF(
+    @vegetable_category_column_exists = 0,
+    'UPDATE vegetables
+     SET category = CASE LOWER(name)
+         WHEN ''tomato'' THEN ''Fruiting vegetables''
+         WHEN ''bell pepper'' THEN ''Fruiting vegetables''
+         WHEN ''carrot'' THEN ''Root vegetables''
+         WHEN ''lettuce'' THEN ''Leafy greens''
+         WHEN ''spinach'' THEN ''Leafy greens''
+         WHEN ''kale'' THEN ''Leafy greens''
+         WHEN ''cucumber'' THEN ''Cucurbits''
+         WHEN ''zucchini'' THEN ''Cucurbits''
+         WHEN ''broccoli'' THEN ''Cruciferous vegetables''
+         WHEN ''green beans'' THEN ''Legumes''
+         ELSE ''Other''
+     END',
+    'SELECT 1'
+);
+PREPARE vegetable_category_backfill_statement FROM @vegetable_category_backfill;
+EXECUTE vegetable_category_backfill_statement;
+DEALLOCATE PREPARE vegetable_category_backfill_statement;
+
+-- Store one-time, expiring password reset tokens for existing installations.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    user_id INT UNSIGNED PRIMARY KEY,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    CONSTRAINT fk_password_reset_tokens_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Allow new sale items to remain unpaid until COD collection or a gateway webhook.
 ALTER TABLE sales
     MODIFY COLUMN status ENUM('pending', 'paid', 'cancelled') NOT NULL DEFAULT 'pending';
