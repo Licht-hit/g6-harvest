@@ -92,6 +92,20 @@ function showError(error) {
     notify(error?.message || 'Something went wrong. Please try again.', 'error');
 }
 
+function showSupabaseConfigurationError() {
+    document.querySelector('#guest-navigation').hidden = true;
+    document.querySelector('[data-nav-toggle]').disabled = true;
+    app.innerHTML = `
+        <section class="panel">
+            <h1>Connect Supabase</h1>
+            <p>This deployment is missing the Supabase browser configuration.</p>
+            <p>In Vercel, add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>
+            to the project environment variables for this deployment's environment, then redeploy.</p>
+            <p>Make sure the Vercel project root directory is <code>vercel-app</code>.
+            The Supabase service-role key must not use the <code>VITE_</code> prefix.</p>
+        </section>`;
+}
+
 function readCart() {
     try {
         const value = JSON.parse(localStorage.getItem(cartStorageKey) || '{}');
@@ -986,6 +1000,10 @@ async function renderActivity() {
 }
 
 async function renderPage() {
+    if (!state.supabase) {
+        showSupabaseConfigurationError();
+        return;
+    }
     if (!state.session || !state.profile) {
         const page = guestPage(state.page);
         state.page = page;
@@ -1077,6 +1095,10 @@ function readForm(form) {
 }
 
 async function handleSubmit(form) {
+    if (!state.supabase) {
+        showSupabaseConfigurationError();
+        return;
+    }
     const values = readForm(form);
     const formName = form.dataset.form;
     if (formName === 'login') {
@@ -1520,7 +1542,7 @@ window.addEventListener('popstate', () => {
 async function start() {
     document.querySelector('#current-year').textContent = new Date().getFullYear();
     if (!supabaseUrl || !supabaseAnonKey) {
-        app.innerHTML = `<section class="panel"><h1>Connect Supabase</h1><p>Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in the Vercel project settings, then redeploy.</p></section>`;
+        showSupabaseConfigurationError();
         return;
     }
     state.supabase = createClient(supabaseUrl, supabaseAnonKey, {
