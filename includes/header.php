@@ -2,26 +2,36 @@
 $pageTitle = $pageTitle ?? 'Vegetable System';
 $pageClass = $pageClass ?? '';
 $user = current_user();
+$styleVersion = filemtime(__DIR__ . '/../assets/css/style.css');
+$scriptVersion = filemtime(__DIR__ . '/../assets/js/script.js');
+$uiCssPath = __DIR__ . '/../assets/vendor/ui.css';
+$uiScriptPath = __DIR__ . '/../assets/vendor/ui.js';
+$uiVersion = is_file($uiCssPath) && is_file($uiScriptPath)
+    ? max(filemtime($uiCssPath), filemtime($uiScriptPath))
+    : null;
+$pageClassNames = preg_split('/\s+/', trim($pageClass)) ?: [];
+$isPublicHome = in_array('public-home-page', $pageClassNames, true);
+$isOperationsUser = $user && in_array($user['role'], ['admin', 'staff'], true);
 $notice = take_flash();
 
-// Buyers and farm staff should land on different starting pages.
-$homePage = 'dashboard.php';
-if ($user && $user['role'] === 'buyer') {
-    $homePage = 'buyer/dashboard.php';
+// Send guests, buyers, and farm staff to the appropriate starting page.
+$homePage = 'index.php';
+if ($user) {
+    $homePage = dashboard_path_for_role($user['role']);
 }
 $currentPage = basename(parse_url($_SERVER['SCRIPT_NAME'] ?? '', PHP_URL_PATH) ?: '');
 $managementLinks = [
-    ['label' => 'Dashboard', 'path' => 'dashboard.php', 'icon' => '▦'],
-    ['label' => 'Vegetables', 'path' => 'modules/vegetables.php', 'icon' => '◉'],
-    ['label' => 'Plantings', 'path' => 'modules/plantings.php', 'icon' => '♧'],
-    ['label' => 'Harvests', 'path' => 'modules/harvests.php', 'icon' => '⌁'],
-    ['label' => 'Inventory', 'path' => 'modules/inventory.php', 'icon' => '▤'],
-    ['label' => 'Sales', 'path' => 'modules/sales.php', 'icon' => '↗'],
-    ['label' => 'Quality', 'path' => 'modules/quality_inspection.php', 'icon' => '✓'],
-    ['label' => 'Reports', 'path' => 'modules/reports.php', 'icon' => '▥'],
+    ['label' => 'Dashboard', 'path' => 'dashboard.php', 'icon' => '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>'],
+    ['label' => 'Vegetables', 'path' => 'modules/vegetables.php', 'icon' => '<path d="M20 4c-7 0-13 3-13 9a5 5 0 0 0 5 5c6 0 8-7 8-14Z"/><path d="M4 21c3-5 7-8 12-11"/>'],
+    ['label' => 'Plantings', 'path' => 'modules/plantings.php', 'icon' => '<path d="M12 22v-8"/><path d="M12 14c-4 0-7-2-7-6 4 0 7 2 7 6Z"/><path d="M12 11c0-4 3-7 7-7 0 4-3 7-7 7Z"/>'],
+    ['label' => 'Harvests', 'path' => 'modules/harvests.php', 'icon' => '<path d="M12 22V8"/><path d="M12 13 7 9"/><path d="m12 17 6-5"/><path d="M7 9c-2-2-2-4-1-6 3 1 4 3 4 6"/><path d="M18 12c2-2 2-4 1-6-3 1-4 3-4 6"/>'],
+    ['label' => 'Inventory', 'path' => 'modules/inventory.php', 'icon' => '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 8 9 5 9-5"/><path d="M3 8v9l9 5 9-5V8"/><path d="M12 13v9"/>'],
+    ['label' => 'Sales', 'path' => 'modules/sales.php', 'icon' => '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 7H6"/>'],
+    ['label' => 'Quality', 'path' => 'modules/quality_inspection.php', 'icon' => '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>'],
+    ['label' => 'Reports', 'path' => 'modules/reports.php', 'icon' => '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>'],
 ];
 if ($user && $user['role'] === 'admin') {
-    $managementLinks[] = ['label' => 'Activity', 'path' => 'modules/activity_logs.php', 'icon' => '◷'];
+    $managementLinks[] = ['label' => 'Activity', 'path' => 'modules/activity_logs.php', 'icon' => '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'];
 }
 ?>
 <!DOCTYPE html>
@@ -30,12 +40,19 @@ if ($user && $user['role'] === 'admin') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= h($pageTitle) ?> | Harvest</title>
-    <link rel="stylesheet" href="<?= h(app_url('assets/css/style.css')) ?>">
-    <script src="<?= h(app_url('assets/js/script.js')) ?>" defer></script>
+    <?php if (!empty($pageDescription)): ?>
+        <meta name="description" content="<?= h($pageDescription) ?>">
+    <?php endif; ?>
+    <?php if ($isPublicHome && $uiVersion !== null): ?>
+        <link rel="stylesheet" href="<?= h(app_url('assets/vendor/ui.css?v=' . $uiVersion)) ?>">
+        <script src="<?= h(app_url('assets/vendor/ui.js?v=' . $uiVersion)) ?>" defer></script>
+    <?php endif; ?>
+    <link rel="stylesheet" href="<?= h(app_url('assets/css/style.css?v=' . $styleVersion)) ?>">
+    <script src="<?= h(app_url('assets/js/script.js?v=' . $scriptVersion)) ?>" defer></script>
 </head>
-<body class="<?= h($pageClass) ?>">
-<header class="site-header">
-    <a class="brand" href="<?= h(app_url($homePage)) ?>">
+<body class="<?= h(trim($pageClass . ($isOperationsUser ? ' operations-layout' : ''))) ?>">
+<header class="site-header<?= $isOperationsUser ? ' operations-sidebar' : '' ?><?= $isPublicHome ? ' public-site-header' : '' ?>">
+    <a class="brand" href="<?= h(app_url($isPublicHome ? 'index.php' : $homePage)) ?>">
         <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32" fill="none">
                 <path d="M25.8 5.2C16 5.5 8.3 8.8 8.3 17.1c0 3.2 2.2 5.4 5.1 5.4 8.8 0 11.6-8.8 12.4-17.3Z" fill="currentColor"/>
@@ -44,9 +61,9 @@ if ($user && $user['role'] === 'admin') {
         </span>
         <span>Harvest<span class="brand-period">.</span></span>
     </a>
-    <?php if ($user): ?>
+    <?php if ($isPublicHome): ?>
         <button
-            class="nav-toggle"
+            class="nav-toggle public-nav-toggle"
             type="button"
             aria-label="Open navigation"
             aria-expanded="false"
@@ -55,7 +72,37 @@ if ($user && $user['role'] === 'admin') {
         >
             <span></span><span></span><span></span>
         </button>
-        <nav class="main-nav" id="primary-navigation" aria-label="Main navigation">
+        <nav class="main-nav public-main-nav" id="primary-navigation" aria-label="Public navigation">
+            <a href="#home" aria-current="page">Home</a>
+            <a href="#about">About</a>
+            <a href="#featured">Produce</a>
+            <a href="#why-harvest">Why Harvest</a>
+            <a href="#farming-process">Our process</a>
+            <a href="#contact">Contact</a>
+        </nav>
+        <div class="public-header-actions">
+            <?php if ($user): ?>
+                <a class="public-header-login" href="<?= h(app_url($user['role'] === 'buyer' ? 'buyer/dashboard.php' : 'dashboard.php')) ?>">My dashboard</a>
+                <?php if ($user['role'] === 'buyer'): ?>
+                    <a class="public-header-register" href="<?= h(app_url('buyer/favorites.php')) ?>">My favorites</a>
+                <?php endif; ?>
+            <?php else: ?>
+                <a class="public-header-login" href="<?= h(app_url('auth/login.php')) ?>">Log in</a>
+                <a class="public-header-register" href="<?= h(app_url('auth/register.php')) ?>">Create account</a>
+            <?php endif; ?>
+        </div>
+    <?php elseif ($user): ?>
+        <button
+            class="nav-toggle"
+            type="button"
+            aria-label="<?= $isOperationsUser ? 'Collapse navigation' : 'Open navigation' ?>"
+            aria-expanded="<?= $isOperationsUser ? 'true' : 'false' ?>"
+            aria-controls="primary-navigation"
+            data-nav-toggle
+        >
+            <span></span><span></span><span></span>
+        </button>
+        <nav class="main-nav" id="primary-navigation" aria-label="<?= $isOperationsUser ? 'Farm operations' : 'Main navigation' ?>">
             <?php if ($user['role'] === 'buyer'): ?>
                 <a class="<?= $currentPage === 'dashboard.php' ? 'active' : '' ?>" href="<?= h(app_url('buyer/dashboard.php')) ?>" <?= $currentPage === 'dashboard.php' ? 'aria-current="page"' : '' ?>>
                     <span class="nav-icon" aria-hidden="true">▦</span> Dashboard
@@ -75,15 +122,20 @@ if ($user && $user['role'] === 'admin') {
             <?php else: ?>
                 <?php foreach ($managementLinks as $link): ?>
                     <?php $isActive = $currentPage === basename($link['path']); ?>
-                    <a class="<?= $isActive ? 'active' : '' ?>" href="<?= h(app_url($link['path'])) ?>" <?= $isActive ? 'aria-current="page"' : '' ?>>
-                        <span class="nav-icon" aria-hidden="true"><?= h($link['icon']) ?></span>
-                        <?= h($link['label']) ?>
+                    <a
+                        class="<?= $isActive ? 'active' : '' ?>"
+                        href="<?= h(app_url($link['path'])) ?>"
+                        title="<?= h($link['label']) ?>"
+                        <?= $isActive ? 'aria-current="page"' : '' ?>
+                    >
+                        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><?= $link['icon'] ?></svg></span>
+                        <span class="nav-link-label"><?= h($link['label']) ?></span>
                     </a>
                 <?php endforeach; ?>
             <?php endif; ?>
         </nav>
         <details class="account-menu">
-            <summary>
+            <summary aria-label="Account menu for <?= h($user['name']) ?>">
                 <span class="account-avatar" aria-hidden="true"><?= h(strtoupper(substr($user['name'], 0, 1))) ?></span>
                 <span class="account-copy">
                     <strong><?= h($user['name']) ?></strong>

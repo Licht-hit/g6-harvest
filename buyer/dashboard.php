@@ -133,27 +133,6 @@ $attentionStatement = $db->prepare(
 $attentionStatement->execute([$buyerId]);
 $attentionOrders = $attentionStatement->fetchAll();
 
-$shopItemsStatement = $db->prepare(
-    'SELECT
-        v.id,
-        v.name,
-        v.category,
-        v.unit,
-        v.price,
-        v.description,
-        i.quantity AS stock,
-        (f.vegetable_id IS NOT NULL) AS is_favorite
-     FROM vegetables AS v
-     JOIN inventory AS i ON i.vegetable_id = v.id
-     LEFT JOIN buyer_favorites AS f
-        ON f.vegetable_id = v.id AND f.buyer_id = ?
-     WHERE v.active = 1 AND i.quantity > 0
-     ORDER BY (f.vegetable_id IS NOT NULL) DESC, v.name
-     LIMIT 4'
-);
-$shopItemsStatement->execute([$buyerId]);
-$shopItems = $shopItemsStatement->fetchAll();
-
 $favoritesStatement = $db->prepare(
     'SELECT v.id, v.name, v.active, v.price, v.unit, COALESCE(i.quantity, 0) AS stock
      FROM buyer_favorites AS f
@@ -327,93 +306,6 @@ require __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 </section>
 
-<section class="buyer-shop-section" aria-labelledby="buyer-shop-title">
-    <div class="module-table-heading">
-        <div>
-            <p class="module-eyebrow">Fresh from the farm</p>
-            <h2 id="buyer-shop-title">Available now</h2>
-            <p class="muted">Quick add in a couple of taps.</p>
-        </div>
-        <a href="<?= h(app_url('buyer/index.php')) ?>">Browse all produce</a>
-    </div>
-    <?php if ($shopItems): ?>
-        <div class="buyer-quick-grid">
-            <?php foreach ($shopItems as $item): ?>
-                <?php
-                $picture = product_picture($item['name']);
-                $cartQuantity = is_numeric($cart[$item['id']] ?? null)
-                    ? (float) $cart[$item['id']]
-                    : 0.0;
-                $remainingStock = max(0, round((float) $item['stock'] - $cartQuantity, 2));
-                ?>
-                <article class="card buyer-quick-card">
-                    <div class="buyer-quick-image product-image">
-                        <?php if ($picture['url']): ?>
-                            <img src="<?= h($picture['url']) ?>" alt="<?= h($item['name']) ?>" loading="lazy" decoding="async">
-                        <?php endif; ?>
-                        <span class="product-image-fallback" aria-hidden="true" <?= $picture['url'] ? 'hidden' : '' ?>>
-                            <?= h($picture['icon']) ?>
-                        </span>
-                    </div>
-                    <div class="buyer-quick-content">
-                        <div class="buyer-quick-heading">
-                            <h3><?= h($item['name']) ?></h3>
-                            <strong><?= money($item['price']) ?><small> / <?= h($item['unit']) ?></small></strong>
-                        </div>
-                        <p class="product-stock"><?= number_format((float) $item['stock'], 2) ?> <?= h($item['unit']) ?> available</p>
-                        <div class="buyer-quick-actions">
-                            <form method="post" action="<?= h(app_url('buyer/favorites.php')) ?>">
-                                <?= csrf_field() ?>
-                                <input type="hidden" name="action" value="<?= $item['is_favorite'] ? 'remove' : 'save' ?>">
-                                <input type="hidden" name="vegetable_id" value="<?= (int) $item['id'] ?>">
-                                <input type="hidden" name="return_to" value="dashboard">
-                                <button
-                                    class="button secondary favorite-toggle"
-                                    type="submit"
-                                    aria-label="<?= $item['is_favorite'] ? 'Remove ' . h($item['name']) . ' from favorites' : 'Save ' . h($item['name']) . ' to favorites' ?>"
-                                    aria-pressed="<?= $item['is_favorite'] ? 'true' : 'false' ?>"
-                                ><?= $item['is_favorite'] ? '♥' : '♡' ?></button>
-                            </form>
-                            <?php if ($remainingStock > 0): ?>
-                                <form class="buyer-quick-add" method="post" action="<?= h(app_url('buyer/cart.php')) ?>">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="add">
-                                    <input type="hidden" name="product_id" value="<?= (int) $item['id'] ?>">
-                                    <label class="sr-only" for="quick-quantity-<?= (int) $item['id'] ?>">
-                                        Quantity of <?= h($item['name']) ?> (<?= h($item['unit']) ?>)
-                                    </label>
-                                    <input
-                                        id="quick-quantity-<?= (int) $item['id'] ?>"
-                                        class="quantity-input"
-                                        type="number"
-                                        name="quantity"
-                                        min="0.01"
-                                        max="<?= h((string) $remainingStock) ?>"
-                                        step="0.01"
-                                        value="<?= h((string) min(1.0, $remainingStock)) ?>"
-                                        required
-                                    >
-                                    <button type="submit">Add</button>
-                                </form>
-                            <?php else: ?>
-                                <a class="buyer-cart-limit-link" href="<?= h(app_url('buyer/cart.php')) ?>">In cart</a>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </article>
-            <?php endforeach; ?>
-        </div>
-    <?php else: ?>
-        <div class="module-empty-state module-empty-state--compact">
-            <h3>No produce is available right now</h3>
-            <p>Please check back soon or browse your saved favorites.</p>
-            <?php if ($favoriteItems): ?>
-                <a class="button secondary" href="<?= h(app_url('buyer/favorites.php')) ?>">View favorites</a>
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
-</section>
-
 <section class="panel section buyer-favorites-panel" aria-labelledby="buyer-favorites-title">
     <div class="module-table-heading">
         <div>
@@ -446,9 +338,10 @@ require __DIR__ . '/../includes/header.php';
                     );
                     ?>
                     <?php if ($favorite['active'] && $favoriteRemainingStock > 0): ?>
-                        <form method="post" action="<?= h(app_url('buyer/cart.php')) ?>">
+                        <form method="post" action="<?= h(app_url('buyer/cart.php')) ?>" data-cart-add>
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="add">
+                            <input type="hidden" name="return_to" value="dashboard">
                             <input type="hidden" name="product_id" value="<?= (int) $favorite['id'] ?>">
                             <input
                                 type="hidden"

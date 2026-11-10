@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/inventory.php';
 require_once __DIR__ . '/../includes/payments.php';
 require_role('admin', 'staff');
 
@@ -101,14 +102,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'SELECT vegetable_id, quantity FROM sales WHERE order_code = ?'
                 );
                 $itemStatement->execute([$orderCode]);
+                $currentStock = $db->prepare(
+                    'SELECT quantity FROM inventory WHERE vegetable_id = ? FOR UPDATE'
+                );
                 $restock = $db->prepare(
                     'UPDATE inventory SET quantity = quantity + ? WHERE vegetable_id = ?'
                 );
                 foreach ($itemStatement->fetchAll() as $item) {
-                    $restock->execute([$item['quantity'], $item['vegetable_id']]);
+                    $vegetableId = (int) $item['vegetable_id'];
+                    $currentStock->execute([$vegetableId]);
+                    $quantityBefore = $currentStock->fetchColumn();
+                    if ($quantityBefore === false) {
+                        throw new RuntimeException('Could not restore the cancelled order stock.');
+                    }
+                    $restock->execute([$item['quantity'], $vegetableId]);
                     if ($restock->rowCount() !== 1) {
                         throw new RuntimeException('Could not restore the cancelled order stock.');
                     }
+                    record_inventory_movement(
+                        $db,
+                        $vegetableId,
+                        (float) $quantityBefore,
+                        round((float) $quantityBefore + (float) $item['quantity'], 2),
+                        'order_cancelled',
+                        'Stock restored after order ' . $orderCode . ' was cancelled.',
+                        $orderCode
+                    );
                 }
                 $db->prepare(
                     "UPDATE sales SET status = 'cancelled' WHERE order_code = ?"

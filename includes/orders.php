@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/inventory.php';
+
 const BULK_DISCOUNT_MINIMUM_QUANTITY = 20.0;
 const BULK_DISCOUNT_PERCENTAGE = 10.0;
 const ORDER_DELIVERY_FEE = 20.00;
@@ -31,10 +33,69 @@ function checkout_request_fingerprint(
     ], JSON_THROW_ON_ERROR));
 }
 
-function reserve_inventory_stock(MySQLiDatabase $db, int $vegetableId, float $quantity): void
+function checkout_stock_issues(array $cartItems, array $products): array
+{
+    $productsById = [];
+    foreach ($products as $product) {
+        $productsById[(int) ($product['id'] ?? 0)] = $product;
+    }
+
+    $issues = [];
+    foreach ($cartItems as $productId => $requestedQuantity) {
+        $productId = (int) $productId;
+        $product = $productsById[$productId] ?? null;
+        $availableStock = $product
+            ? (float) max(0, (float) ($product['stock'] ?? 0))
+            : 0.0;
+
+        if (!$product || empty($product['active'])) {
+            $issues[] = [
+                'name' => $product && is_string($product['name'] ?? null)
+                    ? $product['name']
+                    : 'Unavailable produce',
+                'unit' => $product && is_string($product['unit'] ?? null)
+                    ? $product['unit']
+                    : '',
+                'requested' => (float) $requestedQuantity,
+                'available' => $availableStock,
+                'reason' => 'unavailable',
+            ];
+        } elseif ((float) $requestedQuantity > $availableStock) {
+            $issues[] = [
+                'name' => is_string($product['name'] ?? null)
+                    ? $product['name']
+                    : 'Produce item',
+                'unit' => is_string($product['unit'] ?? null)
+                    ? $product['unit']
+                    : '',
+                'requested' => (float) $requestedQuantity,
+                'available' => $availableStock,
+                'reason' => 'insufficient_stock',
+            ];
+        }
+    }
+
+    return $issues;
+}
+
+function reserve_inventory_stock(
+    MySQLiDatabase $db,
+    int $vegetableId,
+    float $quantity,
+    ?string $orderCode = null
+): void
 {
     if ($vegetableId < 1 || !is_finite($quantity) || $quantity <= 0) {
         throw new RuntimeException('An inventory reservation quantity is invalid.');
+    }
+
+    $currentStockStatement = $db->prepare(
+        'SELECT quantity FROM inventory WHERE vegetable_id = ? FOR UPDATE'
+    );
+    $currentStockStatement->execute([$vegetableId]);
+    $quantityBefore = $currentStockStatement->fetchColumn();
+    if ($quantityBefore === false) {
+        throw new RuntimeException('Stock changed during checkout. Please try again.');
     }
 
     $statement = $db->prepare(
@@ -46,6 +107,19 @@ function reserve_inventory_stock(MySQLiDatabase $db, int $vegetableId, float $qu
     if ($statement->rowCount() !== 1) {
         throw new RuntimeException('Stock changed during checkout. Please try again.');
     }
+
+    $quantityBefore = (float) $quantityBefore;
+    record_inventory_movement(
+        $db,
+        $vegetableId,
+        $quantityBefore,
+        round($quantityBefore - $quantity, 2),
+        'order_reserved',
+        $orderCode
+            ? 'Stock reserved for order ' . $orderCode . '.'
+            : 'Stock reserved for a customer order.',
+        $orderCode
+    );
 }
 
 function merge_reorder_cart(array $orderItems, array $cart): array

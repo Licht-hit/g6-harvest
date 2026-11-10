@@ -141,4 +141,30 @@ if (!$invalidTokenRejected) {
     throw new RuntimeException('Invalid checkout tokens must be rejected.');
 }
 
+$stockIssues = checkout_stock_issues(
+    [1 => 2.0, 2 => 4.0, 3 => 1.0, 4 => 3.0, 5 => 1.0],
+    [
+        ['id' => 1, 'name' => 'Tomato', 'unit' => 'kg', 'stock' => 5, 'active' => 1],
+        ['id' => 2, 'name' => 'Carrot', 'unit' => 'kg', 'stock' => 2, 'active' => 1],
+        ['id' => 3, 'name' => 'Lettuce', 'unit' => 'piece', 'stock' => 10, 'active' => 0],
+        ['id' => 4, 'name' => 'Spinach', 'unit' => 'bunch', 'stock' => 0, 'active' => 1],
+    ]
+);
+if (count($stockIssues) !== 4) {
+    throw new RuntimeException('Checkout should identify every unavailable or over-stock cart item.');
+}
+if (
+    $stockIssues[0]['name'] !== 'Carrot'
+    || $stockIssues[0]['available'] !== 2.0
+    || $stockIssues[0]['reason'] !== 'insufficient_stock'
+) {
+    throw new RuntimeException('Checkout should report current stock for over-stock cart items.');
+}
+if ($stockIssues[1]['reason'] !== 'unavailable' || $stockIssues[2]['available'] !== 0.0) {
+    throw new RuntimeException('Checkout should identify inactive and out-of-stock items.');
+}
+if ($stockIssues[3]['name'] !== 'Unavailable produce' || $stockIssues[3]['reason'] !== 'unavailable') {
+    throw new RuntimeException('Checkout should identify deleted products in the cart.');
+}
+
 echo "Checkout calculation tests passed.\n";

@@ -37,6 +37,26 @@ function current_user(): ?array
     return $_SESSION['user'] ?? null;
 }
 
+function dashboard_path_for_role(string $role): string
+{
+    if ($role === 'buyer') {
+        return 'buyer/dashboard.php';
+    }
+
+    if ($role === 'admin' || $role === 'staff') {
+        return 'dashboard.php';
+    }
+
+    throw new RuntimeException('The signed-in account has an unsupported role.');
+}
+
+function user_has_role(array $user, string ...$roles): bool
+{
+    return isset($user['role'])
+        && is_string($user['role'])
+        && in_array($user['role'], $roles, true);
+}
+
 function log_activity(
     string $action,
     string $entityType,
@@ -88,7 +108,7 @@ function require_role(string ...$roles): void
 {
     require_login();
 
-    if (!in_array(current_user()['role'], $roles, true)) {
+    if (!user_has_role(current_user(), ...$roles)) {
         http_response_code(403);
         exit('You do not have permission to access this page.');
     }

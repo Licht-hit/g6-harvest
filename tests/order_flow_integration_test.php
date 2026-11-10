@@ -87,6 +87,23 @@ try {
     $stock = $db->prepare('SELECT quantity FROM inventory WHERE vegetable_id = ?');
     $stock->execute([$vegetableId]);
     expect_flow((float) $stock->fetchColumn() === 2.0, 'Checkout did not reserve the requested stock.');
+    $movement = $db->prepare(
+        'SELECT quantity_before, quantity_after, quantity_change, movement_type, reference_code
+         FROM inventory_movements
+         WHERE vegetable_id = ?
+         ORDER BY id DESC
+         LIMIT 1'
+    );
+    $movement->execute([$vegetableId]);
+    $reservationMovement = $movement->fetch();
+    expect_flow(
+        $reservationMovement
+            && (float) $reservationMovement['quantity_before'] === 5.0
+            && (float) $reservationMovement['quantity_after'] === 2.0
+            && (float) $reservationMovement['quantity_change'] === -3.0
+            && $reservationMovement['movement_type'] === 'order_reserved',
+        'Order stock reservation was not recorded with accurate before and after quantities.'
+    );
 
     $oversellRejected = false;
     try {
@@ -166,9 +183,32 @@ try {
         'cs_test_cancelled_' . $suffix
     );
     reserve_inventory_stock($db, $vegetableId, 1.0);
+    $stock->execute([$vegetableId]);
+    $quantityBeforeRestock = (float) $stock->fetchColumn();
     $db->prepare(
         'UPDATE inventory SET quantity = quantity + 1 WHERE vegetable_id = ?'
     )->execute([$vegetableId]);
+    record_inventory_movement(
+        $db,
+        $vegetableId,
+        $quantityBeforeRestock,
+        $quantityBeforeRestock + 1.0,
+        'order_cancelled',
+        'Stock restored after test order cancellation.',
+        $cancelledOrderCode,
+        $buyerId
+    );
+    $movement->execute([$vegetableId]);
+    $restockMovement = $movement->fetch();
+    expect_flow(
+        $restockMovement
+            && (float) $restockMovement['quantity_before'] === 1.0
+            && (float) $restockMovement['quantity_after'] === 2.0
+            && (float) $restockMovement['quantity_change'] === 1.0
+            && $restockMovement['movement_type'] === 'order_cancelled'
+            && $restockMovement['reference_code'] === $cancelledOrderCode,
+        'Cancelled order stock restoration was not recorded accurately.'
+    );
     $latePaymentAction = paymongo_payment_transition_action('failed', 'paid', 'cancelled');
     expect_flow($latePaymentAction === 'late_payment', 'A delayed payment after cancellation was not flagged.');
     expect_flow(

@@ -8,6 +8,7 @@ $returnTargets = [
     'dashboard' => 'buyer/dashboard.php',
     'shop' => 'buyer/index.php',
     'favorites' => 'buyer/favorites.php',
+    'home' => 'index.php',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -124,9 +125,10 @@ require __DIR__ . '/../includes/header.php';
                     <span class="product-category"><?= h($vegetable['category']) ?></span>
                     <?php if ($available && $remainingStock > 0): ?>
                         <p class="product-stock"><?= number_format((float) $vegetable['stock'], 2) ?> <?= h($vegetable['unit']) ?> available</p>
-                        <form class="favorite-quick-add" method="post" action="<?= h(app_url('buyer/cart.php')) ?>">
+                        <form class="favorite-quick-add" method="post" action="<?= h(app_url('buyer/cart.php')) ?>" data-cart-add>
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="add">
+                            <input type="hidden" name="return_to" value="favorites">
                             <input type="hidden" name="product_id" value="<?= (int) $vegetable['id'] ?>">
                             <label for="favorite-quantity-<?= (int) $vegetable['id'] ?>">
                                 Quantity (<?= h($vegetable['unit']) ?>)

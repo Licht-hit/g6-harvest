@@ -12,10 +12,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add') {
         $productId = filter_var($_POST['product_id'] ?? null, FILTER_VALIDATE_INT);
         $quantity = filter_var($_POST['quantity'] ?? null, FILTER_VALIDATE_FLOAT);
+        $returnTarget = is_string($_POST['return_to'] ?? null)
+            ? $_POST['return_to']
+            : 'cart';
+        $returnProductId = filter_var($_POST['return_product_id'] ?? null, FILTER_VALIDATE_INT);
+        $addRedirectPath = app_url('buyer/cart.php');
+        if ($returnTarget === 'shop') {
+            $addRedirectPath = app_url('buyer/index.php');
+        } elseif ($returnTarget === 'dashboard') {
+            $addRedirectPath = app_url('buyer/dashboard.php');
+        } elseif ($returnTarget === 'favorites') {
+            $addRedirectPath = app_url('buyer/favorites.php');
+        } elseif ($returnTarget === 'product') {
+            $addRedirectPath = $returnProductId && $returnProductId > 0
+                ? app_url('buyer/product.php?id=' . $returnProductId)
+                : app_url('buyer/index.php');
+        }
 
         if (!$productId || $productId < 1 || $quantity === false || $quantity <= 0) {
             flash('error', 'Choose a valid product and quantity.');
-            redirect(app_url('buyer/index.php'));
+            redirect($addRedirectPath);
         }
 
         $statement = $db->prepare(
@@ -30,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$product || $newQuantity > (float) $product['quantity']) {
             flash('error', 'That item is unavailable or the requested amount exceeds stock.');
-            redirect(app_url('buyer/index.php'));
+            redirect($addRedirectPath);
         }
         if (!array_key_exists($productId, $cart) && count($cart) >= 50) {
             flash('error', 'Your cart can contain up to 50 produce items. Remove an item before adding another.');
@@ -39,7 +55,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cart[$productId] = $newQuantity;
         $_SESSION['cart'] = $cart;
         flash('success', $product['name'] . ' added to your cart.');
-        redirect(app_url('buyer/cart.php'));
+        $successRedirectPath = $addRedirectPath
+            . (strpos($addRedirectPath, '?') !== false ? '&' : '?')
+            . 'cart_added=1';
+        redirect($successRedirectPath);
     }
 
     if ($action === 'update') {

@@ -100,9 +100,11 @@ require __DIR__ . '/../includes/header.php';
         </div>
 
         <?php if ($stock >= 1): ?>
-            <form class="product-detail-form" method="post" action="<?= h(app_url('buyer/cart.php')) ?>">
+            <form class="product-detail-form" method="post" action="<?= h(app_url('buyer/cart.php')) ?>" data-cart-add>
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="add">
+                <input type="hidden" name="return_to" value="product">
+                <input type="hidden" name="return_product_id" value="<?= (int) $product['id'] ?>">
                 <input type="hidden" name="product_id" value="<?= (int) $product['id'] ?>">
 
                 <div class="product-quantity-field">

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/inventory.php';
 require_role('admin', 'staff');
 
 $error = '';
@@ -43,12 +44,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $insert->execute([$plantingId, $quantity, $harvestedOn, $notes ?: null]);
                 $harvestId = (int) $db->lastInsertId();
 
-                $stock = $db->prepare(
-                    'INSERT INTO inventory (vegetable_id, quantity)
-                     VALUES (?, ?)
-                     ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)'
+                $stockId = (int) $planting['vegetable_id'];
+                $stockCheck = $db->prepare(
+                    'SELECT quantity FROM inventory WHERE vegetable_id = ? FOR UPDATE'
                 );
-                $stock->execute([(int) $planting['vegetable_id'], $quantity]);
+                $stockCheck->execute([$stockId]);
+                $currentQuantity = $stockCheck->fetchColumn();
+                $quantityBefore = $currentQuantity === false ? 0.0 : (float) $currentQuantity;
+                if ($currentQuantity === false) {
+                    $stock = $db->prepare(
+                        'INSERT INTO inventory (vegetable_id, quantity) VALUES (?, ?)'
+                    );
+                    $stock->execute([$stockId, $quantity]);
+                } else {
+                    $stock = $db->prepare(
+                        'UPDATE inventory SET quantity = quantity + ? WHERE vegetable_id = ?'
+                    );
+                    $stock->execute([$quantity, $stockId]);
+                }
+                record_inventory_movement(
+                    $db,
+                    $stockId,
+                    $quantityBefore,
+                    round($quantityBefore + (float) $quantity, 2),
+                    'harvest_recorded',
+                    'Stock added by harvest #' . $harvestId . '.',
+                    (string) $harvestId
+                );
                 log_activity('harvest_created', 'harvest', $harvestId, 'Harvest recorded.');
                 $successMessage = 'Harvest recorded and inventory updated.';
             } else {
@@ -69,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stockCheck = $db->prepare('SELECT quantity FROM inventory WHERE vegetable_id = ? FOR UPDATE');
                 $stockCheck->execute([$stockId]);
                 $stock = $stockCheck->fetch();
+                $quantityBefore = $stock ? (float) $stock['quantity'] : 0.0;
 
                 if ($action === 'update') {
                     $difference = round((float) $quantity - (float) $harvest['quantity'], 2);
@@ -90,6 +113,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($changeStock->rowCount() !== 1) {
                             throw new RuntimeException('Stock is too low to reduce this harvest quantity.');
                         }
+                    }
+
+                    if ($difference !== 0.0) {
+                        record_inventory_movement(
+                            $db,
+                            $stockId,
+                            $quantityBefore,
+                            round($quantityBefore + $difference, 2),
+                            'harvest_corrected',
+                            'Stock changed after harvest #' . $harvestId . ' was corrected.',
+                            (string) $harvestId
+                        );
                     }
 
                     $update = $db->prepare(
@@ -118,6 +153,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($removeStock->rowCount() !== 1) {
                         throw new RuntimeException('Stock changed. Reload the page and try again.');
                     }
+
+                    record_inventory_movement(
+                        $db,
+                        $stockId,
+                        $quantityBefore,
+                        round($quantityBefore - (float) $harvest['quantity'], 2),
+                        'harvest_archived',
+                        'Stock removed after harvest #' . $harvestId . ' was archived.',
+                        (string) $harvestId
+                    );
 
                     $archive = $db->prepare('UPDATE harvests SET archived_at = CURRENT_TIMESTAMP WHERE id = ?');
                     $archive->execute([$harvestId]);

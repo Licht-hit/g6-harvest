@@ -1,8 +1,9 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-if (is_logged_in()) {
-    redirect(app_url('index.php'));
+$user = current_user();
+if ($user) {
+    redirect(app_url(dashboard_path_for_role($user['role'])));
 }
 
 $error = '';
@@ -39,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['user'] = $user;
         log_activity('login', 'user', (int) $user['id'], 'User signed in.');
 
-        redirect(app_url('index.php'));
+        redirect(app_url(dashboard_path_for_role($user['role'])));
     }
 }
 

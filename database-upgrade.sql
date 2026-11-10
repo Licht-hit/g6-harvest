@@ -266,6 +266,29 @@ CREATE TABLE IF NOT EXISTS activity_logs (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS inventory_movements (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    vegetable_id INT UNSIGNED NULL,
+    vegetable_name VARCHAR(120) NOT NULL,
+    unit VARCHAR(30) NOT NULL,
+    movement_type VARCHAR(40) NOT NULL,
+    quantity_before DECIMAL(10,2) NOT NULL,
+    quantity_after DECIMAL(10,2) NOT NULL,
+    quantity_change DECIMAL(10,2) NOT NULL,
+    reason VARCHAR(255) NOT NULL,
+    reference_code VARCHAR(64) NULL,
+    actor_id INT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_inventory_movements_created_at (created_at, id),
+    INDEX idx_inventory_movements_vegetable (vegetable_id, created_at),
+    INDEX idx_inventory_movements_type (movement_type, created_at),
+    INDEX idx_inventory_movements_actor (actor_id, created_at),
+    CONSTRAINT fk_inventory_movements_vegetable
+        FOREIGN KEY (vegetable_id) REFERENCES vegetables(id) ON DELETE SET NULL,
+    CONSTRAINT fk_inventory_movements_actor
+        FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 -- Store each buyer's saved produce for the customer dashboard and shop.
 CREATE TABLE IF NOT EXISTS buyer_favorites (
     buyer_id INT UNSIGNED NOT NULL,

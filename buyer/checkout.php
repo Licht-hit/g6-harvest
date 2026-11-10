@@ -78,10 +78,11 @@ $productQuery = "SELECT
         v.name,
         v.unit,
         v.price,
-        i.quantity AS stock
+        v.active,
+        COALESCE(i.quantity, 0) AS stock
      FROM vegetables AS v
-     JOIN inventory AS i ON i.vegetable_id = v.id
-     WHERE v.active = 1 AND v.id IN ({$placeholders})
+     LEFT JOIN inventory AS i ON i.vegetable_id = v.id
+     WHERE v.id IN ({$placeholders})
      ORDER BY v.id";
 
 $checkoutToken = bin2hex(random_bytes(32));
@@ -146,28 +147,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lockedProducts->execute($ids);
         $lockedItems = $lockedProducts->fetchAll();
 
-        if (count($lockedItems) !== count($cartItems)) {
-            throw new RuntimeException('One or more products are no longer available. Review your cart.');
+        $stockIssues = checkout_stock_issues($cartItems, $lockedItems);
+        if ($stockIssues) {
+            throw new RuntimeException(
+                'Stock changed for one or more cart items. Review the availability details and update your cart.'
+            );
         }
 
         $productsById = [];
         foreach ($lockedItems as $item) {
             $productsById[(int) $item['id']] = $item;
         }
-
-        foreach ($cartItems as $productId => $quantity) {
-            if (
-                !isset($productsById[$productId])
-                || !is_finite($quantity)
-                || $quantity <= 0
-                || $quantity > (float) $productsById[$productId]['stock']
-            ) {
-                throw new RuntimeException(
-                    'Stock changed for one or more cart items. Please review your cart.'
-                );
-            }
-        }
-
         $calculationItems = [];
         foreach ($cartItems as $productId => $quantity) {
             $calculationItems[] = [
@@ -237,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $product['price'],
                 $lineTotal,
             ]);
-            reserve_inventory_stock($db, $productId, $quantity);
+            reserve_inventory_stock($db, $productId, $quantity, $orderCode);
         }
 
         $paymentHistory = $db->prepare(
@@ -324,9 +314,14 @@ foreach ($items as $item) {
     $byId[(int) $item['id']] = $item;
 }
 
+$stockIssues = checkout_stock_issues($cartItems, $items);
 $previewItems = [];
 foreach ($cartItems as $productId => $quantity) {
-    if (!isset($byId[$productId]) || $quantity > (float) $byId[$productId]['stock']) {
+    if (
+        !isset($byId[$productId])
+        || empty($byId[$productId]['active'])
+        || $quantity > (float) $byId[$productId]['stock']
+    ) {
         $cartIsValid = false;
         continue;
     }
@@ -352,6 +347,23 @@ require __DIR__ . '/../includes/header.php';
         <div class="notice error" role="alert">
             Some items are unavailable or exceed current stock. Update your cart before checkout.
         </div>
+        <?php if ($stockIssues): ?>
+            <ul class="checkout-stock-issues">
+                <?php foreach ($stockIssues as $issue): ?>
+                    <li>
+                        <strong><?= h($issue['name']) ?>:</strong>
+                        <?php if ($issue['reason'] === 'unavailable'): ?>
+                            no longer available.
+                        <?php else: ?>
+                            <?= number_format($issue['available'], 2) ?>
+                            <?= h($issue['unit']) ?> available; your cart requests
+                            <?= number_format($issue['requested'], 2) ?>
+                            <?= h($issue['unit']) ?>.
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
         <a class="button" href="<?= h(app_url('buyer/cart.php')) ?>">Review cart</a>
     <?php else: ?>
         <div class="checkout-layout">

@@ -184,9 +184,10 @@ require __DIR__ . '/../includes/header.php';
             </div>
 
             <?php if ($remainingStock > 0): ?>
-                <form class="product-card-form" method="post" action="<?= h(app_url('buyer/cart.php')) ?>">
+                <form class="product-card-form" method="post" action="<?= h(app_url('buyer/cart.php')) ?>" data-cart-add>
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="add">
+                    <input type="hidden" name="return_to" value="shop">
                     <input
                         type="hidden"
                         name="product_id"

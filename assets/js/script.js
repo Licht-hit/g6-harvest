@@ -1,6 +1,18 @@
 document.addEventListener('submit', (event) => {
     const form = event.target;
 
+    if (form instanceof HTMLFormElement && form.matches('[data-cart-add]')) {
+        try {
+            sessionStorage.setItem('harvest-cart-scroll', JSON.stringify({
+                path: window.location.pathname + window.location.search,
+                x: window.scrollX,
+                y: window.scrollY,
+            }));
+        } catch (error) {
+            console.error('Unable to preserve the page position after adding to cart.', error);
+        }
+    }
+
     // Some forms can ask for confirmation before submitting.
     if (
         form instanceof HTMLFormElement
@@ -10,6 +22,37 @@ document.addEventListener('submit', (event) => {
         event.preventDefault();
     }
 });
+
+const cartAddedUrl = new URL(window.location.href);
+if (cartAddedUrl.searchParams.get('cart_added') === '1') {
+    let scrollState = null;
+    try {
+        scrollState = sessionStorage.getItem('harvest-cart-scroll');
+        sessionStorage.removeItem('harvest-cart-scroll');
+    } catch (error) {
+        console.error('Unable to read the saved page position after adding to cart.', error);
+    }
+    cartAddedUrl.searchParams.delete('cart_added');
+    window.history.replaceState({}, '', cartAddedUrl);
+
+    if (scrollState) {
+        try {
+            const position = JSON.parse(scrollState);
+            if (
+                position.path === window.location.pathname + window.location.search
+                && Number.isFinite(position.x)
+                && Number.isFinite(position.y)
+            ) {
+                document.body.classList.add('cart-add-confirmed');
+                window.requestAnimationFrame(() => {
+                    window.requestAnimationFrame(() => window.scrollTo(position.x, position.y));
+                });
+            }
+        } catch (error) {
+            console.error('Unable to restore the page position after adding to cart.', error);
+        }
+    }
+}
 
 document.addEventListener('error', (event) => {
     const image = event.target;
@@ -103,15 +146,78 @@ document.addEventListener('change', (event) => {
 document.querySelectorAll('[data-quantity-control] .quantity-input').forEach(updateQuantityControls);
 
 document.querySelectorAll('[data-nav-toggle]').forEach((toggle) => {
+    const navigation = document.getElementById(toggle.getAttribute('aria-controls'));
+    const isOperationsLayout = document.body.classList.contains('operations-layout');
+    const navigationBreakpoint = isOperationsLayout ? 900 : 1180;
+    const mobileNavigation = window.matchMedia(`(max-width: ${navigationBreakpoint}px)`);
+
+    const setToggleState = (expanded, label) => {
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.setAttribute('aria-label', label);
+    };
+
+    const closeNavigation = (restoreFocus = false) => {
+        navigation?.classList.remove('is-open');
+        setToggleState(false, 'Open navigation');
+        if (restoreFocus) {
+            toggle.focus();
+        }
+    };
+
+    const syncNavigationForViewport = (event) => {
+        navigation?.classList.remove('is-open');
+        if (isOperationsLayout) {
+            document.body.classList.remove('sidebar-collapsed');
+        }
+
+        const isCollapsed = isOperationsLayout && document.body.classList.contains('sidebar-collapsed');
+        const isExpanded = !event.matches && !isCollapsed;
+        const label = event.matches
+            ? 'Open navigation'
+            : isOperationsLayout
+                ? (isCollapsed ? 'Expand navigation' : 'Collapse navigation')
+                : 'Close navigation';
+        setToggleState(isExpanded, label);
+    };
+
+    syncNavigationForViewport(mobileNavigation);
+    mobileNavigation.addEventListener('change', syncNavigationForViewport);
+
     toggle.addEventListener('click', () => {
-        const navigation = document.getElementById(toggle.getAttribute('aria-controls'));
-        if (!navigation) {
+        if (document.body.classList.contains('operations-layout')
+            && window.matchMedia('(min-width: 901px)').matches
+        ) {
+            const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+            setToggleState(!isCollapsed, isCollapsed ? 'Expand navigation' : 'Collapse navigation');
+            return;
+        }
+
+        if (!navigation || !mobileNavigation.matches) {
             return;
         }
 
         const isOpen = navigation.classList.toggle('is-open');
-        toggle.setAttribute('aria-expanded', String(isOpen));
-        toggle.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
+        setToggleState(isOpen, isOpen ? 'Close navigation' : 'Open navigation');
+    });
+
+    navigation?.addEventListener('click', (event) => {
+        if (
+            mobileNavigation.matches
+            && event.target instanceof Element
+            && event.target.closest('a')
+        ) {
+            closeNavigation();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (
+            event.key === 'Escape'
+            && mobileNavigation.matches
+            && navigation?.classList.contains('is-open')
+        ) {
+            closeNavigation(true);
+        }
     });
 });
 
@@ -382,16 +488,162 @@ function renderDashboardChart(canvas) {
     context.textAlign = 'center';
     context.textBaseline = 'top';
     context.fillStyle = ink;
+    const labelInterval = Math.max(1, Math.ceil(labels.length / 10));
     labels.forEach((label, index) => {
         const x = chartType === 'line'
             ? left + step * index
             : left + (plotWidth / Math.max(1, labels.length)) * (index + .5);
-        context.fillText(String(label), x, top + plotHeight + 10);
+        if (index % labelInterval === 0 || index === labels.length - 1) {
+            context.fillText(String(label), x, top + plotHeight + 10);
+        }
+    });
+}
+
+function attachDashboardChartTooltip(canvas, chartIndex) {
+    let labels;
+    let values;
+    try {
+        labels = JSON.parse(canvas.dataset.labels || '[]');
+        values = JSON.parse(canvas.dataset.values || '[]').map(Number);
+    } catch (error) {
+        console.error('Unable to prepare dashboard chart tooltips.', error);
+        return;
+    }
+
+    if (!labels.length || labels.length !== values.length) {
+        return;
+    }
+
+    const container = canvas.closest('.dashboard-canvas-wrap, .dashboard-inventory-chart');
+    if (!container) {
+        return;
+    }
+
+    const tooltip = document.createElement('span');
+    tooltip.id = `dashboard-chart-tooltip-${chartIndex}`;
+    tooltip.className = 'dashboard-chart-tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    tooltip.setAttribute('aria-live', 'polite');
+    tooltip.hidden = true;
+    container.append(tooltip);
+    container.classList.add('dashboard-tooltip-container');
+    canvas.tabIndex = 0;
+    canvas.setAttribute('aria-description', 'Use the arrow keys, Home, and End to inspect chart values.');
+    canvas.setAttribute('aria-keyshortcuts', 'ArrowLeft ArrowRight ArrowUp ArrowDown Home End');
+    canvas.setAttribute('aria-describedby', tooltip.id);
+
+    let selectedIndex = 0;
+    const chartType = canvas.dataset.chart;
+    const formatValue = (value) => {
+        if (canvas.dataset.format === 'currency') {
+            return new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: 'PHP',
+            }).format(value);
+        }
+
+        return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })} units`;
+    };
+    const showTooltip = (index, clientX, clientY) => {
+        selectedIndex = Math.max(0, Math.min(labels.length - 1, index));
+        tooltip.textContent = `${labels[selectedIndex]}: ${formatValue(values[selectedIndex])}`;
+        tooltip.hidden = false;
+
+        const containerBounds = container.getBoundingClientRect();
+        const left = Math.max(8, Math.min(
+            clientX - containerBounds.left + 12,
+            containerBounds.width - Math.min(240, containerBounds.width - 16)
+        ));
+        const top = Math.max(8, Math.min(
+            clientY - containerBounds.top + 12,
+            containerBounds.height - 42
+        ));
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+    };
+
+    canvas.addEventListener('pointermove', (event) => {
+        const bounds = canvas.getBoundingClientRect();
+        const x = event.clientX - bounds.left;
+        const y = event.clientY - bounds.top;
+        let index;
+
+        if (chartType === 'horizontal-bar') {
+            index = Math.floor((y / bounds.height) * labels.length);
+        } else if (chartType === 'doughnut') {
+            const centerX = bounds.width / 2;
+            const centerY = bounds.height / 2;
+            const deltaX = x - centerX;
+            const deltaY = y - centerY;
+            const distance = Math.hypot(deltaX, deltaY);
+            const outerRadius = Math.min(bounds.width, bounds.height) * .43;
+            if (distance < outerRadius * .62 || distance > outerRadius) {
+                tooltip.hidden = true;
+                return;
+            }
+            const angle = (Math.atan2(deltaY, deltaX) + Math.PI * 2.5) % (Math.PI * 2);
+            const total = values.reduce((sum, value) => sum + value, 0);
+            let accumulated = 0;
+            index = values.findIndex((value) => {
+                if (value <= 0) {
+                    return false;
+                }
+                accumulated += total > 0 ? (value / total) * Math.PI * 2 : 0;
+                return angle < accumulated;
+            });
+            if (index < 0) {
+                index = values.length - 1;
+            }
+        } else if (chartType === 'line') {
+            const left = 42;
+            const plotWidth = bounds.width - left - 10;
+            index = Math.round(((x - left) / plotWidth) * (labels.length - 1));
+        } else {
+            index = Math.floor((x / bounds.width) * labels.length);
+        }
+
+        showTooltip(index, event.clientX, event.clientY);
+    });
+
+    canvas.addEventListener('pointerleave', () => {
+        if (document.activeElement !== canvas) {
+            tooltip.hidden = true;
+        }
+    });
+
+    canvas.addEventListener('focus', () => {
+        const bounds = canvas.getBoundingClientRect();
+        showTooltip(selectedIndex, bounds.left + bounds.width / 2, bounds.top + 12);
+    });
+
+    canvas.addEventListener('blur', () => {
+        tooltip.hidden = true;
+    });
+
+    canvas.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+            selectedIndex = Math.min(labels.length - 1, selectedIndex + 1);
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+            selectedIndex = Math.max(0, selectedIndex - 1);
+        } else if (event.key === 'Home') {
+            selectedIndex = 0;
+        } else if (event.key === 'End') {
+            selectedIndex = labels.length - 1;
+        } else {
+            return;
+        }
+
+        event.preventDefault();
+        const bounds = canvas.getBoundingClientRect();
+        showTooltip(selectedIndex, bounds.left + bounds.width / 2, bounds.top + 12);
     });
 }
 
 const dashboardCharts = Array.from(document.querySelectorAll('[data-chart]'));
-dashboardCharts.forEach(renderDashboardChart);
+dashboardCharts.forEach((canvas, index) => {
+    renderDashboardChart(canvas);
+    attachDashboardChartTooltip(canvas, index);
+});
 if ('ResizeObserver' in window) {
     const chartObserver = new ResizeObserver((entries) => {
         entries.forEach((entry) => renderDashboardChart(entry.target));
