@@ -137,6 +137,7 @@ if (shopProducts.length) {
     const sortSelect = document.querySelector('[data-shop-sort]');
     const resultCount = document.querySelector('[data-shop-count]');
     const noResults = document.querySelector('[data-shop-no-results]');
+    const resetButton = document.querySelector('[data-shop-reset]');
     const productGrid = shopProducts[0].parentElement;
 
     shopProducts.forEach((product, index) => {
@@ -186,6 +187,16 @@ if (shopProducts.length) {
     categorySelect.addEventListener('change', updateShopProducts);
     availabilitySelect.addEventListener('change', updateShopProducts);
     sortSelect.addEventListener('change', updateShopProducts);
+    if (resetButton) {
+        resetButton.addEventListener('click', () => {
+            searchInput.value = '';
+            categorySelect.value = 'all';
+            availabilitySelect.value = 'all';
+            sortSelect.value = 'featured';
+            updateShopProducts();
+            searchInput.focus();
+        });
+    }
 }
 
 function renderDashboardChart(canvas) {

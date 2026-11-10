@@ -265,3 +265,16 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     CONSTRAINT fk_activity_logs_user
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+-- Store each buyer's saved produce for the customer dashboard and shop.
+CREATE TABLE IF NOT EXISTS buyer_favorites (
+    buyer_id INT UNSIGNED NOT NULL,
+    vegetable_id INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (buyer_id, vegetable_id),
+    INDEX idx_buyer_favorites_vegetable (vegetable_id),
+    CONSTRAINT fk_buyer_favorites_buyer
+        FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_buyer_favorites_vegetable
+        FOREIGN KEY (vegetable_id) REFERENCES vegetables(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

@@ -48,6 +48,78 @@ function reserve_inventory_stock(MySQLiDatabase $db, int $vegetableId, float $qu
     }
 }
 
+function merge_reorder_cart(array $orderItems, array $cart): array
+{
+    $addedItems = 0;
+    $adjustments = [];
+
+    foreach ($orderItems as $item) {
+        $vegetableId = filter_var($item['vegetable_id'] ?? null, FILTER_VALIDATE_INT);
+        $requestedQuantity = filter_var($item['quantity'] ?? null, FILTER_VALIDATE_FLOAT);
+        $stock = filter_var($item['stock'] ?? null, FILTER_VALIDATE_FLOAT);
+        $name = is_string($item['name'] ?? null) ? $item['name'] : 'Produce item';
+        $active = !empty($item['active']);
+
+        if (
+            !$vegetableId
+            || $vegetableId < 1
+            || $requestedQuantity === false
+            || !is_finite((float) $requestedQuantity)
+            || $requestedQuantity <= 0
+            || $stock === false
+            || !is_finite((float) $stock)
+            || $stock < 0
+        ) {
+            throw new RuntimeException('An item in this past order has invalid quantity or stock data.');
+        }
+
+        if (!$active || $stock <= 0) {
+            $adjustments[] = [
+                'name' => $name,
+                'requested' => (float) $requestedQuantity,
+                'added' => 0.0,
+                'reason' => 'unavailable',
+            ];
+            continue;
+        }
+
+        $existingQuantity = 0.0;
+        if (array_key_exists($vegetableId, $cart)) {
+            $existingValue = filter_var($cart[$vegetableId], FILTER_VALIDATE_FLOAT);
+            if (
+                $existingValue === false
+                || !is_finite((float) $existingValue)
+                || $existingValue < 0
+            ) {
+                throw new RuntimeException('Your current cart has an invalid quantity. Review it before reordering.');
+            }
+            $existingQuantity = (float) $existingValue;
+        }
+
+        $remainingStock = max(0, round((float) $stock - $existingQuantity, 2));
+        $quantityToAdd = min((float) $requestedQuantity, $remainingStock);
+        if ($quantityToAdd > 0) {
+            $cart[$vegetableId] = round($existingQuantity + $quantityToAdd, 2);
+            $addedItems++;
+        }
+
+        if ($quantityToAdd < (float) $requestedQuantity) {
+            $adjustments[] = [
+                'name' => $name,
+                'requested' => (float) $requestedQuantity,
+                'added' => $quantityToAdd,
+                'reason' => $remainingStock <= 0 ? 'cart_limit' : 'reduced_stock',
+            ];
+        }
+    }
+
+    return [
+        'cart' => $cart,
+        'added_items' => $addedItems,
+        'adjustments' => $adjustments,
+    ];
+}
+
 function redirect_to_existing_checkout(array $order, ?string $requestFingerprint = null): void
 {
     if (

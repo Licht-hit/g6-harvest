@@ -404,6 +404,33 @@ require __DIR__ . '/../includes/header.php';
                     Combined cart quantity:
                     <?= number_format($totals['eligible_quantity'], 2) ?> units
                 </p>
+                <?php
+                $discountProgress = min(
+                    BULK_DISCOUNT_MINIMUM_QUANTITY,
+                    $totals['eligible_quantity']
+                );
+                $discountRemaining = max(
+                    0,
+                    BULK_DISCOUNT_MINIMUM_QUANTITY - $totals['eligible_quantity']
+                );
+                ?>
+                <div class="checkout-discount-progress">
+                    <label for="discount-progress">
+                        <?php if ($discountRemaining > 0): ?>
+                            Add <?= number_format($discountRemaining, 2) ?> more combined units to qualify for <?= number_format(BULK_DISCOUNT_PERCENTAGE, 0) ?>% off.
+                        <?php else: ?>
+                            Bulk discount unlocked: <?= number_format(BULK_DISCOUNT_PERCENTAGE, 0) ?>% off your produce subtotal.
+                        <?php endif; ?>
+                    </label>
+                    <progress
+                        id="discount-progress"
+                        max="<?= h((string) BULK_DISCOUNT_MINIMUM_QUANTITY) ?>"
+                        value="<?= h((string) $discountProgress) ?>"
+                    ><?= h((string) $discountProgress) ?> / <?= h((string) BULK_DISCOUNT_MINIMUM_QUANTITY) ?></progress>
+                    <small>
+                        Quantity is combined across all produce, even when item units differ. The discount applies to produce subtotal only; delivery is not discounted.
+                    </small>
+                </div>
                 <?php if ($totals['discount_percentage'] > 0): ?>
                     <p class="notice success checkout-discount-notice">
                         Congratulations! You qualify for a 10% bulk purchase discount!

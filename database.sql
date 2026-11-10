@@ -226,6 +226,19 @@ CREATE TABLE IF NOT EXISTS activity_logs (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Stores produce saved by each buyer.
+CREATE TABLE IF NOT EXISTS buyer_favorites (
+    buyer_id INT UNSIGNED NOT NULL,
+    vegetable_id INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (buyer_id, vegetable_id),
+    INDEX idx_buyer_favorites_vegetable (vegetable_id),
+    CONSTRAINT fk_buyer_favorites_buyer
+        FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_buyer_favorites_vegetable
+        FOREIGN KEY (vegetable_id) REFERENCES vegetables(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 INSERT INTO vegetables (id, name, category, variety, description, unit, price, active) VALUES
     (1, 'Tomato', 'Fruiting vegetables', 'Roma', 'Firm, flavorful tomatoes, ideal for salads and cooking.', 'kg', 40.50, 1),
     (2, 'Carrot', 'Root vegetables', 'Nantes', 'Sweet, crisp carrots freshly harvested from the farm.', 'kg', 25.25, 1),

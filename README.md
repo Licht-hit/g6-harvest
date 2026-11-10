@@ -104,7 +104,11 @@ Subscribe to `checkout_session.payment.paid` and, if your dashboard offers them,
 4. Choose COD. As admin/staff, progress the order to Out for Delivery, confirm cash collection, then check that payment becomes Paid and the collection staff/date appear in order details.
 5. Configure PayMongo test credentials and a publicly reachable HTTPS webhook. Choose Online Payment and complete a test GCash/card checkout. Confirm that the buyer return page remains pending until the signed webhook arrives, then verify the order becomes Paid. Cancel a test checkout and confirm it is not shown as paid.
 6. Review Sales and Reports for original subtotal, discounts, final totals, payment method/status, discount history, and discounted vegetables.
-7. Run `php tests\\checkout_calculation_test.php`, `php tests\\payment_flow_test.php`, and `php -l` on the changed PHP files.
+7. On the buyer dashboard, test quick add, saving/removing favorites, reordering a
+   past order with reduced stock, and reviewing an overstocked cart. Confirm
+   checkout explains the combined-quantity discount threshold.
+8. Run `php tests\\cart_quantity_test.php`, `php tests\\checkout_calculation_test.php`,
+   `php tests\\payment_flow_test.php`, and `php -l` on the changed PHP files.
 
 The database-backed order flow check requires a separate test database with the
 project schema imported. Set `HARVEST_TEST_DB` to its name ending in `_test` before
@@ -114,8 +118,13 @@ rolls back its data. Never use a production database for tests. See
 [`DEPLOYMENT.md`](./DEPLOYMENT.md) for test setup and backup/restore guidance.
 
 For an existing installation, run `database-upgrade.sql` after taking a backup
-to add produce categories. The migration assigns sensible categories to the
-included sample vegetables and leaves other produce in “Other.”
+to add produce categories and the buyer favorites table. The migration assigns
+sensible categories to the included sample vegetables and leaves other produce
+in “Other.”
+
+Buyer favorites are saved per account. New installations create the
+`buyer_favorites` table through `database.sql`; existing installations must run
+`database-upgrade.sql` before using favorites or the updated buyer dashboard.
 
 ## Shop product pictures
 

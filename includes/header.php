@@ -63,6 +63,9 @@ if ($user && $user['role'] === 'admin') {
                 <a class="<?= in_array($currentPage, ['index.php', 'product.php'], true) ? 'active' : '' ?>" href="<?= h(app_url('buyer/index.php')) ?>" <?= in_array($currentPage, ['index.php', 'product.php'], true) ? 'aria-current="page"' : '' ?>>
                     <span class="nav-icon" aria-hidden="true">⌂</span> Shop
                 </a>
+                <a class="<?= $currentPage === 'favorites.php' ? 'active' : '' ?>" href="<?= h(app_url('buyer/favorites.php')) ?>" <?= $currentPage === 'favorites.php' ? 'aria-current="page"' : '' ?>>
+                    <span class="nav-icon" aria-hidden="true">♡</span> Favorites
+                </a>
                 <a class="<?= in_array($currentPage, ['orders.php', 'order_details.php'], true) ? 'active' : '' ?>" href="<?= h(app_url('buyer/orders.php')) ?>" <?= in_array($currentPage, ['orders.php', 'order_details.php'], true) ? 'aria-current="page"' : '' ?>>
                     <span class="nav-icon" aria-hidden="true">▤</span> My orders
                 </a>

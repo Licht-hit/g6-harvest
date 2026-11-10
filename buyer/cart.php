@@ -32,6 +32,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'That item is unavailable or the requested amount exceeds stock.');
             redirect(app_url('buyer/index.php'));
         }
+        if (!array_key_exists($productId, $cart) && count($cart) >= 50) {
+            flash('error', 'Your cart can contain up to 50 produce items. Remove an item before adding another.');
+            redirect(app_url('buyer/cart.php'));
+        }
         $cart[$productId] = $newQuantity;
         $_SESSION['cart'] = $cart;
         flash('success', $product['name'] . ' added to your cart.');
@@ -92,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cart = cart_contents();
 $items = [];
 $total = 0.0;
+$cartNeedsReview = count($cart) > 50;
 if ($cart) {
     $ids = array_map('intval', array_keys($cart));
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -111,11 +116,19 @@ if ($cart) {
     );
     $statement->execute($ids);
     $items = $statement->fetchAll();
+    if (count($items) !== count($cart)) {
+        $cartNeedsReview = true;
+    }
 
     // Calculate each line total so the buyer can see the full cart cost.
     foreach ($items as &$item) {
         $item['cart_quantity'] = (float) $cart[$item['id']];
         $item['line_total'] = (float) $item['price'] * $item['cart_quantity'];
+        $item['needs_review'] = !$item['active']
+            || $item['cart_quantity'] > (float) $item['stock'];
+        if ($item['needs_review']) {
+            $cartNeedsReview = true;
+        }
         $total += $item['line_total'];
     }
     unset($item);
@@ -124,17 +137,31 @@ $pageTitle = 'Shopping cart';
 require __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-heading">
-    <h1>Your cart</h1>
+    <div>
+        <p class="module-eyebrow">Your basket</p>
+        <h1>Your cart <span class="cart-heading-count">(<?= number_format(count($cart)) ?>)</span></h1>
+    </div>
     <a href="<?= h(app_url('buyer/index.php')) ?>">Continue shopping</a>
 </div>
 
 <?php if (!$items): ?>
-    <section class="panel empty">
-        Your cart is empty.
-        <a href="<?= h(app_url('buyer/index.php')) ?>">Browse produce</a>.
+    <section class="module-empty-state cart-empty-state">
+        <span class="module-empty-icon" aria-hidden="true">▱</span>
+        <h2>Your cart is empty</h2>
+        <p>Find something fresh from the farm and add it to your basket.</p>
+        <a class="button" href="<?= h(app_url('buyer/index.php')) ?>">Browse produce</a>
     </section>
 <?php else: ?>
     <section class="panel section cart-panel">
+        <?php if ($cartNeedsReview): ?>
+            <div class="notice error cart-stock-notice" role="alert">
+                <?php if (count($cart) > 50): ?>
+                    Your cart has more than 50 produce items. Remove some items to continue to checkout.
+                <?php else: ?>
+                    Some quantities exceed current stock or include unavailable produce. Adjust or remove the marked items before checkout.
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
         <form method="post">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="update">
@@ -158,7 +185,7 @@ require __DIR__ . '/../includes/header.php';
                     </thead>
                     <tbody>
                         <?php foreach ($items as $item): ?>
-                            <tr>
+                            <tr class="<?= $item['needs_review'] ? 'cart-row-needs-review' : '' ?>">
                                 <td><?= h($item['name']) ?></td>
                                 <td>
                                     <?= money($item['price']) ?>
@@ -178,11 +205,17 @@ require __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td><?= money($item['line_total']) ?></td>
                                 <td>
-                                    <?php if ($item['active']): ?>
+                                    <?php if (!$item['active']): ?>
+                                        <span class="cart-availability-warning">No longer available</span>
+                                    <?php elseif ((float) $item['stock'] <= 0): ?>
+                                        <span class="cart-availability-warning">Out of stock</span>
+                                    <?php elseif ($item['needs_review']): ?>
+                                        <span class="cart-availability-warning">
+                                            Only <?= number_format((float) $item['stock'], 2) ?> <?= h($item['unit']) ?> available
+                                        </span>
+                                    <?php else: ?>
                                         <?= number_format((float) $item['stock'], 2) ?>
                                         <?= h($item['unit']) ?>
-                                    <?php else: ?>
-                                        Unavailable
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -200,7 +233,11 @@ require __DIR__ . '/../includes/header.php';
                 </table>
             </div>
 
-            <p><strong>Cart total: <?= money($total) ?></strong></p>
+            <div class="cart-total-row">
+                <span>Estimated item subtotal</span>
+                <strong><?= money($total) ?></strong>
+            </div>
+            <p class="muted cart-estimate-note">Final total may include delivery and any eligible checkout discount.</p>
             <button type="submit">Update cart</button>
         </form>
 
@@ -220,11 +257,13 @@ require __DIR__ . '/../includes/header.php';
             </form>
         <?php endforeach; ?>
 
-        <p>
-            <a class="button" href="<?= h(app_url('buyer/checkout.php')) ?>">
-                Proceed to checkout
-            </a>
-        </p>
+        <?php if ($cartNeedsReview): ?>
+            <p class="cart-checkout-hint">Update or remove the marked quantities to continue to checkout.</p>
+        <?php else: ?>
+            <p class="cart-checkout-action">
+                <a class="button" href="<?= h(app_url('buyer/checkout.php')) ?>">Proceed to checkout</a>
+            </p>
+        <?php endif; ?>
     </section>
 <?php endif; ?>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

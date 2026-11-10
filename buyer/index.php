@@ -1,6 +1,16 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_role('buyer');
+$shopCart = cart_contents();
+
+$favoriteStatement = $db->prepare(
+    'SELECT vegetable_id FROM buyer_favorites WHERE buyer_id = ?'
+);
+$favoriteStatement->execute([(int) current_user()['id']]);
+$favoriteIds = array_fill_keys(
+    array_map('intval', array_column($favoriteStatement->fetchAll(), 'vegetable_id')),
+    true
+);
 
 $vegetables = $db->query(
     'SELECT
@@ -89,10 +99,15 @@ require __DIR__ . '/../includes/header.php';
                 <option value="price-high">Price: High to low</option>
             </select>
         </label>
+        <button class="button secondary shop-reset" type="button" data-shop-reset>Reset filters</button>
     </section>
     <div class="card-grid shop-product-grid">
     <?php foreach ($vegetables as $vegetable): ?>
         <?php
+        $cartQuantity = is_numeric($shopCart[$vegetable['id']] ?? null)
+            ? (float) $shopCart[$vegetable['id']]
+            : 0.0;
+        $remainingStock = max(0, round((float) $vegetable['stock'] - $cartQuantity, 2));
         $picture = product_picture($vegetable['name']);
         $searchText = implode(' ', array_filter([
             $vegetable['name'],
@@ -123,6 +138,18 @@ require __DIR__ . '/../includes/header.php';
                     <?= h($picture['icon']) ?>
                 </span>
                 <span class="product-image-label">FRESH PICK</span>
+                <form class="favorite-image-form" method="post" action="<?= h(app_url('buyer/favorites.php')) ?>">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="<?= isset($favoriteIds[(int) $vegetable['id']]) ? 'remove' : 'save' ?>">
+                    <input type="hidden" name="vegetable_id" value="<?= (int) $vegetable['id'] ?>">
+                    <input type="hidden" name="return_to" value="shop">
+                    <button
+                        class="favorite-toggle"
+                        type="submit"
+                        aria-label="<?= isset($favoriteIds[(int) $vegetable['id']]) ? 'Remove ' . h($vegetable['name']) . ' from favorites' : 'Save ' . h($vegetable['name']) . ' to favorites' ?>"
+                        aria-pressed="<?= isset($favoriteIds[(int) $vegetable['id']]) ? 'true' : 'false' ?>"
+                    ><?= isset($favoriteIds[(int) $vegetable['id']]) ? '♥' : '♡' ?></button>
+                </form>
             </div>
             <div class="product-card-content">
                 <div class="product-card-heading">
@@ -156,7 +183,7 @@ require __DIR__ . '/../includes/header.php';
                 </a>
             </div>
 
-            <?php if ((float) $vegetable['stock'] > 0): ?>
+            <?php if ($remainingStock > 0): ?>
                 <form class="product-card-form" method="post" action="<?= h(app_url('buyer/cart.php')) ?>">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="add">
@@ -173,15 +200,20 @@ require __DIR__ . '/../includes/header.php';
                             class="quantity-input"
                             type="number"
                             min="0.01"
-                            max="<?= h($vegetable['stock']) ?>"
+                            max="<?= h((string) $remainingStock) ?>"
                             step="0.01"
                             name="quantity"
-                            value="1"
+                            value="<?= h((string) min(1.0, $remainingStock)) ?>"
                             required
                         >
                     </div>
                     <button type="submit">Add to cart <span aria-hidden="true">+</span></button>
                 </form>
+            <?php elseif ((float) $vegetable['stock'] > 0): ?>
+                <p class="product-already-in-cart">
+                    Available stock is already in your cart.
+                    <a href="<?= h(app_url('buyer/cart.php')) ?>">Review cart</a>
+                </p>
             <?php endif; ?>
         </article>
     <?php endforeach; ?>
