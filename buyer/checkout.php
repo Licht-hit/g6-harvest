@@ -347,104 +347,113 @@ require __DIR__ . '/../includes/header.php';
     <a href="<?= h(app_url('buyer/cart.php')) ?>">Edit cart</a>
 </div>
 
-<section class="panel section">
+<section class="panel section checkout-panel">
     <?php if (!$cartIsValid || !$totals): ?>
-        <div class="notice error">
+        <div class="notice error" role="alert">
             Some items are unavailable or exceed current stock. Update your cart before checkout.
         </div>
         <a class="button" href="<?= h(app_url('buyer/cart.php')) ?>">Review cart</a>
     <?php else: ?>
-        <h2>Order summary</h2>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Produce</th>
-                        <th>Quantity</th>
-                        <th>Price</th>
-                        <th>Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($cartItems as $productId => $quantity): ?>
-                        <?php $item = $byId[$productId]; ?>
+        <div class="checkout-layout">
+            <div class="checkout-summary">
+                <h2>Order summary</h2>
+                <div
+                    class="table-wrap checkout-table-wrap"
+                    role="region"
+                    aria-label="Order items; scroll horizontally to view all columns"
+                    tabindex="0"
+                >
+                    <table class="checkout-table">
+                        <thead>
                         <tr>
-                            <td><?= h($item['name']) ?></td>
-                            <td><?= number_format($quantity, 2) ?> <?= h($item['unit']) ?></td>
-                            <td><?= money($item['price']) ?></td>
-                            <td><?= money((float) $item['price'] * $quantity) ?></td>
+                            <th>Produce</th>
+                            <th>Quantity</th>
+                            <th>Price</th>
+                            <th>Subtotal</th>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($cartItems as $productId => $quantity): ?>
+                            <?php $item = $byId[$productId]; ?>
+                            <tr>
+                                <td><?= h($item['name']) ?></td>
+                                <td><?= number_format($quantity, 2) ?> <?= h($item['unit']) ?></td>
+                                <td><?= money($item['price']) ?></td>
+                                <td><?= money((float) $item['price'] * $quantity) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
 
-        <dl class="checkout-totals">
-            <div><dt>Vegetable subtotal</dt><dd><?= money($totals['subtotal']) ?></dd></div>
-            <div>
-                <dt>
-                    Bulk purchase discount
-                    (<?= number_format($totals['discount_percentage'], 0) ?>%)
-                </dt>
-                <dd>-<?= money($totals['discount_amount']) ?></dd>
-            </div>
-            <div><dt>Delivery fee</dt><dd><?= money($totals['delivery_fee']) ?></dd></div>
-            <div class="checkout-final-total">
-                <dt>Final total</dt><dd><?= money($totals['final_total']) ?></dd>
-            </div>
-        </dl>
-        <p class="muted">
-            Combined cart quantity:
-            <?= number_format($totals['eligible_quantity'], 2) ?> units
-        </p>
-        <?php if ($totals['discount_percentage'] > 0): ?>
-            <p class="notice success">
-                Congratulations! You qualify for a 10% bulk purchase discount!
-            </p>
-        <?php else: ?>
-            <p class="notice">
-                Purchase 20 or more units/kg to receive 10% OFF!
-            </p>
-        <?php endif; ?>
-
-        <form method="post">
-            <?= csrf_field() ?>
-            <input type="hidden" name="checkout_token" value="<?= h($checkoutToken) ?>">
-            <div class="field">
-                <label for="delivery-address">Delivery address</label>
-                <textarea
-                    id="delivery-address"
-                    name="delivery_address"
-                    minlength="10"
-                    maxlength="1000"
-                    required
-                    placeholder="House number, street, barangay, city, and delivery instructions"
-                ></textarea>
-            </div>
-
-            <fieldset class="payment-method-options">
-                <legend>Payment method</legend>
-                <label>
-                    <input type="radio" name="payment_method" value="cod" required checked>
-                    Cash on Delivery
-                    <span class="muted">Pay when your order arrives.</span>
-                </label>
-                <?php if ($onlinePaymentAvailable): ?>
-                    <label>
-                        <input type="radio" name="payment_method" value="online" required>
-                        Online Payment
-                        <span class="muted">Pay securely through PayMongo using available GCash or card.</span>
-                    </label>
+                <dl class="checkout-totals">
+                    <div><dt>Vegetable subtotal</dt><dd><?= money($totals['subtotal']) ?></dd></div>
+                    <div>
+                        <dt>
+                            Bulk purchase discount
+                            (<?= number_format($totals['discount_percentage'], 0) ?>%)
+                        </dt>
+                        <dd>-<?= money($totals['discount_amount']) ?></dd>
+                    </div>
+                    <div><dt>Delivery fee</dt><dd><?= money($totals['delivery_fee']) ?></dd></div>
+                    <div class="checkout-final-total">
+                        <dt>Final total</dt><dd><?= money($totals['final_total']) ?></dd>
+                    </div>
+                </dl>
+                <p class="muted checkout-quantity">
+                    Combined cart quantity:
+                    <?= number_format($totals['eligible_quantity'], 2) ?> units
+                </p>
+                <?php if ($totals['discount_percentage'] > 0): ?>
+                    <p class="notice success checkout-discount-notice">
+                        Congratulations! You qualify for a 10% bulk purchase discount!
+                    </p>
                 <?php else: ?>
-                    <p class="notice">
-                        Online payment is unavailable until PayMongo credentials, a public HTTPS
-                        APP_URL, PHP OpenSSL, and allow_url_fopen are configured.
+                    <p class="notice checkout-discount-notice">
+                        Purchase 20 or more units/kg to receive 10% OFF!
                     </p>
                 <?php endif; ?>
-            </fieldset>
+            </div>
 
-            <button type="submit">Confirm order</button>
-        </form>
+            <form class="checkout-form" method="post">
+                <?= csrf_field() ?>
+                <input type="hidden" name="checkout_token" value="<?= h($checkoutToken) ?>">
+                <div class="field">
+                    <label for="delivery-address">Delivery address</label>
+                    <textarea
+                        id="delivery-address"
+                        name="delivery_address"
+                        minlength="10"
+                        maxlength="1000"
+                        required
+                        placeholder="House number, street, barangay, city, and delivery instructions"
+                    ></textarea>
+                </div>
+
+                <fieldset class="payment-method-options">
+                    <legend>Payment method</legend>
+                    <label>
+                        <input type="radio" name="payment_method" value="cod" required checked>
+                        Cash on Delivery
+                        <span class="muted">Pay when your order arrives.</span>
+                    </label>
+                    <?php if ($onlinePaymentAvailable): ?>
+                        <label>
+                            <input type="radio" name="payment_method" value="online" required>
+                            Online Payment
+                            <span class="muted">Pay securely through PayMongo using available GCash or card.</span>
+                        </label>
+                    <?php else: ?>
+                        <p class="notice">
+                            Online payment is unavailable until PayMongo credentials, a public HTTPS
+                            APP_URL, PHP OpenSSL, and allow_url_fopen are configured.
+                        </p>
+                    <?php endif; ?>
+                </fieldset>
+
+                <button type="submit">Confirm order</button>
+            </form>
+        </div>
     <?php endif; ?>
 </section>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

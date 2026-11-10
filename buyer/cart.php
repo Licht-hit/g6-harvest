@@ -134,13 +134,18 @@ require __DIR__ . '/../includes/header.php';
         <a href="<?= h(app_url('buyer/index.php')) ?>">Browse produce</a>.
     </section>
 <?php else: ?>
-    <section class="panel section">
+    <section class="panel section cart-panel">
         <form method="post">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="update">
 
-            <div class="table-wrap">
-                <table>
+            <div
+                class="table-wrap cart-table-wrap"
+                role="region"
+                aria-label="Cart items; scroll horizontally to view all columns"
+                tabindex="0"
+            >
+                <table class="cart-table">
                     <thead>
                         <tr>
                             <th>Produce</th>

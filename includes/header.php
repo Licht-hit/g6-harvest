@@ -57,16 +57,16 @@ if ($user && $user['role'] === 'admin') {
         </button>
         <nav class="main-nav" id="primary-navigation" aria-label="Main navigation">
             <?php if ($user['role'] === 'buyer'): ?>
-                <a class="<?= $currentPage === 'dashboard.php' ? 'active' : '' ?>" href="<?= h(app_url('buyer/dashboard.php')) ?>">
+                <a class="<?= $currentPage === 'dashboard.php' ? 'active' : '' ?>" href="<?= h(app_url('buyer/dashboard.php')) ?>" <?= $currentPage === 'dashboard.php' ? 'aria-current="page"' : '' ?>>
                     <span class="nav-icon" aria-hidden="true">▦</span> Dashboard
                 </a>
-                <a class="<?= in_array($currentPage, ['index.php', 'product.php'], true) ? 'active' : '' ?>" href="<?= h(app_url('buyer/index.php')) ?>">
+                <a class="<?= in_array($currentPage, ['index.php', 'product.php'], true) ? 'active' : '' ?>" href="<?= h(app_url('buyer/index.php')) ?>" <?= in_array($currentPage, ['index.php', 'product.php'], true) ? 'aria-current="page"' : '' ?>>
                     <span class="nav-icon" aria-hidden="true">⌂</span> Shop
                 </a>
-                <a class="<?= in_array($currentPage, ['orders.php', 'order_details.php'], true) ? 'active' : '' ?>" href="<?= h(app_url('buyer/orders.php')) ?>">
+                <a class="<?= in_array($currentPage, ['orders.php', 'order_details.php'], true) ? 'active' : '' ?>" href="<?= h(app_url('buyer/orders.php')) ?>" <?= in_array($currentPage, ['orders.php', 'order_details.php'], true) ? 'aria-current="page"' : '' ?>>
                     <span class="nav-icon" aria-hidden="true">▤</span> My orders
                 </a>
-                <a class="<?= $currentPage === 'cart.php' ? 'active' : '' ?>" href="<?= h(app_url('buyer/cart.php')) ?>">
+                <a class="<?= $currentPage === 'cart.php' ? 'active' : '' ?>" href="<?= h(app_url('buyer/cart.php')) ?>" <?= $currentPage === 'cart.php' ? 'aria-current="page"' : '' ?>>
                     <span class="nav-icon" aria-hidden="true">▱</span> Cart <span class="nav-count"><?= cart_count() ?></span>
                 </a>
             <?php else: ?>
@@ -109,7 +109,7 @@ if ($user && $user['role'] === 'admin') {
 </header>
 <main class="container">
     <?php if ($notice): ?>
-        <div class="notice <?= h($notice['type']) ?>" role="status">
+        <div class="notice <?= h($notice['type']) ?>" role="<?= $notice['type'] === 'error' ? 'alert' : 'status' ?>">
             <?= h($notice['message']) ?>
         </div>
     <?php endif; ?>
