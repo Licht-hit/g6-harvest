@@ -29,7 +29,8 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 4. Run `supabase/migrations/003_public_catalog.sql` to let signed-out visitors read active vegetables on the landing page. Row-level security keeps inactive vegetables and inventory private.
 5. Run `supabase/migrations/004_vegetable_category.sql` to add the product category field used by the catalog. It is safe to run on existing projects and defaults existing products to `Other`.
 6. Run `supabase/migrations/005_seed_catalog.sql` to add the ten sample products to an empty catalog. Existing products with the same names are left unchanged; no inventory is added.
-    - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004 and 005.
+7. Run `supabase/migrations/006_public_homepage.sql` to expose only featured-product availability and aggregate homepage counts to signed-out visitors.
+   - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004, 005, and 006.
    - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
    - Do not rerun migrations that have already been applied.
    - If you are unsure whether migration 001 finished, check that the core tables exist with this query:

@@ -11,6 +11,8 @@ const contactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(configuredContactEmail)
     : '';
 const app = document.querySelector('#app');
 const notice = document.querySelector('#app-notice');
+let revealObserver;
+let featuredCarouselResizeObserver;
 const cartStorageKey = 'harvest-cart-v1';
 const imageByName = {
     tomato: 'tomato.webp',
@@ -159,11 +161,53 @@ function updateNavigation() {
     const menu = document.querySelector('#account-menu');
     const guest = document.querySelector('#guest-navigation');
     const nav = document.querySelector('#primary-navigation');
+    const publicHome = state.page === 'home' && (!state.session || !state.profile);
+    nav.classList.remove('is-open');
+    document.querySelector('[data-nav-toggle]').setAttribute('aria-expanded', 'false');
+    document.querySelector('[data-nav-toggle]').setAttribute('aria-label', 'Open navigation');
+    document.body.classList.toggle('public-home-page', publicHome);
+    document.querySelector('.site-header').classList.toggle('public-site-header', publicHome);
+    nav.classList.toggle('public-main-nav', publicHome);
+    document.querySelector('[data-nav-toggle]').classList.toggle('public-nav-toggle', publicHome);
+    guest.classList.toggle('public-header-actions', publicHome);
+    const footer = document.querySelector('#site-footer');
+    footer.classList.toggle('public-footer', publicHome);
+    guest.querySelectorAll('a').forEach((link, index) => {
+        link.classList.toggle('public-header-login', publicHome && index === 0);
+        link.classList.toggle('public-header-register', publicHome && index === 1);
+    });
+    if (publicHome) {
+        footer.innerHTML = `
+            <div class="public-footer-main">
+                <div class="public-footer-brand">
+                    <a class="brand" href="/" aria-label="Harvest home" data-page="home">
+                        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M25.8 5.2C16 5.5 8.3 8.8 8.3 17.1c0 3.2 2.2 5.4 5.1 5.4 8.8 0 11.6-8.8 12.4-17.3Z" fill="currentColor"/><path d="M5.2 27c4.6-7.5 9.2-11 16.3-15.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+                        <span>Harvest<span class="brand-period">.</span></span>
+                    </a>
+                    <p>A farm operations and produce shop connecting planting, inventory, and customer orders.</p>
+                </div>
+                <nav class="public-footer-links" aria-label="Footer navigation">
+                    <strong>Explore</strong>
+                    <a href="#featured">Featured produce</a>
+                    <a href="#about">About Harvest</a>
+                    <a href="#farming-process">How it works</a>
+                </nav>
+                <nav class="public-footer-links" aria-label="Account links">
+                    <strong>Your account</strong>
+                    <a href="?page=login" data-page="login">Log in</a>
+                    <a href="?page=register" data-page="register">Create account</a>
+                    ${contactEmail ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''}
+                </nav>
+            </div>
+            <div class="public-footer-bottom"><p>&copy; ${new Date().getFullYear()} Harvest. Farm operations and produce sales.</p><a href="#home">Back to top ↑</a></div>`;
+    } else {
+        footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} Harvest. Farm operations and produce sales.</p>`;
+    }
     if (!state.session || !state.profile) {
         menu.hidden = true;
         guest.hidden = false;
-        nav.innerHTML = state.page === 'home'
-            ? '<a href="#home">Home</a><a href="#about">About</a><a href="#featured">Produce</a><a href="#why-harvest">Why Harvest</a><a href="#farming-process">Our process</a><a href="#contact">Contact</a>'
+        nav.innerHTML = publicHome
+            ? '<a href="#home" aria-current="page">Home</a><a href="#about">About</a><a href="#featured">Produce</a><a href="#why-harvest">Why Harvest</a><a href="#farming-process">Our process</a><a href="#contact">Contact</a>'
             : '<a href="/" data-page="home">Home</a>';
         return;
     }
@@ -409,11 +453,12 @@ async function getProducts(activeOnly = false) {
 }
 
 async function getPublicProducts() {
-    return queryOrThrow(state.supabase.from('vegetables')
-        .select('id, name, category, variety, description, unit, price')
-        .eq('active', true)
-        .order('name')
-        .limit(6));
+    return queryOrThrow(state.supabase.rpc('get_public_featured_products'));
+}
+
+async function getPublicHomeStats() {
+    const rows = await queryOrThrow(state.supabase.rpc('get_public_home_stats'));
+    return rows[0] || null;
 }
 
 async function loadProfile(user) {
@@ -532,6 +577,18 @@ async function renderDashboard() {
                 <div class="app-dashboard-links"><a href="?page=shop" data-page="shop">Browse fresh produce →</a><a href="?page=cart" data-page="cart">View your cart (${cartCount()}) →</a><a href="?page=orders" data-page="orders">Track your orders →</a></div>
             </section>
             <section class="panel section"><h2>Recent orders</h2>${table(['Order', 'Total', 'Delivery', 'Payment'], rows, 'You have not placed any orders yet.')}</section>`;
+        return;
+    }
+
+    const productsDirection = target.closest('[data-products-direction]');
+    if (productsDirection) {
+        const track = app.querySelector('.public-product-track');
+        if (track) {
+            track.scrollBy({
+                left: Number(productsDirection.dataset.productsDirection) * track.clientWidth * 0.85,
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+            });
+        }
         return;
     }
 
@@ -769,7 +826,132 @@ function renderShop(products) {
         <section class="card-grid shop-product-grid">${cards || '<div class="empty">There are no active products in the catalog.</div>'}</section>`;
 }
 
-function renderLanding(products, catalogUnavailable = false) {
+function renderLanding(products, catalogUnavailable = false, stats = null) {
+    document.body.classList.remove('auth-page');
+    const cards = products.map((product) => `
+        <article class="public-product-card" data-reveal>
+            <div class="public-product-image">${productPicture(product.name)}
+                <span class="public-stock-badge${product.in_stock ? '' : ' is-unavailable'}">${product.in_stock ? 'In stock' : 'Currently unavailable'}</span>
+            </div>
+            <div class="public-product-copy">
+                <div class="public-product-heading"><div><p>${escapeHtml(product.category || 'From the farm')}</p><h3>${escapeHtml(product.name)}</h3></div><strong>${money(product.price)}<small> / ${escapeHtml(product.unit)}</small></strong></div>
+                <p class="public-product-description">${escapeHtml(product.description || 'Explore this item in the current Harvest catalog.')}</p>
+                ${product.variety ? `<p class="public-product-variety">Variety: ${escapeHtml(product.variety)}</p>` : ''}
+            </div>
+        </article>`).join('');
+
+    app.innerHTML = `
+        <section class="public-hero" id="home" aria-labelledby="public-hero-title">
+            <div class="public-hero-copy" data-reveal>
+                <p class="public-eyebrow"><span aria-hidden="true"></span> From our farm to your table</p>
+                <h1 id="public-hero-title">A little more <em>goodness</em> in every day.</h1>
+                <p class="public-hero-intro">Get to know the produce in our live farm catalog and find fresh picks for your table.</p>
+                <div class="public-hero-actions"><a class="public-button" href="#featured">Shop the harvest <span aria-hidden="true">→</span></a><a class="public-text-link" href="#about">Learn more <span aria-hidden="true">↗</span></a></div>
+                <p class="public-hero-footnote"><span aria-hidden="true">✳</span> Prices and availability are shown from the current catalog.</p>
+            </div>
+            <div class="public-hero-art" data-reveal aria-label="Fresh vegetable photography">
+                <span class="public-hero-orbit public-hero-orbit--one" aria-hidden="true"></span><span class="public-hero-orbit public-hero-orbit--two" aria-hidden="true"></span>
+                <figure class="public-hero-photo public-hero-photo--main">${productPicture('Carrot')}</figure>
+                <figure class="public-hero-photo public-hero-photo--tomato" aria-hidden="true">${productPicture('Tomato')}</figure>
+                <figure class="public-hero-photo public-hero-photo--greens" aria-hidden="true">${productPicture('Zucchini')}</figure>
+                <span class="public-hero-photo-label"><span aria-hidden="true">✳</span> A fresh look at the harvest</span>
+            </div>
+            <aside class="public-hero-highlights" aria-label="Shopping highlights" data-reveal>
+                <p class="public-highlight-heading">Good things, made simple</p>
+                <article class="public-highlight"><span class="public-highlight-icon" aria-hidden="true">♧</span><span><strong>See what is available</strong><small>Check produce and stock from the live catalog.</small></span></article>
+                <article class="public-highlight"><span class="public-highlight-icon" aria-hidden="true">₱</span><span><strong>Know what you are choosing</strong><small>Browse item details, prices, and units.</small></span></article>
+                <article class="public-highlight"><span class="public-highlight-icon" aria-hidden="true">▣</span><span><strong>Order when you are ready</strong><small>Create an account to save favorites and shop.</small></span></article>
+            </aside>
+        </section>
+        <section class="public-trust-strip" aria-label="Harvest at a glance" data-reveal>
+            <div><strong>Live catalog</strong><span>Explore produce currently listed by the farm.</span></div><div><strong>Clear availability</strong><span>Check current stock before you decide.</span></div><div><strong>Your favorites</strong><span>Save regular picks to a buyer account.</span></div>
+        </section>
+        <section class="public-section public-featured" id="featured" aria-labelledby="featured-title">
+            <div class="public-section-heading" data-reveal><div><p class="public-eyebrow">From the current catalog</p><h2 id="featured-title">Meet the fresh picks.</h2></div><p>Every item below comes from the farm's active produce catalog.</p></div>
+            ${products.length ? `
+                <div class="public-product-carousel"><div class="public-product-track" role="list" aria-label="Featured produce">${cards}</div>
+                    ${products.length > 3 ? '<div class="public-products-controls" aria-label="Featured produce carousel controls"><button class="public-slider-arrow" type="button" data-products-direction="-1" aria-label="Show previous produce">←</button><span class="public-slider-hint">Scroll to explore fresh picks</span><button class="public-slider-arrow" type="button" data-products-direction="1" aria-label="Show more produce">→</button></div>' : ''}
+                </div>
+                <div class="public-products-cta" data-reveal><p>Ready to choose your produce?</p><a class="public-button public-button-small" href="?page=register" data-page="register">Create an account to shop <span aria-hidden="true">→</span></a></div>
+            ` : `<div class="public-empty-state" role="status"><span aria-hidden="true">🌱</span><h3>${catalogUnavailable ? 'The live catalog is temporarily unavailable.' : 'The next harvest is on its way.'}</h3><p>${catalogUnavailable ? 'Please check back soon.' : 'There are no active produce items in the catalog just yet. Please check back soon.'}</p></div>`}
+        </section>
+        <section class="public-about public-section" id="about" aria-labelledby="about-title">
+            <div class="public-about-art" data-reveal>${productPicture('Kale')}<span class="public-about-stamp"><span aria-hidden="true">✳</span> Growing good things together</span></div>
+            <div class="public-about-copy" data-reveal><p class="public-eyebrow">A closer connection to the farm</p><h2 id="about-title">A farm story, from planting to <em>your table.</em></h2>
+                <p>Harvest brings farm operations and produce ordering together. Staff can record plantings and harvests, track inventory, and share current availability with shoppers.</p><p>Customers can explore real catalog details, save favorite produce, and manage orders through their own account.</p>
+                <a class="public-arrow-link" href="#farming-process">See how Harvest works <span aria-hidden="true">→</span></a>
+            </div>
+        </section>
+        <section class="public-section public-why" id="why-harvest" aria-labelledby="why-title">
+            <div class="public-section-heading" data-reveal><div><p class="public-eyebrow">The Harvest difference</p><h2 id="why-title">Farm details, made easier to find.</h2></div><p>A connected view of produce, availability, and ordering.</p></div>
+            <div class="public-feature-grid">
+                <article class="public-feature-card" data-reveal><span aria-hidden="true">♧</span><h3>Current catalog</h3><p>Explore active produce items and see the prices and units listed by the farm.</p></article>
+                <article class="public-feature-card" data-reveal><span aria-hidden="true">▣</span><h3>Clear availability</h3><p>Inventory information helps you understand what is in stock before you order.</p></article>
+                <article class="public-feature-card" data-reveal><span aria-hidden="true">♡</span><h3>Favorites that stay yours</h3><p>Save produce to your buyer account and find your regular picks again.</p></article>
+                <article class="public-feature-card" data-reveal><span aria-hidden="true">🧺</span><h3>Order management</h3><p>Use your customer account to place orders and follow their status.</p></article>
+            </div>
+        </section>
+        <section class="public-process public-section" id="farming-process" aria-labelledby="process-title">
+            <div class="public-section-heading" data-reveal><div><p class="public-eyebrow">From farm records to fresh picks</p><h2 id="process-title">A little more connected at every step.</h2></div><p>Harvest helps bring the farm's records and customer shop into one place.</p></div>
+            <ol class="public-process-grid"><li data-reveal><span>01</span><h3>Plan</h3><p>Staff record what is planted and when it is expected to grow.</p></li><li data-reveal><span>02</span><h3>Harvest</h3><p>Harvest records keep quantities and dates together.</p></li><li data-reveal><span>03</span><h3>Track</h3><p>Inventory shows the produce currently listed as available.</p></li><li data-reveal><span>04</span><h3>Choose</h3><p>Customers browse the catalog and place orders from their account.</p></li></ol>
+        </section>
+        <section class="public-stats public-section" aria-label="Harvest statistics" data-reveal>
+            <div><strong>${homeStat(stats?.vegetable_count)}</strong><span>Active produce items</span></div><div><strong>${homeStat(stats?.available_count)}</strong><span>Items in stock</span></div><div><strong>${homeStat(stats?.completed_orders)}</strong><span>Delivered orders</span></div><div><strong>${homeStat(stats?.harvest_count)}</strong><span>Harvest records</span></div>
+        </section>
+        <section class="public-contact public-section" id="contact" aria-labelledby="contact-title">
+            <div data-reveal><p class="public-eyebrow">We're here to help</p><h2 id="contact-title">Questions about your next order?</h2><p>Sign in to manage an order, or create a buyer account to start browsing and save produce you love.</p></div>
+            <div class="public-contact-actions" data-reveal>${contactEmail ? `<a class="public-contact-email" href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''}<a class="public-button" href="?page=register" data-page="register">Create a buyer account <span aria-hidden="true">→</span></a><a class="public-text-link" href="?page=login" data-page="login">Already have an account? Log in</a></div>
+        </section>`;
+    observeScrollReveals();
+    setupFeaturedCarousel();
+}
+
+function homeStat(value) {
+    if (value == null || !Number.isFinite(Number(value))) return '—';
+    return Number(value).toLocaleString('en-PH');
+}
+
+function observeScrollReveals() {
+    revealObserver?.disconnect();
+    const elements = app.querySelectorAll('[data-reveal]');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion || !('IntersectionObserver' in window)) {
+        document.body.classList.remove('motion-ready');
+        elements.forEach((element) => element.classList.add('is-visible'));
+        return;
+    }
+
+    document.body.classList.add('motion-ready');
+    revealObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+        });
+    }, { threshold: 0.12 });
+    elements.forEach((element) => revealObserver.observe(element));
+}
+
+function setupFeaturedCarousel() {
+    const track = app.querySelector('.public-product-track');
+    featuredCarouselResizeObserver?.disconnect();
+    if (!track) return;
+    const buttons = app.querySelectorAll('[data-products-direction]');
+    const updateButtons = () => {
+        const maxScroll = track.scrollWidth - track.clientWidth;
+        buttons.forEach((button) => {
+            button.disabled = Number(button.dataset.productsDirection) < 0
+                ? track.scrollLeft <= 1
+                : track.scrollLeft >= maxScroll - 1;
+        });
+    };
+    track.addEventListener('scroll', updateButtons, { passive: true });
+    featuredCarouselResizeObserver = new ResizeObserver(updateButtons);
+    featuredCarouselResizeObserver.observe(track);
+    updateButtons();
+}
+
+function renderLandingLegacy(products, catalogUnavailable = false) {
     document.body.classList.remove('auth-page');
     const cards = products.map((product) => `
         <article class="landing-product">
@@ -1376,10 +1558,17 @@ async function renderPage() {
         updateNavigation();
         if (page === 'home') {
             try {
-                return renderLanding(await getPublicProducts());
+                const products = await getPublicProducts();
+                let stats = null;
+                try {
+                    stats = await getPublicHomeStats();
+                } catch (error) {
+                    showError(error);
+                }
+                return renderLanding(products, false, stats);
             } catch (error) {
                 showError(error);
-                return renderLanding([]);
+                return renderLanding([], true);
             }
         }
         renderAuth(page);
@@ -1739,6 +1928,15 @@ async function handleSubmit(form) {
 }
 
 async function handleClick(target) {
+    const publicNavLink = target.closest('#primary-navigation a[href^="#"]');
+    if (publicNavLink) {
+        const nav = document.querySelector('#primary-navigation');
+        nav.classList.remove('is-open');
+        const toggle = document.querySelector('[data-nav-toggle]');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Open navigation');
+    }
+
     const pageLink = target.closest('[data-page]');
     if (pageLink) {
         const page = pageLink.dataset.page;
