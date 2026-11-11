@@ -152,6 +152,18 @@
     grid-column: 1 / -1;
 }
 
+.vegetable-photo-preview {
+    margin-top: .6rem;
+}
+
+.vegetable-photo-preview img {
+    display: block;
+    width: min(100%, 240px);
+    max-height: 180px;
+    border-radius: 10px;
+    object-fit: cover;
+}
+
 .app-form button,
 .app-form .button {
     align-self: end;

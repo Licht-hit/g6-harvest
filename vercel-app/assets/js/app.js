@@ -3,6 +3,7 @@ import { getAccessToken, refreshAccessToken } from '../../src/authSession.js';
 import { calculateOrderTotals } from '../../src/orderMath.js';
 import { isFarmStaffRole } from '../../src/roles.js';
 import { filterAndSortProducts } from '../../src/shopFilters.js';
+import { getVegetablePhotoExtension } from '../../src/vegetablePhoto.js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -404,10 +405,19 @@ function isStaff() {
     return isFarmStaffRole(state.profile?.role);
 }
 
-function productPicture(name) {
+function vegetablePhotoUrl(path) {
+    if (!path) return '';
+    return state.supabase.storage.from('vegetable-images').getPublicUrl(path).data.publicUrl;
+}
+
+function productPicture(name, imagePath = null) {
     const key = String(name || '').trim().toLowerCase();
     const image = imageByName[key];
     const icon = iconByName[key] || '🥬';
+    const photoUrl = vegetablePhotoUrl(imagePath);
+    if (photoUrl) {
+        return `<div class="product-image"><img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(name)}" loading="lazy"><span class="product-image-fallback" hidden>${icon}</span></div>`;
+    }
     return image
         ? `<div class="product-image"><img src="/assets/images/${encodeURIComponent(image)}" alt="${escapeHtml(name)}" loading="lazy"><span class="product-image-fallback" hidden>${icon}</span></div>`
         : `<div class="product-image product-image-fallback" role="img" aria-label="${escapeHtml(name)}">${icon}</div>`;
@@ -623,7 +633,7 @@ async function getProducts(activeOnly = false) {
 
 async function getPublicProducts() {
     return queryOrThrow(state.supabase.from('vegetables')
-        .select('id, name, category, variety, description, unit, price')
+        .select('id, name, category, variety, description, unit, price, image_path')
         .eq('active', true)
         .order('name')
         .limit(6));
@@ -1027,7 +1037,7 @@ function renderShop(products) {
         .sort((left, right) => left.localeCompare(right));
     const cards = products.map((product) => `
         <article class="card product-card" data-product-id="${product.id}">
-            ${productPicture(product.name)}
+            ${productPicture(product.name, product.image_path)}
             <div class="product-card-content">
                 <div class="product-card-heading"><h3>${escapeHtml(product.name)}</h3><span class="product-variety">${escapeHtml(product.variety || '')}</span></div>
                 <p class="product-description">${escapeHtml(product.description || 'Fresh produce from the farm.')}</p>
@@ -1119,7 +1129,7 @@ function renderLanding(products, catalogUnavailable = false) {
     document.body.classList.remove('password-reset-page');
     const cards = products.map((product) => `
         <article class="landing-product">
-            <div class="landing-product-image">${productPicture(product.name)}</div>
+            <div class="landing-product-image">${productPicture(product.name, product.image_path)}</div>
             <div class="landing-product-copy">
                 <p class="landing-product-category">${escapeHtml(product.category || 'From the farm')}</p>
                 <h3>${escapeHtml(product.name)}</h3>
@@ -1230,7 +1240,7 @@ async function renderProduct(product) {
     app.innerHTML = `
         <nav class="product-breadcrumb"><a href="?page=shop" data-page="shop">${buyerText('navShop')}</a><span>›</span><span>${escapeHtml(product.name)}</span></nav>
         <section class="product-detail">
-            <div class="product-detail-image">${productPicture(product.name)}<span class="product-detail-image-tag">${buyerText('farmFresh')}</span></div>
+            <div class="product-detail-image">${productPicture(product.name, product.image_path)}<span class="product-detail-image-tag">${buyerText('farmFresh')}</span></div>
             <div class="product-detail-content"><p class="product-detail-eyebrow">${buyerText('shopEyebrow')}</p><h1>${escapeHtml(product.name)}</h1>
                 <p class="product-detail-variety">${escapeHtml(product.variety || '')}</p>
                 <p class="product-detail-description">${escapeHtml(product.description || 'Fresh produce grown and harvested with care.')}</p>
@@ -1442,6 +1452,7 @@ function renderVegetables(products) {
                 <div class="field"><label>Unit</label><input name="unit" maxlength="30" value="kg" required></div>
                 <div class="field"><label>Price (₱)</label><input name="price" type="number" min="0" step="0.01" required></div>
                 <div class="field field-wide"><label>Description</label><textarea name="description"></textarea></div>
+                <div class="field field-wide"><label for="vegetable-photo">Vegetable photo</label><input id="vegetable-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required><small>Required for new vegetables. JPEG, PNG, or WebP; maximum 5 MB. When editing, leave empty to keep the current photo.</small><div class="vegetable-photo-preview" data-vegetable-photo-preview aria-live="polite"></div></div>
                 <div class="app-actions"><button type="submit">Save vegetable</button><button type="button" class="button secondary" data-action="clear-vegetable">Clear</button></div>
             </form>
         </section>
@@ -2053,6 +2064,7 @@ async function handleSubmit(form) {
     }
     if (formName === 'vegetable') {
         const id = values.id;
+        const selectedPhoto = form.elements.photo.files[0] || null;
         const record = {
             name: values.name.trim(),
             variety: values.variety.trim() || null,
@@ -2063,10 +2075,45 @@ async function handleSubmit(form) {
         if (!record.name || !record.unit || !Number.isFinite(record.price) || record.price < 0) {
             throw new Error('Enter a name, unit, and valid non-negative price.');
         }
+        const photoExtension = getVegetablePhotoExtension(selectedPhoto);
+        const previous = id ? state.records.get(String(id)) : null;
+        const previousPhotoPath = previous?.image_path || null;
+        let uploadedPhotoPath = null;
+        if (selectedPhoto) {
+            uploadedPhotoPath = `${state.profile.id}/${crypto.randomUUID()}.${photoExtension}`;
+            const { error: uploadError } = await state.supabase.storage
+                .from('vegetable-images')
+                .upload(uploadedPhotoPath, selectedPhoto, {
+                    contentType: selectedPhoto.type,
+                    upsert: false,
+                });
+            if (uploadError) throw uploadError;
+            record.image_path = uploadedPhotoPath;
+        } else if (id) {
+            record.image_path = previousPhotoPath;
+        }
         const result = id
             ? await state.supabase.from('vegetables').update(record).eq('id', id)
             : await state.supabase.from('vegetables').insert(record);
-        if (result.error) throw result.error;
+        if (result.error) {
+            if (uploadedPhotoPath) {
+                const { error: cleanupError } = await state.supabase.storage
+                    .from('vegetable-images').remove([uploadedPhotoPath]);
+                if (cleanupError) {
+                    throw new Error(`${result.error.message} The uploaded photo could not be cleaned up: ${cleanupError.message}`);
+                }
+            }
+            throw result.error;
+        }
+        if (uploadedPhotoPath && previousPhotoPath) {
+            const { error: cleanupError } = await state.supabase.storage
+                .from('vegetable-images').remove([previousPhotoPath]);
+            if (cleanupError) {
+                console.error('The previous vegetable photo could not be removed:', cleanupError);
+                notify('Vegetable saved, but the previous photo could not be removed.', 'error');
+                return await renderPage();
+            }
+        }
         notify(id ? 'Vegetable updated.' : 'Vegetable added.');
         return await renderPage();
     }
@@ -2223,12 +2270,18 @@ async function handleClick(target) {
         form.elements.unit.value = row.unit;
         form.elements.price.value = row.price;
         form.elements.description.value = row.description || '';
+        form.elements.photo.required = false;
+        const photoPreview = app.querySelector('[data-vegetable-photo-preview]');
+        if (row.image_path && photoPreview) {
+            photoPreview.innerHTML = `<img src="${escapeHtml(vegetablePhotoUrl(row.image_path))}" alt="Current photo of ${escapeHtml(row.name)}">`;
+        }
         app.querySelector('#vegetable-form-title').textContent = `Edit ${row.name}`;
         form.scrollIntoView({ behavior: 'smooth' });
         return;
     }
     if (action.dataset.action === 'clear-vegetable') {
         app.querySelector('[data-form="vegetable"]').reset();
+        app.querySelector('[data-vegetable-photo-preview]').textContent = '';
         app.querySelector('#vegetable-form-title').textContent = 'Add a vegetable';
         return;
     }
@@ -2393,9 +2446,28 @@ document.addEventListener('error', (event) => {
 }, true);
 
 document.addEventListener('change', async (event) => {
-    if (!(event.target instanceof HTMLSelectElement) || !event.target.matches('[data-status-for]')) return;
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.matches('[data-form="vegetable"] input[name="photo"]')) {
+        const preview = app.querySelector('[data-vegetable-photo-preview]');
+        const file = target.files[0];
+        if (!preview) return;
+        if (!file) {
+            preview.textContent = '';
+            return;
+        }
+        try {
+            getVegetablePhotoExtension(file);
+            preview.innerHTML = `<img src="${escapeHtml(URL.createObjectURL(file))}" alt="Selected vegetable photo">`;
+        } catch (error) {
+            target.value = '';
+            preview.textContent = '';
+            showError(error);
+        }
+        return;
+    }
+    if (!(target instanceof HTMLSelectElement) || !target.matches('[data-status-for]')) return;
     try {
-        await handleOrderStatusChange(event.target);
+        await handleOrderStatusChange(target);
     } catch (error) {
         showError(error);
         await renderPage();
