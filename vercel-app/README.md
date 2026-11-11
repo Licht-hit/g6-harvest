@@ -1,7 +1,7 @@
 3. Then run `supabase/migrations/002_roles_and_payment_safety.sql`.
 # Harvest for Vercel
 
-This is a separate, static HTML/CSS/JavaScript version of the Harvest app. The original PHP/MySQL project remains in the parent folder. This version uses Supabase Auth and PostgreSQL; Vercel Functions keep PayMongo credentials and privileged payment operations on the server.
+This is a separate, static HTML/CSS/JavaScript version of the Harvest app. The original PHP/MySQL project remains in the parent folder. This version uses Supabase Auth and PostgreSQL; Vercel Functions keep Xendit credentials and privileged payment operations on the server.
 
 The original responsive stylesheet and product images are copied into `assets/`. There is no sample or fake account/product data in this app. Import your existing database or create real catalog records after setting up the first administrator.
 Do not copy the parent project's local email/payment configuration files into this folder. Put new secrets only in Vercel's server-side environment settings.
@@ -14,7 +14,7 @@ Do not copy the parent project's local email/payment configuration files into th
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
 - Administrator dashboard with sales and harvest trends, inventory charts, stock alerts, top sellers, recent orders, inventory updates, and activity.
 - Transactional PostgreSQL functions for inventory changes, harvest adjustments, checkout, order status, COD collection, and payment events.
-- PayMongo GCash/card checkout, COD, cancellation/stock restoration rules, and a signed webhook at `/api/paymongo-webhook`.
+- Xendit hosted checkout, COD, cancellation/stock restoration rules, and a verified webhook at `/api/xendit-webhook`. The PayMongo webhook remains available for orders created before the migration.
 - A MySQL import script that carries existing user accounts/roles and farm/order records into Supabase.
 
 ## Deploy to Vercel
@@ -30,6 +30,7 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 5. Run `supabase/migrations/004_vegetable_category.sql` to add the product category field used by the catalog. It is safe to run on existing projects and defaults existing products to `Other`.
 6. Run `supabase/migrations/005_seed_catalog.sql` to add the ten sample products to an empty catalog. Existing products with the same names are left unchanged; no inventory is added.
 7. Run `supabase/migrations/007_fix_order_item_ambiguity.sql` to fix cart-item ambiguity in order checkout and call `pgcrypto` functions from Supabase's `extensions` schema. If you already ran an earlier copy of migration 007, run the updated file again; it safely replaces the checkout function.
+8. Run `supabase/migrations/008_xendit_payments.sql` to enable Xendit for new orders while retaining PayMongo processing for existing orders.
     - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004, 005, and 007.
    - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
    - Do not rerun migrations that have already been applied.
@@ -77,12 +78,12 @@ Add these only if you are turning on online payments:
 
 | Key to enter in Vercel | Value to paste |
 |---|---|
-| `PAYMONGO_SECRET_KEY` | PayMongo secret key. Start with a test key. |
-| `PAYMONGO_WEBHOOK_SECRET` | The signing secret for the PayMongo webhook you create in its dashboard. |
+| `XENDIT_SECRET_KEY` | Xendit secret API key. Start with a test key. |
+| `XENDIT_WEBHOOK_TOKEN` | The callback verification token configured for your Xendit webhook. |
 
 To find your Supabase values, open your project dashboard, then **Project Settings → API**. Copy the Project URL and the anon/public key. Do not paste the service-role key into either `VITE_` variable. After saving or changing environment variables in Vercel, redeploy so the new values are included.
 
-`VITE_SUPABASE_ANON_KEY` is expected to be visible in the compiled site. It is not a database password; PostgreSQL row-level security is what protects data. Never put the Supabase service-role key, MySQL password, or PayMongo secret in browser code.
+`VITE_SUPABASE_ANON_KEY` is expected to be visible in the compiled site. It is not a database password; PostgreSQL row-level security is what protects data. Never put the Supabase service-role key, MySQL password, or Xendit secret in browser code.
 
 ### 3. Create the first administrator
 
@@ -132,20 +133,21 @@ The importer does **not** copy PHP password hashes or email-verification tokens 
 
 The import script is safe to rerun for the same source data: records are upserted by their IDs and users by their email/auth identity. Do not run imports from two different source databases into the same Supabase project.
 
-### 5. Configure PayMongo
+### 5. Configure Xendit
 
-1. Add `PAYMONGO_SECRET_KEY` and `PAYMONGO_WEBHOOK_SECRET` to the Vercel project settings. Start with PayMongo test credentials.
+1. Activate the payment channels you want to offer (such as GCash or Maya) in your Xendit account, then add `XENDIT_SECRET_KEY` and `XENDIT_WEBHOOK_TOKEN` to Vercel. Start with Xendit test credentials.
 2. Set `APP_URL` to the deployed HTTPS origin, for example `https://your-project.vercel.app`.
-3. In PayMongo, register `https://your-project.vercel.app/api/paymongo-webhook` as the webhook URL. Subscribe to `checkout_session.payment.paid`, `checkout_session.payment.failed`, and `payment.refunded`.
-4. Use only PayMongo's hosted checkout. The browser never receives the PayMongo secret key.
+3. In Xendit, configure `https://your-project.vercel.app/api/xendit-webhook` as the callback URL and enter the same callback verification token in `XENDIT_WEBHOOK_TOKEN`. Enable `payment_session.completed`, `payment_session.expired`, `refund.succeeded`, and `refund.failed` callbacks.
+4. The app uses Xendit's hosted payment session; the browser never receives the Xendit secret key. Payment channels available to buyers depend on your account's activation and eligibility.
+5. Keep the existing PayMongo webhook and credentials configured until all PayMongo orders created before the migration have been completed, cancelled, or otherwise reconciled.
 
-COD collection remains a farm-staff action and is allowed only for an out-for-delivery or delivered COD order. A payment return page never marks an order paid; the signed webhook does. Failed online payments keep stock reserved until farm staff confirms cancellation. Online cancellation expires the PayMongo session before releasing stock. If a valid payment event arrives after cancellation, checkout expiry, or another payment, the order is not silently changed; the event is recorded for administrator review.
+COD collection remains a farm-staff action and is allowed only for an out-for-delivery or delivered COD order. A payment return page never marks an order paid; the verified webhook does. Failed online payments keep stock reserved until farm staff confirms cancellation. Online cancellation cancels the payment session before releasing stock. If a valid payment event arrives after cancellation, checkout expiry, or another payment, the order is not silently changed; the event is recorded for administrator review.
 
 ## Local checks
 
-- `npm test` checks checkout calculations, PayMongo webhook parsing, and role permissions.
+- `npm test` checks checkout calculations, Xendit and legacy PayMongo webhook parsing, and role permissions.
 - `npm run build` builds the static site.
 - For a local end-to-end run of Vercel Functions, install the Vercel CLI and use `vercel dev` with the environment variables set. A plain Vite dev server only serves the browser UI; it does not run `/api` functions.
-- Live Auth, database, email, checkout, and webhook tests require your own Supabase and PayMongo test-project credentials. No credentials are included here.
+- Live Auth, database, email, checkout, and webhook tests require your own Supabase and Xendit test-project credentials. No credentials are included here.
 
 If a protected action reports that the session expired, confirm the Supabase project is active and `SUPABASE_URL` and `VITE_SUPABASE_URL` refer to the same project. The server checks these URLs and records Supabase token-validation errors in Vercel function logs. Redeploy after changing Vercel variables. The app attempts to refresh an expired access token once; if Supabase rejects the refresh token, sign in again.

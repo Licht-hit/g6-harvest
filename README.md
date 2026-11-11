@@ -1,3 +1,7 @@
+update public.profiles
+set role = 'staff'
+where lower(email) = lower('rjake611@gmail.com')
+returning email, role;
 
 # G6 Harvest
 

@@ -629,6 +629,8 @@
 }
 
 .landing-product-copy {
+    display: flex;
+    flex-direction: column;
     padding: 1rem 1.1rem 1.2rem;
 }
 
@@ -665,6 +667,24 @@
     color: var(--muted);
     font-size: .75rem;
     font-weight: 500;
+}
+
+.landing-product-availability {
+    margin: .65rem 0 0;
+    color: var(--muted);
+    font-size: .78rem;
+}
+
+.landing-product-cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    min-height: 44px;
+    margin-top: 1rem;
+    padding: .65rem .8rem;
+    border-radius: 7px;
+    font-size: .82rem;
 }
 
 .landing-empty {

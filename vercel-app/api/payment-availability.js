@@ -16,8 +16,8 @@ export default function handler(request, response) {
         return sendJson(response, 200, { onlinePaymentEnabled: false });
     }
     const onlinePaymentEnabled = Boolean(
-        (process.env.PAYMONGO_SECRET_KEY || '').startsWith('sk_')
-        && process.env.PAYMONGO_WEBHOOK_SECRET
+        process.env.XENDIT_SECRET_KEY
+        && process.env.XENDIT_WEBHOOK_TOKEN
         && appUrl.protocol === 'https:'
         && appUrl.hostname
         && !appUrl.username

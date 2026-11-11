@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getAccessToken, refreshAccessToken } from '../../src/authSession.js';
 import { calculateOrderTotals } from '../../src/orderMath.js';
 import { isFarmStaffRole } from '../../src/roles.js';
+import { filterAndSortProducts } from '../../src/shopFilters.js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -12,6 +13,138 @@ const contactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(configuredContactEmail)
 const app = document.querySelector('#app');
 const notice = document.querySelector('#app-notice');
 const cartStorageKey = 'harvest-cart-v1';
+const languageStorageKey = 'harvest-buyer-language-v1';
+const LOW_STOCK_THRESHOLD = 5;
+const buyerCopy = {
+    en: {
+        navDashboard: 'Dashboard', navShop: 'Shop', navOrders: 'My orders', navCart: 'Cart',
+        switchLanguage: 'Filipino', shopEyebrow: 'Fresh from the farm', shopTitle: 'Good food, grown well.',
+        shopIntro: 'Fresh vegetables, carefully grown and harvested for your table.',
+        viewCart: 'View cart', farmFresh: 'Farm fresh', harvestedCare: 'Harvested with care',
+        seasonalProduce: 'Seasonal produce', availableToday: "See what's available today",
+        localDelivery: 'Local delivery', flatDelivery: 'Flat ₱20 delivery fee',
+        deliveryNote: 'Delivery is a flat ₱20 per order. Include your barangay and city in the address.',
+        catalogTitle: "Today's harvest", catalogIntro: 'Choose from the current catalog.',
+        searchProducts: 'Search produce', searchPlaceholder: 'Name, variety, or description',
+        category: 'Category', allCategories: 'All categories', inStockOnly: 'In stock only',
+        sortBy: 'Sort by', sortName: 'Name', sortPriceLow: 'Price: low to high',
+        sortPriceHigh: 'Price: high to low', sortStock: 'Most available',
+        clearFilters: 'Clear filters', productsShown: 'products shown',
+        noMatchingProducts: 'No produce matches these filters.',
+        quantity: 'Quantity', addToCart: 'Add to cart', viewDetails: 'View details',
+        available: 'available', lowStock: 'Low stock', outOfStock: 'Out of stock',
+        lastUpdated: 'Stock updated', emptyCatalog: 'There are no active products in the catalog.',
+        cartTitle: 'Your cart', continueShopping: 'Continue shopping', produce: 'Produce',
+        lineTotal: 'Line total', update: 'Update', remove: 'Remove', emptyCart: 'Your cart is empty.',
+        browseShop: 'Browse the shop to add produce.', orderEstimate: 'Order estimate',
+        finalStockCheck: 'Final stock and totals are checked securely at checkout.',
+        checkout: 'Continue to checkout', subtotal: 'Subtotal', bulkDiscount: 'Bulk discount',
+        delivery: 'Delivery', estimatedTotal: 'Estimated total',
+        bulkNote: 'Orders of 20 or more combined units receive a 10% produce discount.',
+        checkoutTitle: 'Checkout', backToCart: 'Back to cart', deliveryDetails: 'Delivery details',
+        deliveryAddress: 'Delivery address', addressHint: 'Include your barangay and city.',
+        paymentMethod: 'Payment method', cod: 'Cash on Delivery',
+        onlinePayment: 'Online payment (GCash/card)', placeOrder: 'Place order',
+        orderSummary: 'Order summary', browseProduce: 'Browse produce',
+        onlineUnavailable: 'Online payment is unavailable until Xendit and the public HTTPS address are configured.',
+        onlineCheckFailed: 'Online payment could not be verified and is hidden for now. Cash on Delivery is still available.',
+        ordersTitle: 'My orders', order: 'Order', total: 'Total', payment: 'Payment',
+        deliveryStatus: 'Delivery status', paymentStatus: 'Payment status',
+        noOrders: 'You have not placed an order yet.', paymentReturn: 'Payment return received',
+        paymentReturnNote: 'Payment status changes only after the verified payment notification arrives.',
+        checkoutCancelled: 'Checkout cancelled',
+        checkoutCancelledNote: 'Your payment is not marked as paid. Contact the farm for help with this order.',
+        backToOrders: 'Back to orders', orderNotFound: 'Order not found',
+        address: 'Address', placed: 'Placed', items: 'Items', unitPrice: 'Unit price',
+        orderTotal: 'Order total', paymentHistory: 'Payment history',
+        noPaymentEvents: 'No payment events recorded.', orderAgain: 'Order these items again',
+        addedToCart: 'added to your cart.', openCart: 'View cart',
+        reorderAdded: 'Available items from this order were added to your cart.',
+        reorderPartial: 'Some items were unavailable or had less stock than before.',
+        reorderUnavailable: 'None of the items from this order are currently available.',
+        reorderNotComplete: 'This order is still in progress and cannot be ordered again yet.',
+        languageChanged: 'Language preference saved.',
+        productInformation: 'Product information', variety: 'Variety', unit: 'Unit', stock: 'Stock',
+        mostRecentHarvest: 'Most recent harvest', description: 'Description',
+        buyerAccount: 'Buyer account', welcome: 'Welcome', buyerIntro: "Browse today's produce and keep track of your orders.",
+        activeProduce: 'Active produce', availableInShop: 'Available in the shop',
+        recentOrders: 'Your recent orders', latestOrders: 'Latest orders shown below',
+        itemsInCart: 'Items in cart', readyToOrder: 'Ready when you are',
+        accountRole: 'Account role', quickLinks: 'Quick links', shopAndOrders: 'Shop and manage your orders.',
+        browseFresh: 'Browse fresh produce', trackOrders: 'Track your orders',
+        logout: 'Log out', actions: 'Actions', orderPlaced: 'Order placed:',
+        statusConfirmed: 'confirmed', statusProcessing: 'processing', statusOutForDelivery: 'out for delivery',
+        statusPending: 'pending', statusPreparing: 'preparing', statusReadyForDelivery: 'ready for delivery',
+        statusDelivered: 'delivered', statusCancelled: 'cancelled', statusPendingPayment: 'pending payment',
+        statusPaid: 'paid', statusFailed: 'failed', statusRefunded: 'refunded',
+        legacyPayment: 'Legacy', buyerRole: 'Buyer', date: 'Date', event: 'Event',
+        amount: 'Amount', reference: 'Reference', details: 'Details',
+    },
+    fil: {
+        navDashboard: 'Dashboard', navShop: 'Mamili', navOrders: 'Mga order ko', navCart: 'Cart',
+        switchLanguage: 'English', shopEyebrow: 'Sariwa mula sa bukid', shopTitle: 'Masarap at sariwa, mula sa bukid.',
+        shopIntro: 'Mga sariwang gulay na inalagaan at inani para sa inyong hapag.',
+        viewCart: 'Tingnan ang cart', farmFresh: 'Sariwa mula sa bukid', harvestedCare: 'Maingat na inani',
+        seasonalProduce: 'Pana-panahong ani', availableToday: 'Tingnan ang mga available ngayon',
+        localDelivery: 'Lokal na delivery', flatDelivery: '₱20 ang delivery bawat order',
+        deliveryNote: '₱20 ang delivery bawat order. Isama ang barangay at lungsod sa address.',
+        catalogTitle: 'Ani ngayon', catalogIntro: 'Pumili mula sa kasalukuyang talaan.',
+        searchProducts: 'Maghanap ng gulay', searchPlaceholder: 'Pangalan, variety, o paglalarawan',
+        category: 'Kategorya', allCategories: 'Lahat ng kategorya', inStockOnly: 'May stock lamang',
+        sortBy: 'Ayusin ayon sa', sortName: 'Pangalan', sortPriceLow: 'Presyo: pinakamababa',
+        sortPriceHigh: 'Presyo: pinakamataas', sortStock: 'Pinakamaraming stock',
+        clearFilters: 'I-reset ang filter', productsShown: 'produkto ang ipinapakita',
+        noMatchingProducts: 'Walang produktong tumutugma sa mga filter.',
+        quantity: 'Dami', addToCart: 'Idagdag sa cart', viewDetails: 'Tingnan ang detalye',
+        available: 'available', lowStock: 'Kaunti na lang', outOfStock: 'Ubos na',
+        lastUpdated: 'Na-update ang stock', emptyCatalog: 'Walang aktibong produkto sa talaan.',
+        cartTitle: 'Ang cart mo', continueShopping: 'Magpatuloy mamili', produce: 'Produkto',
+        lineTotal: 'Kabuuan', update: 'I-update', remove: 'Alisin', emptyCart: 'Walang laman ang cart mo.',
+        browseShop: 'Mamili ng produkto para maidagdag sa cart.', orderEstimate: 'Tantiyang bayarin',
+        finalStockCheck: 'Kukumpirmahin ang stock at kabuuan sa ligtas na pag-checkout.',
+        checkout: 'Magpatuloy sa checkout', subtotal: 'Subtotal', bulkDiscount: 'Diskuwento sa maramihang bili',
+        delivery: 'Delivery', estimatedTotal: 'Tantiyang kabuuan',
+        bulkNote: 'May 10% diskuwento sa gulay kapag umabot sa 20 pinagsamang yunit ang order.',
+        checkoutTitle: 'Checkout', backToCart: 'Bumalik sa cart', deliveryDetails: 'Detalye ng delivery',
+        deliveryAddress: 'Address ng delivery', addressHint: 'Isama ang barangay at lungsod.',
+        paymentMethod: 'Paraan ng bayad', cod: 'Bayad pagdating (COD)',
+        onlinePayment: 'Online na bayad (GCash/card)', placeOrder: 'Ilagay ang order',
+        orderSummary: 'Buod ng order', browseProduce: 'Mamili ng gulay',
+        onlineUnavailable: 'Hindi available ang online payment hangga’t hindi naka-configure ang Xendit at pampublikong HTTPS address.',
+        onlineCheckFailed: 'Hindi makumpirma ang online payment kaya pansamantalang nakatago ito. Available pa rin ang COD.',
+        ordersTitle: 'Mga order ko', order: 'Order', total: 'Kabuuan', payment: 'Bayad',
+        deliveryStatus: 'Status ng delivery', paymentStatus: 'Status ng bayad',
+        noOrders: 'Wala ka pang nailalagay na order.', paymentReturn: 'Natanggap ang pagbabalik mula sa bayad',
+        paymentReturnNote: 'Magbabago lang ang status ng bayad kapag natanggap ang beripikadong abiso.',
+        checkoutCancelled: 'Kinansela ang checkout',
+        checkoutCancelledNote: 'Hindi minarkahang bayad ang order. Makipag-ugnayan sa bukid kung kailangan ng tulong.',
+        backToOrders: 'Bumalik sa mga order', orderNotFound: 'Hindi makita ang order',
+        address: 'Address', placed: 'Petsa ng order', items: 'Mga produkto', unitPrice: 'Presyo bawat yunit',
+        orderTotal: 'Kabuuang bayarin', paymentHistory: 'Kasaysayan ng bayad',
+        noPaymentEvents: 'Wala pang naitalang bayad.', orderAgain: 'Bilhin muli ang mga ito',
+        addedToCart: 'naidagdag sa cart mo.', openCart: 'Tingnan ang cart',
+        reorderAdded: 'Naidagdag sa cart ang mga produktong may stock mula sa order na ito.',
+        reorderPartial: 'May produktong ubos na o mas kaunti na ang stock.',
+        reorderUnavailable: 'Wala nang available na produkto mula sa order na ito.',
+        reorderNotComplete: 'Pinoproseso pa ang order na ito at hindi pa ito maaaring ulitin.',
+        languageChanged: 'Nai-save ang piniling wika.',
+        productInformation: 'Impormasyon ng produkto', variety: 'Variety', unit: 'Yunit', stock: 'Stock',
+        mostRecentHarvest: 'Huling anihan', description: 'Paglalarawan',
+        buyerAccount: 'Buyer account', welcome: 'Kumusta', buyerIntro: 'Mamili ng ani ngayon at subaybayan ang mga order mo.',
+        activeProduce: 'Aktibong produkto', availableInShop: 'Available sa shop',
+        recentOrders: 'Mga kamakailang order', latestOrders: 'Makikita sa ibaba ang mga huling order',
+        itemsInCart: 'Mga item sa cart', readyToOrder: 'Handa nang umorder',
+        accountRole: 'Uri ng account', quickLinks: 'Mabilisang link', shopAndOrders: 'Mamili at tingnan ang mga order.',
+        browseFresh: 'Mamili ng sariwang ani', trackOrders: 'Subaybayan ang mga order',
+        logout: 'Mag-log out', actions: 'Mga aksyon', orderPlaced: 'Naipasa ang order:',
+        statusConfirmed: 'kumpirmado', statusProcessing: 'pinoproseso', statusOutForDelivery: 'nasa biyahe',
+        statusPending: 'nakabinbin', statusPreparing: 'inihahanda', statusReadyForDelivery: 'handa na para ihatid',
+        statusDelivered: 'naideliver', statusCancelled: 'kinansela', statusPendingPayment: 'naghihintay ng bayad',
+        statusPaid: 'bayad na', statusFailed: 'hindi nagtagumpay', statusRefunded: 'na-refund',
+        legacyPayment: 'Lumang tala', buyerRole: 'Mamimili', date: 'Petsa', event: 'Kaganapan',
+        amount: 'Halaga', reference: 'Sanggunian', details: 'Detalye',
+    },
+};
 const imageByName = {
     tomato: 'tomato.webp',
     carrot: 'OIP (2).webp',
@@ -42,11 +175,32 @@ const state = {
     profile: null,
     page: new URLSearchParams(location.search).get('page')
         || (new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery' ? 'reset-password' : 'home'),
+    language: readBuyerLanguage(),
     products: [],
     records: new Map(),
     orderDetails: null,
     cart: readCart(),
 };
+
+function readBuyerLanguage() {
+    try {
+        return localStorage.getItem(languageStorageKey) === 'fil' ? 'fil' : 'en';
+    } catch (error) {
+        console.error('Buyer language preference could not be read.', error);
+        return 'en';
+    }
+}
+
+function buyerText(key) {
+    return buyerCopy[state.language]?.[key] || buyerCopy.en[key] || key;
+}
+
+function formatQuantity(value) {
+    return Number(value || 0).toLocaleString('en-PH', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    });
+}
 
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -189,6 +343,7 @@ function updateNavigation() {
     document.querySelector('#account-dropdown-name').textContent = state.profile.name;
     document.querySelector('#account-email').textContent = state.profile.email;
     document.querySelector('#account-dropdown-role').textContent = state.profile.role;
+    document.querySelector('#logout-button').textContent = `↪ ${state.profile.role === 'buyer' ? buyerText('logout') : 'Log out'}`;
 
     if (isOperationsUser) {
         const links = [
@@ -210,18 +365,19 @@ function updateNavigation() {
         `).join('');
     } else {
         const links = [
-            ['dashboard', '▦', 'Dashboard'],
-            ['shop', '⌂', 'Shop'],
-            ['orders', '▤', 'My orders'],
-            ['cart', '▱', `Cart <span class="app-cart-count">${cartCount()}</span>`],
+            ['dashboard', '▦', buyerText('navDashboard')],
+            ['shop', '⌂', buyerText('navShop')],
+            ['orders', '▤', buyerText('navOrders')],
+            ['cart', '▱', `${buyerText('navCart')} <span class="app-cart-count">${cartCount()}</span>`],
         ];
         nav.innerHTML = links.map(([page, icon, label]) => `
             <a class="${state.page === page ? 'active' : ''}" href="?page=${page}" data-page="${page}" ${state.page === page ? 'aria-current="page"' : ''}>
                 <span class="nav-icon" aria-hidden="true">${icon}</span>${label}
             </a>
-        `).join('');
+        `).join('') + `<button class="buyer-language-toggle" type="button" data-action="toggle-language">${buyerText('switchLanguage')}</button>`;
     }
 
+    document.documentElement.lang = state.language === 'fil' ? 'fil' : 'en';
     const isMobile = window.matchMedia(isOperationsUser ? '(max-width: 900px)' : '(max-width: 1180px)').matches;
     const isCollapsed = isOperationsUser && document.body.classList.contains('sidebar-collapsed');
     navToggle.setAttribute('aria-expanded', String(isOperationsUser && !isMobile && !isCollapsed));
@@ -260,6 +416,31 @@ function productPicture(name) {
 function statusBadge(value) {
     const label = String(value || '').replaceAll('_', ' ');
     return `<span class="app-status ${escapeHtml(value)}">${escapeHtml(label)}</span>`;
+}
+
+function buyerStatusBadge(value) {
+    const keys = {
+        pending: 'statusPending',
+        confirmed: 'statusConfirmed',
+        preparing: 'statusPreparing',
+        ready_for_delivery: 'statusReadyForDelivery',
+        out_for_delivery: 'statusOutForDelivery',
+        delivered: 'statusDelivered',
+        cancelled: 'statusCancelled',
+        pending_payment: 'statusPendingPayment',
+        paid: 'statusPaid',
+        failed: 'statusFailed',
+        refunded: 'statusRefunded',
+    };
+    const key = keys[value];
+    if (!key) return statusBadge(value);
+    return `<span class="app-status ${escapeHtml(value)}">${escapeHtml(buyerText(key))}</span>`;
+}
+
+function buyerPaymentMethod(value) {
+    if (value === 'cod') return buyerText('cod');
+    if (value === 'online') return buyerText('onlinePayment');
+    return buyerText('legacyPayment');
 }
 
 function drawDashboardChart(canvasId, labels, values, color) {
@@ -430,12 +611,13 @@ async function getProducts(activeOnly = false) {
     if (activeOnly) query = query.eq('active', true);
     const [vegetables, inventory] = await Promise.all([
         queryOrThrow(query),
-        queryOrThrow(state.supabase.from('inventory').select('vegetable_id, quantity')),
+        queryOrThrow(state.supabase.from('inventory').select('vegetable_id, quantity, updated_at')),
     ]);
-    const quantities = new Map(inventory.map((row) => [row.vegetable_id, Number(row.quantity)]));
+    const inventoryByVegetable = new Map(inventory.map((row) => [row.vegetable_id, row]));
     return vegetables.map((vegetable) => ({
         ...vegetable,
-        quantity: quantities.get(vegetable.id) || 0,
+        quantity: Number(inventoryByVegetable.get(vegetable.id)?.quantity || 0),
+        inventoryUpdatedAt: inventoryByVegetable.get(vegetable.id)?.updated_at || null,
     }));
 }
 
@@ -550,20 +732,20 @@ async function renderDashboard() {
         ]);
         const rows = orders.map((order) => `<tr>
             <td><a href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${escapeHtml(order.order_code)}</a></td>
-            <td>${money(order.final_total)}</td><td>${statusBadge(order.order_status)}</td><td>${statusBadge(order.payment_status)}</td>
+            <td>${money(order.final_total)}</td><td>${buyerStatusBadge(order.order_status)}</td><td>${buyerStatusBadge(order.payment_status)}</td>
         </tr>`);
         app.innerHTML = `
-            <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">Buyer account</p><h1>Welcome, ${escapeHtml(state.profile.name)}</h1><p>Browse today's produce and keep track of your orders.</p></div></section>
+            <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">${buyerText('buyerAccount')}</p><h1>${buyerText('welcome')}, ${escapeHtml(state.profile.name)}</h1><p>${buyerText('buyerIntro')}</p></div></section>
             <section class="dashboard-stat-grid">
-                <article class="dashboard-stat-card"><span class="dashboard-stat-label">Active produce</span><strong>${products.length}</strong><small>Available in the shop</small></article>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-label">Your recent orders</span><strong>${orders.length}</strong><small>Latest orders shown below</small></article>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-label">Items in cart</span><strong>${cartCount()}</strong><small>Ready when you are</small></article>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-label">Account role</span><strong>Buyer</strong><small>Email verified</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-label">${buyerText('activeProduce')}</span><strong>${products.length}</strong><small>${buyerText('availableInShop')}</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-label">${buyerText('recentOrders')}</span><strong>${orders.length}</strong><small>${buyerText('latestOrders')}</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-label">${buyerText('itemsInCart')}</span><strong>${cartCount()}</strong><small>${buyerText('readyToOrder')}</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-label">${buyerText('accountRole')}</span><strong>${buyerText('buyerRole')}</strong><small>Email verified</small></article>
             </section>
-            <section class="panel section"><div class="app-toolbar"><div><h2>Quick links</h2><p class="muted">Shop and manage your orders.</p></div></div>
-                <div class="app-dashboard-links"><a href="?page=shop" data-page="shop">Browse fresh produce →</a><a href="?page=cart" data-page="cart">View your cart (${cartCount()}) →</a><a href="?page=orders" data-page="orders">Track your orders →</a></div>
+            <section class="panel section"><div class="app-toolbar"><div><h2>${buyerText('quickLinks')}</h2><p class="muted">${buyerText('shopAndOrders')}</p></div></div>
+                <div class="app-dashboard-links"><a href="?page=shop" data-page="shop">${buyerText('browseFresh')} →</a><a href="?page=cart" data-page="cart">${buyerText('viewCart')} (${cartCount()}) →</a><a href="?page=orders" data-page="orders">${buyerText('trackOrders')} →</a></div>
             </section>
-            <section class="panel section"><h2>Recent orders</h2>${table(['Order', 'Total', 'Delivery', 'Payment'], rows, 'You have not placed any orders yet.')}</section>`;
+            <section class="panel section"><h2>${buyerText('recentOrders')}</h2>${table([buyerText('order'), buyerText('total'), buyerText('deliveryStatus'), buyerText('paymentStatus')], rows, buyerText('noOrders'))}</section>`;
         return;
     }
 
@@ -841,27 +1023,95 @@ async function renderDashboard() {
 
 function renderShop(products) {
     state.products = products;
+    const categories = [...new Set(products.map((product) => product.category).filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right));
     const cards = products.map((product) => `
-        <article class="card product-card">
+        <article class="card product-card" data-product-id="${product.id}">
             ${productPicture(product.name)}
             <div class="product-card-content">
                 <div class="product-card-heading"><h3>${escapeHtml(product.name)}</h3><span class="product-variety">${escapeHtml(product.variety || '')}</span></div>
                 <p class="product-description">${escapeHtml(product.description || 'Fresh produce from the farm.')}</p>
-                <div class="product-card-meta"><div class="product-price"><strong>${money(product.price)}</strong><span>/ ${escapeHtml(product.unit)}</span></div>
-                    <p class="product-stock ${product.quantity <= 0 ? 'out-of-stock' : ''}"><span></span>${product.quantity > 0 ? `${Number(product.quantity).toFixed(2)} ${escapeHtml(product.unit)} available` : 'Out of stock'}</p>
+                <div class="product-card-meta">
+                    <p class="product-category">${escapeHtml(product.category || '')}</p>
+                    <div class="product-price"><strong>${money(product.price)}</strong><span>/ ${escapeHtml(product.unit)}</span></div>
+                    <p class="product-stock ${product.quantity <= 0 ? 'out-of-stock' : product.quantity <= LOW_STOCK_THRESHOLD ? 'low-stock' : ''}"><span></span>${product.quantity <= 0
+        ? buyerText('outOfStock')
+        : `${product.quantity <= LOW_STOCK_THRESHOLD ? `${buyerText('lowStock')} · ` : ''}${formatQuantity(product.quantity)} ${escapeHtml(product.unit)} ${buyerText('available')}`}</p>
+                    ${product.inventoryUpdatedAt ? `<small class="product-stock-updated">${buyerText('lastUpdated')} ${dateTimeLabel(product.inventoryUpdatedAt)}</small>` : ''}
                 </div>
-                <a class="product-details-link" href="?page=product&id=${product.id}" data-page="product" data-product="${product.id}">View details</a>
+                <a class="product-details-link" href="?page=product&id=${product.id}" data-page="product" data-product="${product.id}">${buyerText('viewDetails')}</a>
             </div>
             <form class="product-card-form" data-form="add-cart" data-product="${product.id}">
-                <label for="product-quantity-${product.id}">Quantity (${escapeHtml(product.unit)})</label>
-                <div class="app-product-actions"><input id="product-quantity-${product.id}" type="number" name="quantity" min="0.01" max="${Math.max(0, product.quantity)}" step="0.01" value="${product.quantity > 0 ? '1' : '0'}" ${product.quantity <= 0 ? 'disabled' : ''}><button type="submit" ${product.quantity <= 0 ? 'disabled' : ''}>Add to cart</button></div>
+                <label for="product-quantity-${product.id}">${buyerText('quantity')} (${escapeHtml(product.unit)})</label>
+                <div class="app-product-actions"><input id="product-quantity-${product.id}" type="number" name="quantity" min="0.01" max="${Math.max(0, product.quantity)}" step="0.01" value="${product.quantity > 0 ? '1' : '0'}" ${product.quantity <= 0 ? 'disabled' : ''}><button type="submit" ${product.quantity <= 0 ? 'disabled' : ''}>${buyerText('addToCart')}</button></div>
             </form>
         </article>`).join('');
+    const filters = `
+        <section class="shop-filters" aria-label="${buyerText('catalogTitle')}">
+            <label>${buyerText('searchProducts')}<input type="search" data-shop-search placeholder="${buyerText('searchPlaceholder')}"></label>
+            <label>${buyerText('category')}<select data-shop-category><option value="">${buyerText('allCategories')}</option>${categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('')}</select></label>
+            <label class="shop-in-stock-filter"><input type="checkbox" data-shop-in-stock> ${buyerText('inStockOnly')}</label>
+            <label>${buyerText('sortBy')}<select data-shop-sort>
+                <option value="name">${buyerText('sortName')}</option>
+                <option value="price_asc">${buyerText('sortPriceLow')}</option>
+                <option value="price_desc">${buyerText('sortPriceHigh')}</option>
+                <option value="stock_desc">${buyerText('sortStock')}</option>
+            </select></label>
+            <button type="button" class="button secondary shop-filter-clear" data-action="clear-shop-filters">${buyerText('clearFilters')}</button>
+        </section>
+        <p class="shop-results-count" data-shop-results aria-live="polite"></p>`;
+    const subtotal = state.products.reduce((sum, product) => sum + product.price * Number(state.cart[product.id] || 0), 0);
     app.innerHTML = `
-        <section class="shop-hero"><div class="shop-hero-copy"><p class="shop-eyebrow">Fresh from the farm</p><h1>Good food, grown well.</h1><p>Pick up fresh vegetables, carefully grown and harvested for your table.</p></div><a class="button shop-hero-button" href="?page=cart" data-page="cart">View cart <span class="cart-count">${cartCount()}</span></a></section>
-        <section class="shop-highlights"><div><span>🌱</span><strong>Farm fresh</strong><small>Harvested with care</small></div><div><span>🥬</span><strong>Seasonal produce</strong><small>See what's available today</small></div><div><span>🚚</span><strong>Local delivery</strong><small>Flat ₱20 delivery fee</small></div></section>
-        <section class="shop-section-heading"><div><h2>Today's harvest</h2><p class="muted">Choose from the current catalog.</p></div></section>
-        <section class="card-grid shop-product-grid">${cards || '<div class="empty">There are no active products in the catalog.</div>'}</section>`;
+        <section class="shop-hero"><div class="shop-hero-copy"><p class="shop-eyebrow">${buyerText('shopEyebrow')}</p><h1>${buyerText('shopTitle')}</h1><p>${buyerText('shopIntro')}</p></div><a class="button shop-hero-button" href="?page=cart" data-page="cart">${buyerText('viewCart')} <span class="cart-count">${cartCount()}</span></a></section>
+        <section class="shop-highlights"><div><span aria-hidden="true">🌱</span><strong>${buyerText('farmFresh')}</strong><small>${buyerText('harvestedCare')}</small></div><div><span aria-hidden="true">🥬</span><strong>${buyerText('seasonalProduce')}</strong><small>${buyerText('availableToday')}</small></div><div><span aria-hidden="true">🚚</span><strong>${buyerText('localDelivery')}</strong><small>${buyerText('flatDelivery')}</small></div></section>
+        <p class="shop-delivery-note">${buyerText('deliveryNote')} ${buyerText('bulkNote')}</p>
+        <section class="shop-section-heading"><div><h2>${buyerText('catalogTitle')}</h2><p class="muted">${buyerText('catalogIntro')}</p></div></section>
+        ${filters}
+        <section class="card-grid shop-product-grid" data-shop-grid>${cards || `<div class="empty">${buyerText('emptyCatalog')}</div>`}<p class="empty shop-filter-empty" data-shop-empty hidden>${buyerText('noMatchingProducts')}</p></section>
+        ${cartCount() ? `<a class="button shop-mobile-cart" href="?page=cart" data-page="cart">${buyerText('viewCart')} · ${cartCount()} · ${money(subtotal)}</a>` : ''}`;
+    applyShopFilters();
+}
+
+function updateShopCartUI() {
+    const heroCart = app.querySelector('.shop-hero-button');
+    const mobileCart = app.querySelector('.shop-mobile-cart');
+    const products = state.products;
+    const subtotal = products.reduce((sum, product) => sum + product.price * Number(state.cart[product.id] || 0), 0);
+    if (heroCart) {
+        heroCart.innerHTML = `${buyerText('viewCart')} <span class="cart-count">${formatQuantity(cartCount())}</span>`;
+    }
+    if (!cartCount()) {
+        mobileCart?.remove();
+        return;
+    }
+    const link = `<a class="button shop-mobile-cart" href="?page=cart" data-page="cart">${buyerText('viewCart')} · ${formatQuantity(cartCount())} · ${money(subtotal)}</a>`;
+    if (mobileCart) mobileCart.outerHTML = link;
+    else app.querySelector('[data-shop-grid]')?.insertAdjacentHTML('afterend', link);
+}
+
+function applyShopFilters() {
+    const grid = app.querySelector('[data-shop-grid]');
+    if (!grid) return;
+    const filters = {
+        search: app.querySelector('[data-shop-search]')?.value || '',
+        category: app.querySelector('[data-shop-category]')?.value || '',
+        inStockOnly: Boolean(app.querySelector('[data-shop-in-stock]')?.checked),
+        sort: app.querySelector('[data-shop-sort]')?.value || 'name',
+    };
+    const products = filterAndSortProducts(state.products, filters);
+    const visibleIds = new Set(products.map((product) => String(product.id)));
+    const cards = [...grid.querySelectorAll('.product-card')];
+    cards.forEach((card) => {
+        card.hidden = !visibleIds.has(card.dataset.productId);
+    });
+    products.forEach((product) => {
+        const card = cards.find((item) => item.dataset.productId === String(product.id));
+        if (card) grid.append(card);
+    });
+    const result = app.querySelector('[data-shop-results]');
+    if (result) result.textContent = `${products.length} ${buyerText('productsShown')}`;
+    const empty = app.querySelector('[data-shop-empty]');
+    if (empty) empty.hidden = products.length > 0 || state.products.length === 0;
 }
 
 function renderLanding(products, catalogUnavailable = false) {
@@ -875,6 +1125,8 @@ function renderLanding(products, catalogUnavailable = false) {
                 <h3>${escapeHtml(product.name)}</h3>
                 <p>${escapeHtml(product.description || 'Fresh produce, grown and harvested with care.')}</p>
                 <strong>${money(product.price)} <small>/ ${escapeHtml(product.unit)}</small></strong>
+                <p class="landing-product-availability">Sign in to check current stock.</p>
+                <a class="button landing-product-cta" href="?page=register" data-page="register">Create account to order <span aria-hidden="true">→</span></a>
             </div>
         </article>`).join('');
 
@@ -889,7 +1141,7 @@ function renderLanding(products, catalogUnavailable = false) {
                         <a class="button" href="#featured">Shop the harvest <span aria-hidden="true">→</span></a>
                         <a class="landing-secondary-link" href="#about">Learn more <span aria-hidden="true">↗</span></a>
                     </div>
-                    <p class="landing-note">Prices and availability are shown from the current catalog.</p>
+                    <p class="landing-note">Prices are from the current catalog. Sign in to check stock and order.</p>
                 </div>
                 <div class="landing-photo-grid" aria-label="Fresh vegetable photography">
                     <figure class="landing-photo landing-photo-main">${productPicture('Carrot')}<figcaption>A fresh look at the harvest</figcaption></figure>
@@ -976,27 +1228,29 @@ async function renderProduct(product) {
             .is('archived_at', null).order('harvested_on', { ascending: false }).limit(1)))[0]
         : null;
     app.innerHTML = `
-        <nav class="product-breadcrumb"><a href="?page=shop" data-page="shop">Shop</a><span>›</span><span>${escapeHtml(product.name)}</span></nav>
+        <nav class="product-breadcrumb"><a href="?page=shop" data-page="shop">${buyerText('navShop')}</a><span>›</span><span>${escapeHtml(product.name)}</span></nav>
         <section class="product-detail">
-            <div class="product-detail-image">${productPicture(product.name)}<span class="product-detail-image-tag">Farm fresh</span></div>
-            <div class="product-detail-content"><p class="product-detail-eyebrow">Fresh from the farm</p><h1>${escapeHtml(product.name)}</h1>
+            <div class="product-detail-image">${productPicture(product.name)}<span class="product-detail-image-tag">${buyerText('farmFresh')}</span></div>
+            <div class="product-detail-content"><p class="product-detail-eyebrow">${buyerText('shopEyebrow')}</p><h1>${escapeHtml(product.name)}</h1>
                 <p class="product-detail-variety">${escapeHtml(product.variety || '')}</p>
                 <p class="product-detail-description">${escapeHtml(product.description || 'Fresh produce grown and harvested with care.')}</p>
                 <p class="product-detail-price"><strong>${money(product.price)}</strong> / ${escapeHtml(product.unit)}</p>
-                <p class="product-stock ${product.quantity <= 0 ? 'out-of-stock' : ''}">${product.quantity > 0 ? `${Number(product.quantity).toFixed(2)} ${escapeHtml(product.unit)} available` : 'Out of stock'}</p>
+                <p class="product-stock ${product.quantity <= 0 ? 'out-of-stock' : product.quantity <= LOW_STOCK_THRESHOLD ? 'low-stock' : ''}">${product.quantity <= 0 ? buyerText('outOfStock') : `${product.quantity <= LOW_STOCK_THRESHOLD ? `${buyerText('lowStock')} · ` : ''}${formatQuantity(product.quantity)} ${escapeHtml(product.unit)} ${buyerText('available')}`}</p>
+                ${product.inventoryUpdatedAt ? `<small class="product-stock-updated">${buyerText('lastUpdated')} ${dateTimeLabel(product.inventoryUpdatedAt)}</small>` : ''}
                 <form class="product-detail-form" data-form="add-cart" data-product="${product.id}">
-                    <label for="detail-quantity">Quantity (${escapeHtml(product.unit)})</label>
-                    <div class="app-product-actions"><input id="detail-quantity" type="number" name="quantity" min="0.01" max="${Math.max(0, product.quantity)}" step="0.01" value="1" ${product.quantity <= 0 ? 'disabled' : ''}><button type="submit" ${product.quantity <= 0 ? 'disabled' : ''}>Add to cart</button></div>
+                    <label for="detail-quantity">${buyerText('quantity')} (${escapeHtml(product.unit)})</label>
+                    <div class="app-product-actions"><input id="detail-quantity" type="number" name="quantity" min="0.01" max="${Math.max(0, product.quantity)}" step="0.01" value="1" ${product.quantity <= 0 ? 'disabled' : ''}><button type="submit" ${product.quantity <= 0 ? 'disabled' : ''}>${buyerText('addToCart')}</button></div>
                 </form>
             </div>
         </section>
-        <section class="product-information"><div class="product-information-heading"><h2>Product information</h2></div><dl class="product-information-list">
-            <div><dt>Variety</dt><dd>${escapeHtml(product.variety || '—')}</dd></div><div><dt>Unit</dt><dd>${escapeHtml(product.unit)}</dd></div><div><dt>Stock</dt><dd>${Number(product.quantity).toFixed(2)} ${escapeHtml(product.unit)}</dd></div><div><dt>Most recent harvest</dt><dd>${dateLabel(lastHarvest?.harvested_on)}</dd></div><div class="product-information-description"><dt>Description</dt><dd>${escapeHtml(product.description || 'No description available.')}</dd></div>
+        <section class="product-information"><div class="product-information-heading"><h2>${buyerText('productInformation')}</h2></div><dl class="product-information-list">
+            <div><dt>${buyerText('variety')}</dt><dd>${escapeHtml(product.variety || '—')}</dd></div><div><dt>${buyerText('unit')}</dt><dd>${escapeHtml(product.unit)}</dd></div><div><dt>${buyerText('stock')}</dt><dd>${formatQuantity(product.quantity)} ${escapeHtml(product.unit)}</dd></div><div><dt>${buyerText('mostRecentHarvest')}</dt><dd>${dateLabel(lastHarvest?.harvested_on)}</dd></div><div class="product-information-description"><dt>${buyerText('description')}</dt><dd>${escapeHtml(product.description || 'No description available.')}</dd></div>
         </dl></section>`;
 }
 
 async function renderCart() {
     const products = await getProducts(true);
+    state.products = products;
     const byId = new Map(products.map((product) => [String(product.id), product]));
     const rows = [];
     const validCart = {};
@@ -1008,8 +1262,8 @@ async function renderCart() {
         if (safeQuantity <= 0) continue;
         validCart[id] = safeQuantity;
         rows.push(`<tr><td><strong>${escapeHtml(product.name)}</strong><span class="table-secondary">${money(product.price)} / ${escapeHtml(product.unit)}</span></td>
-            <td><form class="app-inline-form" data-form="update-cart" data-product="${product.id}"><input type="number" name="quantity" min="0" max="${product.quantity}" step="0.01" value="${safeQuantity}"><button type="submit" class="button secondary">Update</button></form></td>
-            <td>${money(product.price * safeQuantity)}</td><td><button class="button danger" type="button" data-action="remove-cart" data-product="${product.id}">Remove</button></td></tr>`);
+            <td><form class="app-inline-form" data-form="update-cart" data-product="${product.id}"><input aria-label="${buyerText('quantity')} (${escapeHtml(product.unit)})" type="number" name="quantity" min="0" max="${product.quantity}" step="0.01" value="${safeQuantity}"><button type="submit" class="button secondary">${buyerText('update')}</button></form></td>
+            <td>${money(product.price * safeQuantity)}</td><td><button class="button danger" type="button" data-action="remove-cart" data-product="${product.id}">${buyerText('remove')}</button></td></tr>`);
     }
     state.cart = validCart;
     saveCart();
@@ -1019,17 +1273,63 @@ async function renderCart() {
     }));
     const totals = calculateOrderTotals(items);
     app.innerHTML = `
-        <div class="page-heading"><h1>Your cart</h1><a class="button secondary" href="?page=shop" data-page="shop">Continue shopping</a></div>
-        ${table(['Produce', 'Quantity', 'Line total', ''], rows, 'Your cart is empty. Browse the shop to add produce.')}
-        ${rows.length ? `<section class="panel app-summary section"><h2>Order estimate</h2>${summaryRows(totals)}<p class="app-muted">Final stock and totals are checked securely at checkout.</p><a class="button" href="?page=checkout" data-page="checkout">Continue to checkout</a></section>` : ''}`;
+        <div class="page-heading"><h1>${buyerText('cartTitle')}</h1><a class="button secondary" href="?page=shop" data-page="shop">${buyerText('continueShopping')}</a></div>
+        ${table([buyerText('produce'), buyerText('quantity'), buyerText('lineTotal'), ''], rows, `${buyerText('emptyCart')} ${buyerText('browseShop')}`)}
+        ${rows.length ? `<section class="panel app-summary section"><h2>${buyerText('orderEstimate')}</h2>${summaryRows(totals)}<p class="app-muted">${buyerText('finalStockCheck')}</p><a class="button" href="?page=checkout" data-page="checkout">${buyerText('checkout')}</a></section>` : `<a class="button" href="?page=shop" data-page="shop">${buyerText('browseProduce')}</a>`}`;
 }
 
 function summaryRows(totals) {
-    return `<div class="app-summary-row"><span>Subtotal</span><strong>${money(totals.subtotal)}</strong></div>
-        <div class="app-summary-row"><span>Bulk discount (${totals.discountPercentage}%)</span><strong>−${money(totals.discountAmount)}</strong></div>
-        <div class="app-summary-row"><span>Delivery</span><strong>${money(totals.deliveryFee)}</strong></div>
-        <div class="app-summary-row total"><span>Estimated total</span><strong>${money(totals.finalTotal)}</strong></div>
-        <p class="app-muted">Orders of 20 or more combined units receive a 10% produce discount.</p>`;
+    return `<div class="app-summary-row"><span>${buyerText('subtotal')}</span><strong>${money(totals.subtotal)}</strong></div>
+        <div class="app-summary-row"><span>${buyerText('bulkDiscount')} (${totals.discountPercentage}%)</span><strong>−${money(totals.discountAmount)}</strong></div>
+        <div class="app-summary-row"><span>${buyerText('delivery')}</span><strong>${money(totals.deliveryFee)}</strong></div>
+        <div class="app-summary-row total"><span>${buyerText('estimatedTotal')}</span><strong>${money(totals.finalTotal)}</strong></div>
+        <p class="app-muted">${buyerText('bulkNote')}</p>`;
+}
+
+async function reorderOrder(orderCode) {
+    const { data: order, error: orderError } = await state.supabase.from('orders')
+        .select('order_code, order_status')
+        .eq('order_code', orderCode)
+        .eq('buyer_id', state.profile.id)
+        .maybeSingle();
+    if (orderError) throw orderError;
+    if (!order) throw new Error(buyerText('orderNotFound'));
+    if (!['delivered', 'cancelled'].includes(order.order_status)) {
+        throw new Error(buyerText('reorderNotComplete'));
+    }
+
+    const [sales, products] = await Promise.all([
+        queryOrThrow(state.supabase.from('sales')
+            .select('vegetable_id, quantity')
+            .eq('order_code', orderCode)),
+        getProducts(true),
+    ]);
+    const productById = new Map(products.map((product) => [product.id, product]));
+    let addedQuantity = 0;
+    let skippedItems = 0;
+    for (const sale of sales) {
+        const product = productById.get(sale.vegetable_id);
+        const requested = Number(sale.quantity);
+        const current = Number(state.cart[sale.vegetable_id] || 0);
+        const available = Math.max(0, Number(product?.quantity || 0) - current);
+        if (!product || !Number.isFinite(requested) || requested <= 0 || available <= 0) {
+            skippedItems += 1;
+            continue;
+        }
+        const quantity = Math.min(requested, available);
+        state.cart[sale.vegetable_id] = current + quantity;
+        addedQuantity += quantity;
+        if (quantity < requested) skippedItems += 1;
+    }
+
+    if (!addedQuantity) {
+        notify(buyerText('reorderUnavailable'), 'error');
+        return;
+    }
+    saveCart();
+    notify(buyerText('reorderAdded'));
+    notice.insertAdjacentHTML('beforeend', ` <a href="?page=cart" data-page="cart">${buyerText('openCart')}</a>`);
+    if (skippedItems) notice.insertAdjacentText('beforeend', ` ${buyerText('reorderPartial')}`);
 }
 
 async function renderCheckout() {
@@ -1040,7 +1340,7 @@ async function renderCheckout() {
         return product && Number(quantity) > 0 ? [{ id, quantity: Number(quantity), product }] : [];
     });
     if (!items.length) {
-        app.innerHTML = '<section class="panel"><h1>Checkout</h1><p>Your cart is empty.</p><a href="?page=shop" class="button" data-page="shop">Browse produce</a></section>';
+        app.innerHTML = `<section class="panel"><h1>${buyerText('checkoutTitle')}</h1><p>${buyerText('emptyCart')}</p><a href="?page=shop" class="button" data-page="shop">${buyerText('browseProduce')}</a></section>`;
         return;
     }
     let onlineAvailable = false;
@@ -1051,26 +1351,27 @@ async function renderCheckout() {
         onlineAvailable = Boolean((await response.json()).onlinePaymentEnabled);
     } catch (error) {
         console.error('Could not check online payment configuration:', error);
-        availabilityMessage = 'Online payment could not be verified and is hidden for now. Cash on Delivery is still available.';
+        availabilityMessage = buyerText('onlineCheckFailed');
     }
     const totals = calculateOrderTotals(items.map(({ quantity, product }) => ({ quantity, price: product.price })));
     const lines = items.map(({ quantity, product }) => `<div class="app-summary-row"><span>${escapeHtml(product.name)} × ${quantity} ${escapeHtml(product.unit)}</span><strong>${money(product.price * quantity)}</strong></div>`).join('');
     app.innerHTML = `
-        <div class="page-heading"><h1>Checkout</h1><a class="button secondary" href="?page=cart" data-page="cart">Back to cart</a></div>
+        <div class="page-heading"><h1>${buyerText('checkoutTitle')}</h1><a class="button secondary" href="?page=cart" data-page="cart">${buyerText('backToCart')}</a></div>
         <div class="card-grid">
-            <section class="panel"><h2>Delivery details</h2>
+            <section class="panel"><h2>${buyerText('deliveryDetails')}</h2>
                 <form class="app-form" data-form="checkout">
-                    <div class="field field-wide"><label for="delivery-address">Delivery address</label><textarea id="delivery-address" name="deliveryAddress" required minlength="10" maxlength="1000"></textarea></div>
-                    <div class="field field-wide"><label>Payment method</label><div class="app-checkout-methods">
-                        <label><input type="radio" name="paymentMethod" value="cod" checked> Cash on Delivery</label>
-                        ${onlineAvailable ? '<label><input type="radio" name="paymentMethod" value="online"> Online payment (GCash/card)</label>' : ''}
+                    <div class="field field-wide"><label for="delivery-address">${buyerText('deliveryAddress')}</label><textarea id="delivery-address" name="deliveryAddress" required minlength="10" maxlength="1000" placeholder="${buyerText('addressHint')}"></textarea></div>
+                    <p class="app-muted field-wide">${buyerText('deliveryNote')}</p>
+                    <div class="field field-wide"><label>${buyerText('paymentMethod')}</label><div class="app-checkout-methods">
+                        <label><input type="radio" name="paymentMethod" value="cod" checked> ${buyerText('cod')}</label>
+                        ${onlineAvailable ? `<label><input type="radio" name="paymentMethod" value="online"> ${buyerText('onlinePayment')}</label>` : ''}
                     </div></div>
                     ${availabilityMessage ? `<p class="app-alert field-wide">${escapeHtml(availabilityMessage)}</p>` : ''}
-                    ${!onlineAvailable && !availabilityMessage ? '<p class="app-muted field-wide">Online payment is unavailable until PayMongo and the public HTTPS address are configured.</p>' : ''}
-                    <button type="submit">Place order</button>
+                    ${!onlineAvailable && !availabilityMessage ? `<p class="app-muted field-wide">${buyerText('onlineUnavailable')}</p>` : ''}
+                    <button type="submit">${buyerText('placeOrder')}</button>
                 </form>
             </section>
-            <section class="panel"><h2>Order summary</h2>${lines}${summaryRows(totals)}</section>
+            <section class="panel"><h2>${buyerText('orderSummary')}</h2>${lines}${summaryRows(totals)}</section>
         </div>`;
 }
 
@@ -1082,17 +1383,17 @@ async function renderBuyerOrders() {
     }
     const payment = new URLSearchParams(location.search).get('payment');
     if (payment === 'success') {
-        app.innerHTML = `<section class="panel app-alert"><h1>Payment return received</h1><p>This page does not mark your order as paid. Payment status changes only after the verified PayMongo notification arrives.</p></section>`;
+        app.innerHTML = `<section class="panel app-alert"><h1>${buyerText('paymentReturn')}</h1><p>${buyerText('paymentReturnNote')}</p></section>`;
     } else if (payment === 'cancel') {
-        app.innerHTML = `<section class="panel app-alert"><h1>Checkout cancelled</h1><p>Your payment is not marked as paid. Reserved stock remains until farm staff confirms the order can be cancelled.</p></section>`;
+        app.innerHTML = `<section class="panel app-alert"><h1>${buyerText('checkoutCancelled')}</h1><p>${buyerText('checkoutCancelledNote')}</p></section>`;
     }
     const orders = await queryOrThrow(state.supabase.from('orders')
         .select('order_code, final_total, order_status, payment_status, payment_method, created_at')
         .eq('buyer_id', state.profile.id)
         .order('created_at', { ascending: false }));
     const rows = orders.map((order) => `<tr><td><a href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${escapeHtml(order.order_code)}</a><span class="table-secondary">${dateLabel(order.created_at)}</span></td>
-        <td>${money(order.final_total)}</td><td>${escapeHtml(order.payment_method.toUpperCase())}</td><td>${statusBadge(order.order_status)}</td><td>${statusBadge(order.payment_status)}</td></tr>`);
-    app.insertAdjacentHTML('beforeend', `<section class="panel section"><div class="page-heading"><h1>My orders</h1></div>${table(['Order', 'Total', 'Payment method', 'Delivery status', 'Payment status'], rows, 'You have not placed an order yet.')}</section>`);
+        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerStatusBadge(order.order_status)}</td><td>${buyerStatusBadge(order.payment_status)}</td><td>${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : '—'}</td></tr>`);
+    app.insertAdjacentHTML('beforeend', `<section class="panel section"><div class="page-heading"><h1>${buyerText('ordersTitle')}</h1></div>${table([buyerText('order'), buyerText('total'), buyerText('payment'), buyerText('deliveryStatus'), buyerText('paymentStatus'), buyerText('actions')], rows, buyerText('noOrders'))}</section>`);
 }
 
 async function renderOrderDetails(orderCode) {
@@ -1100,7 +1401,7 @@ async function renderOrderDetails(orderCode) {
         .select('*').eq('order_code', orderCode).maybeSingle();
     if (error) throw error;
     if (!order) {
-        app.innerHTML = '<section class="panel"><h1>Order not found</h1><a href="?page=orders" data-page="orders">Back to orders</a></section>';
+        app.innerHTML = `<section class="panel"><h1>${buyerText('orderNotFound')}</h1><a href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></section>`;
         return;
     }
     const [sales, events] = await Promise.all([
@@ -1114,16 +1415,16 @@ async function renderOrderDetails(orderCode) {
     const nameById = new Map(vegetables.map((vegetable) => [vegetable.id, vegetable]));
     const lineRows = sales.map((line) => {
         const product = nameById.get(line.vegetable_id);
-        return `<tr><td>${escapeHtml(product?.name || 'Produce')}</td><td>${Number(line.quantity).toFixed(2)} ${escapeHtml(product?.unit || '')}</td><td>${money(line.unit_price)}</td><td>${money(line.total)}</td></tr>`;
+        return `<tr><td>${escapeHtml(product?.name || buyerText('produce'))}</td><td>${formatQuantity(line.quantity)} ${escapeHtml(product?.unit || '')}</td><td>${money(line.unit_price)}</td><td>${money(line.total)}</td></tr>`;
     });
-    const eventRows = events.map((event) => `<tr><td>${dateLabel(event.created_at)}</td><td>${escapeHtml(event.event_type.replaceAll('_', ' '))}</td><td>${statusBadge(event.payment_status)}</td><td>${money(event.amount)}</td><td>${escapeHtml(event.payment_reference || '—')}</td><td>${escapeHtml(event.details || '—')}</td></tr>`);
+    const eventRows = events.map((event) => `<tr><td>${dateLabel(event.created_at)}</td><td>${escapeHtml(event.event_type.replaceAll('_', ' '))}</td><td>${buyerStatusBadge(event.payment_status)}</td><td>${money(event.amount)}</td><td>${escapeHtml(event.payment_reference || '—')}</td><td>${escapeHtml(event.details || '—')}</td></tr>`);
     app.innerHTML = `
-        <div class="page-heading"><h1>Order ${escapeHtml(order.order_code)}</h1><a class="button secondary" href="?page=orders" data-page="orders">Back to orders</a></div>
-        <section class="stats"><article class="card"><span class="muted">Delivery status</span><strong class="stat-value">${statusBadge(order.order_status)}</strong></article><article class="card"><span class="muted">Payment status</span><strong class="stat-value">${statusBadge(order.payment_status)}</strong></article><article class="card"><span class="muted">Total</span><strong class="stat-value">${money(order.final_total)}</strong></article></section>
-        <section class="panel section"><h2>Delivery details</h2><p><strong>Address:</strong> ${escapeHtml(order.delivery_address)}</p><p><strong>Payment:</strong> ${escapeHtml(order.payment_method.toUpperCase())}</p><p><strong>Placed:</strong> ${dateLabel(order.created_at)}</p></section>
-        <section class="panel section"><h2>Items</h2>${table(['Produce', 'Quantity', 'Unit price', 'Line total'], lineRows)}</section>
-        <section class="panel section app-summary"><h2>Order total</h2>${summaryRows({ subtotal: order.subtotal, discountPercentage: order.discount_percentage, discountAmount: order.discount_amount, deliveryFee: order.delivery_fee, finalTotal: order.final_total })}</section>
-        <section class="panel section"><h2>Payment history</h2>${table(['Date', 'Event', 'Status', 'Amount', 'Reference', 'Details'], eventRows, 'No payment events recorded.')}</section>`;
+        <div class="page-heading"><h1>${buyerText('order')} ${escapeHtml(order.order_code)}</h1><div class="app-actions">${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}<a class="button secondary" href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></div></div>
+        <section class="stats"><article class="card"><span class="muted">${buyerText('deliveryStatus')}</span><strong class="stat-value">${buyerStatusBadge(order.order_status)}</strong></article><article class="card"><span class="muted">${buyerText('paymentStatus')}</span><strong class="stat-value">${buyerStatusBadge(order.payment_status)}</strong></article><article class="card"><span class="muted">${buyerText('total')}</span><strong class="stat-value">${money(order.final_total)}</strong></article></section>
+        <section class="panel section"><h2>${buyerText('deliveryDetails')}</h2><p><strong>${buyerText('address')}:</strong> ${escapeHtml(order.delivery_address)}</p><p><strong>${buyerText('payment')}:</strong> ${escapeHtml(buyerPaymentMethod(order.payment_method))}</p><p><strong>${buyerText('placed')}:</strong> ${dateLabel(order.created_at)}</p></section>
+        <section class="panel section"><h2>${buyerText('items')}</h2>${table([buyerText('produce'), buyerText('quantity'), buyerText('unitPrice'), buyerText('lineTotal')], lineRows)}</section>
+        <section class="panel section app-summary"><h2>${buyerText('orderTotal')}</h2>${summaryRows({ subtotal: order.subtotal, discountPercentage: order.discount_percentage, discountAmount: order.discount_amount, deliveryFee: order.delivery_fee, finalTotal: order.final_total })}</section>
+        <section class="panel section"><h2>${buyerText('paymentHistory')}</h2>${table([buyerText('date'), buyerText('event'), buyerText('paymentStatus'), buyerText('amount'), buyerText('reference'), buyerText('details')], eventRows, buyerText('noPaymentEvents'))}</section>`;
 }
 
 function renderVegetables(products) {
@@ -1691,19 +1992,22 @@ async function handleSubmit(form) {
     if (formName === 'add-cart') {
         const product = state.products.find((item) => String(item.id) === form.dataset.product);
         const quantity = Number(values.quantity);
-        if (!product || !Number.isFinite(quantity) || quantity <= 0 || quantity > product.quantity) {
+        const alreadyInCart = Number(state.cart[product?.id] || 0);
+        if (!product || !Number.isFinite(quantity) || quantity <= 0 || quantity + alreadyInCart > product.quantity) {
             throw new Error('Choose a quantity that is currently in stock.');
         }
-        state.cart[product.id] = Math.min(Number(state.cart[product.id] || 0) + quantity, product.quantity);
+        state.cart[product.id] = alreadyInCart + quantity;
         saveCart();
-        notify(`${product.name} added to your cart.`);
+        updateShopCartUI();
+        notify(`${product.name} ${buyerText('addedToCart')}`);
+        notice.insertAdjacentHTML('beforeend', ` <a href="?page=cart" data-page="cart">${buyerText('openCart')} (${cartCount()})</a>`);
         return;
     }
     if (formName === 'update-cart') {
         const product = state.products.find((item) => String(item.id) === form.dataset.product);
         const quantity = Number(values.quantity);
         if (!product || !Number.isFinite(quantity) || quantity < 0 || quantity > product.quantity) {
-            throw new Error('Choose a quantity between zero and available stock.');
+            throw new Error(`${buyerText('quantity')}: ${buyerText('available')} stock only.`);
         }
         if (!quantity) delete state.cart[product.id];
         else state.cart[product.id] = quantity;
@@ -1738,7 +2042,7 @@ async function handleSubmit(form) {
             location.assign(result.checkoutUrl);
             return;
         }
-        notify(`Order ${result.order.order_code} was placed.`);
+        notify(`${buyerText('orderPlaced')} ${result.order.order_code}`);
         const orderUrl = new URL(location.href);
         orderUrl.searchParams.set('page', 'order');
         orderUrl.searchParams.set('order', result.order.order_code);
@@ -1863,6 +2167,29 @@ async function handleClick(target) {
 
     const action = target.closest('[data-action]');
     if (!action) return;
+    if (action.dataset.action === 'toggle-language') {
+        state.language = state.language === 'en' ? 'fil' : 'en';
+        localStorage.setItem(languageStorageKey, state.language);
+        document.documentElement.lang = state.language === 'fil' ? 'fil' : 'en';
+        updateNavigation();
+        return await renderPage();
+    }
+    if (action.dataset.action === 'clear-shop-filters') {
+        app.querySelector('[data-shop-search]').value = '';
+        app.querySelector('[data-shop-category]').value = '';
+        app.querySelector('[data-shop-in-stock]').checked = false;
+        app.querySelector('[data-shop-sort]').value = 'name';
+        return applyShopFilters();
+    }
+    if (action.dataset.action === 'reorder') {
+        action.disabled = true;
+        try {
+            await reorderOrder(action.dataset.order);
+        } finally {
+            if (action.isConnected) action.disabled = false;
+        }
+        return;
+    }
     if (action.dataset.action === 'toggle-password') {
         const input = action.parentElement.querySelector('input');
         if (!(input instanceof HTMLInputElement)) return;
@@ -2023,6 +2350,34 @@ document.addEventListener('click', async (event) => {
         await handleClick(target);
     } catch (error) {
         showError(error);
+    }
+});
+
+document.addEventListener('input', (event) => {
+    if (event.target instanceof HTMLInputElement && event.target.matches('[data-shop-search]')) {
+        applyShopFilters();
+    }
+});
+
+document.addEventListener('change', (event) => {
+    const target = event.target;
+    if ((target instanceof HTMLInputElement || target instanceof HTMLSelectElement)
+        && target.matches('[data-shop-category], [data-shop-in-stock], [data-shop-sort]')) {
+        applyShopFilters();
+    }
+});
+
+document.addEventListener('input', (event) => {
+    if (event.target instanceof HTMLInputElement && event.target.matches('[data-shop-search]')) {
+        applyShopFilters();
+    }
+});
+
+document.addEventListener('change', (event) => {
+    const target = event.target;
+    if ((target instanceof HTMLInputElement || target instanceof HTMLSelectElement)
+        && target.matches('[data-shop-category], [data-shop-in-stock], [data-shop-sort]')) {
+        applyShopFilters();
     }
 });
 
