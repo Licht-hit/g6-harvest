@@ -47,8 +47,8 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
      ```
 
      You should see all ten table names. If any are missing, do not delete existing data or blindly rerun migration 001; ask for help checking the incomplete setup first.
-4. In **Authentication → URL Configuration**, set the Site URL to your Vercel deployment URL and allow its callback URL. Repeat with your production domain when you add one.
-5. Configure Supabase Auth email delivery and enable email confirmation. Supabase sends verification and password-reset links; the PHP SMTP configuration is not used.
+4. In **Authentication → URL Configuration**, set the Site URL to your Vercel deployment URL and add `https://your-deployment-domain.vercel.app/**` to Redirect URLs. This allows password-reset emails to open `/?page=reset-password`. Repeat with your production domain when you add one.
+5. Configure Supabase Auth email delivery and enable email confirmation. Supabase sends verification and password-reset links; the PHP SMTP configuration is not used. From the login page, users can choose **Forgot password?**, enter their email, then use the email link to open the **Choose a new password** form and sign in with the replacement password.
 
 The schema does not insert user accounts. Migration 005 adds the ten sample products shown in the original MySQL schema, but does not add inventory; set stock quantities from the farm dashboard before accepting orders.
 

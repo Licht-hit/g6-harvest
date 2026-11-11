@@ -1656,8 +1656,10 @@ async function handleSubmit(form) {
         return;
     }
     if (formName === 'forgot') {
+        const redirectUrl = new URL('/', location.origin);
+        redirectUrl.searchParams.set('page', 'reset-password');
         const { error } = await state.supabase.auth.resetPasswordForEmail(values.email.trim(), {
-            redirectTo: location.origin,
+            redirectTo: redirectUrl.toString(),
         });
         if (error) throw error;
         notify('If the address belongs to an account, a password reset link will be sent.');
