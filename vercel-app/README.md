@@ -1,3 +1,4 @@
+3. Then run `supabase/migrations/002_roles_and_payment_safety.sql`.
 # Harvest for Vercel
 
 This is a separate, static HTML/CSS/JavaScript version of the Harvest app. The original PHP/MySQL project remains in the parent folder. This version uses Supabase Auth and PostgreSQL; Vercel Functions keep PayMongo credentials and privileged payment operations on the server.
@@ -24,6 +25,8 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 1. Create a Supabase project and keep its database credentials private.
 2. In **SQL Editor**, run `supabase/migrations/001_initial_schema.sql` exactly once. It creates the tables and app functions.
 3. Then run `supabase/migrations/002_roles_and_payment_safety.sql`. It adds the farmer role and safer payment-event handling. It is safe to run again.
+4. Run `supabase/migrations/003_public_catalog.sql` to let signed-out visitors read active vegetables on the landing page. Row-level security keeps inactive vegetables and inventory private.
+    - If migration 001 finished successfully before, run any required later migrations only. Apply migration 003 to enable the public catalog.
    - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
    - If migration 001 finished successfully before, run migration 002 only.
    - If you are unsure whether migration 001 finished, check that the core tables exist with this query:

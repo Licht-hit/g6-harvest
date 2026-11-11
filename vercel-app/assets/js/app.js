@@ -37,7 +37,7 @@ const state = {
     session: null,
     profile: null,
     page: new URLSearchParams(location.search).get('page')
-        || (new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery' ? 'reset-password' : ''),
+        || (new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery' ? 'reset-password' : 'home'),
     products: [],
     records: new Map(),
     orderDetails: null,
@@ -143,7 +143,9 @@ function updateNavigation() {
     if (!state.session || !state.profile) {
         menu.hidden = true;
         guest.hidden = false;
-        nav.innerHTML = '';
+        nav.innerHTML = state.page === 'home'
+            ? '<a href="#home">Home</a><a href="#featured">Produce</a><a href="#about">Our story</a><a href="#why-harvest">Why Harvest</a>'
+            : '<a href="/" data-page="home">Home</a>';
         return;
     }
     menu.hidden = false;
@@ -184,7 +186,7 @@ function go(page, replace = false) {
     state.page = page;
     const url = new URL(location.href);
     url.search = '';
-    if (page) url.searchParams.set('page', page);
+    if (page && page !== 'home') url.searchParams.set('page', page);
     if (replace) history.replaceState({}, '', url);
     else history.pushState({}, '', url);
     updateNavigation();
@@ -281,6 +283,14 @@ async function getProducts(activeOnly = false) {
     }));
 }
 
+async function getPublicProducts() {
+    return queryOrThrow(state.supabase.from('vegetables')
+        .select('id, name, category, variety, description, unit, price')
+        .eq('active', true)
+        .order('name')
+        .limit(6));
+}
+
 async function loadProfile(user) {
     if (!user) {
         state.profile = null;
@@ -311,7 +321,7 @@ async function loadEmailCallback() {
 }
 
 function guestPage(page) {
-    const pages = ['login', 'register', 'forgot', 'reset-password'];
+    const pages = ['home', 'login', 'register', 'forgot', 'reset-password'];
     if (!pages.includes(page)) return 'login';
     return page;
 }
@@ -369,7 +379,7 @@ function renderAuth(page) {
                 <h1>Fresh Harvest,<br>Fresh Choices.</h1>
                 <p>Discover fresh vegetables and farm products, grown with care and brought to your table.</p>
             </div></div>
-            <div class="auth-form-panel">${form}</div>
+            <div class="auth-form-panel">${form}<a class="auth-home-link" href="/" data-page="home">← Back to home</a></div>
         </section>`;
 }
 
@@ -506,6 +516,74 @@ function renderShop(products) {
         <section class="shop-highlights"><div><span>🌱</span><strong>Farm fresh</strong><small>Harvested with care</small></div><div><span>🥬</span><strong>Seasonal produce</strong><small>See what's available today</small></div><div><span>🚚</span><strong>Local delivery</strong><small>Flat ₱20 delivery fee</small></div></section>
         <section class="shop-section-heading"><div><h2>Today's harvest</h2><p class="muted">Choose from the current catalog.</p></div></section>
         <section class="card-grid shop-product-grid">${cards || '<div class="empty">There are no active products in the catalog.</div>'}</section>`;
+}
+
+function renderLanding(products, catalogUnavailable = false) {
+    document.body.classList.remove('auth-page');
+    const cards = products.map((product) => `
+        <article class="landing-product">
+            <div class="landing-product-image">${productPicture(product.name)}</div>
+            <div class="landing-product-copy">
+                <p class="landing-product-category">${escapeHtml(product.category || 'From the farm')}</p>
+                <h3>${escapeHtml(product.name)}</h3>
+                <p>${escapeHtml(product.description || 'Fresh produce, grown and harvested with care.')}</p>
+                <strong>${money(product.price)} <small>/ ${escapeHtml(product.unit)}</small></strong>
+            </div>
+        </article>`).join('');
+
+    app.innerHTML = `
+        <div class="landing-page">
+            <section class="landing-hero" id="home" aria-labelledby="landing-title">
+                <div class="landing-hero-copy">
+                    <p class="landing-eyebrow"><span></span> From our farm to your table</p>
+                    <h1 id="landing-title">A little more <em>goodness</em> in every day.</h1>
+                    <p class="landing-intro">Get to know the produce in our live farm catalog and find fresh picks for your table.</p>
+                    <div class="landing-actions">
+                        <a class="button" href="#featured">Shop the harvest <span aria-hidden="true">→</span></a>
+                        <a class="landing-secondary-link" href="#about">Learn more <span aria-hidden="true">↗</span></a>
+                    </div>
+                    <p class="landing-note">Prices and availability are shown from the current catalog.</p>
+                </div>
+                <div class="landing-photo-grid" aria-label="Fresh vegetable photography">
+                    <figure class="landing-photo landing-photo-main">${productPicture('Carrot')}<figcaption>A fresh look at the harvest</figcaption></figure>
+                    <figure class="landing-photo landing-photo-tomato">${productPicture('Tomato')}</figure>
+                    <figure class="landing-photo landing-photo-greens">${productPicture('Zucchini')}</figure>
+                </div>
+                <aside class="landing-highlights" aria-label="Shopping highlights">
+                    <p>Good things, made simple</p>
+                    <div><strong>See what is available</strong><small>Check produce from the live catalog.</small></div>
+                    <div><strong>Know what you are choosing</strong><small>Browse item details, prices, and units.</small></div>
+                    <div><strong>Order when you are ready</strong><small>Create an account when you want to shop.</small></div>
+                </aside>
+            </section>
+            <section class="landing-trust" aria-label="Harvest at a glance">
+                <div><strong>Live catalog</strong><span>Explore produce listed by the farm.</span></div>
+                <div><strong>Clear details</strong><span>Know the price, variety, and unit.</span></div>
+                <div><strong>Your favorites</strong><span>Save regular picks to a buyer account.</span></div>
+            </section>
+            <section class="landing-section" id="featured" aria-labelledby="landing-featured-title">
+                <div class="landing-section-heading">
+                    <div><p class="landing-eyebrow">From the current catalog</p><h2 id="landing-featured-title">Meet the fresh picks.</h2></div>
+                    <p>Every item below comes from the farm's active produce catalog.</p>
+                </div>
+                <div class="landing-product-grid">${cards || `<p class="landing-empty">${catalogUnavailable ? 'The live catalog is temporarily unavailable. Please check back soon.' : 'The next harvest is on its way. Please check back soon.'}</p>`}</div>
+                <div class="landing-section-action"><p>Ready to choose your produce?</p><a class="button" href="?page=register" data-page="register">Create an account to shop <span aria-hidden="true">→</span></a></div>
+            </section>
+            <section class="landing-story" id="about" aria-labelledby="landing-story-title">
+                <div class="landing-story-image">${productPicture('Kale')}</div>
+                <div class="landing-story-copy">
+                    <p class="landing-eyebrow">Our farm</p>
+                    <h2 id="landing-story-title">Fresh choices, thoughtfully grown.</h2>
+                    <p>Harvest connects farm operations with a live produce shop. Browse fresh picks, learn about each item, and bring a little more goodness to your table.</p>
+                    <a class="landing-secondary-link" href="#featured">Explore the current harvest <span aria-hidden="true">↗</span></a>
+                </div>
+            </section>
+            <section class="landing-cta" id="why-harvest">
+                <p class="landing-eyebrow">From our farm to your table</p>
+                <h2>Find your next fresh favorite.</h2>
+                <a class="button" href="?page=register" data-page="register">Create your account <span aria-hidden="true">→</span></a>
+            </section>
+        </div>`;
 }
 
 async function renderProduct(product) {
@@ -1002,12 +1080,25 @@ async function renderActivity() {
 
 async function renderPage() {
     if (!state.supabase) {
-        showSupabaseConfigurationError();
+        const page = guestPage(state.page);
+        state.page = page;
+        updateNavigation();
+        if (page === 'home') renderLanding([], true);
+        else renderAuth(page);
         return;
     }
     if (!state.session || !state.profile) {
         const page = guestPage(state.page);
         state.page = page;
+        updateNavigation();
+        if (page === 'home') {
+            try {
+                return renderLanding(await getPublicProducts());
+            } catch (error) {
+                showError(error);
+                return renderLanding([]);
+            }
+        }
         renderAuth(page);
         return;
     }
@@ -1028,6 +1119,13 @@ async function renderPage() {
     }
 
     let page = state.page || 'dashboard';
+    if (page === 'home') {
+        page = 'dashboard';
+        state.page = page;
+        const url = new URL(location.href);
+        url.search = '?page=dashboard';
+        history.replaceState({}, '', url);
+    }
     const buyerPages = ['shop', 'product', 'cart', 'checkout', 'orders', 'order'];
     const staffPages = ['vegetables', 'plantings', 'harvests', 'inventory', 'sales', 'quality', 'reports', 'activity'];
     if (state.profile.role === 'buyer' && staffPages.includes(page)) page = 'dashboard';
@@ -1580,14 +1678,15 @@ document.querySelector('#logout-button').addEventListener('click', async () => {
 });
 
 window.addEventListener('popstate', () => {
-    state.page = new URLSearchParams(location.search).get('page') || '';
+    state.page = new URLSearchParams(location.search).get('page') || 'home';
     void renderPage();
 });
 
 async function start() {
     document.querySelector('#current-year').textContent = new Date().getFullYear();
     if (!supabaseUrl || !supabaseAnonKey) {
-        showSupabaseConfigurationError();
+        updateNavigation();
+        await renderPage();
         return;
     }
     state.supabase = createClient(supabaseUrl, supabaseAnonKey, {
