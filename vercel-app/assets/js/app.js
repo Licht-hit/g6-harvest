@@ -161,7 +161,12 @@ function updateNavigation() {
     const nav = document.querySelector('#primary-navigation');
     const header = document.querySelector('.site-header');
     const navToggle = document.querySelector('[data-nav-toggle]');
-    const isOperationsUser = Boolean(state.session && state.profile && isFarmStaffRole(state.profile.role));
+    const isOperationsUser = Boolean(
+        state.session
+        && state.profile
+        && state.page !== 'reset-password'
+        && isFarmStaffRole(state.profile.role),
+    );
     document.body.classList.toggle('operations-layout', isOperationsUser);
     header.classList.toggle('operations-sidebar', isOperationsUser);
     if (!isOperationsUser) document.body.classList.remove('sidebar-collapsed');
@@ -479,6 +484,7 @@ function guestPage(page) {
 
 function renderAuth(page) {
     document.body.classList.add('auth-page');
+    document.body.classList.toggle('password-reset-page', page === 'reset-password');
     const title = page === 'register' ? 'Create your account'
         : page === 'forgot' ? 'Reset your password'
             : page === 'reset-password' ? 'Choose a new password'
@@ -860,6 +866,7 @@ function renderShop(products) {
 
 function renderLanding(products, catalogUnavailable = false) {
     document.body.classList.remove('auth-page');
+    document.body.classList.remove('password-reset-page');
     const cards = products.map((product) => `
         <article class="landing-product">
             <div class="landing-product-image">${productPicture(product.name)}</div>
@@ -1505,6 +1512,7 @@ async function renderPage() {
     if (page === 'activity' && state.profile.role !== 'admin') page = 'dashboard';
     state.page = page;
     document.body.classList.remove('auth-page');
+    document.body.classList.remove('password-reset-page');
     updateNavigation();
 
     try {

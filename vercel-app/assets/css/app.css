@@ -1078,6 +1078,17 @@
     }
 }
 
+.password-reset-page .site-header {
+    justify-content: flex-start;
+}
+
+.password-reset-page .site-header .main-nav,
+.password-reset-page .site-header .nav-toggle,
+.password-reset-page .site-header .guest-nav,
+.password-reset-page .site-header .account-menu {
+    display: none !important;
+}
+
 body.operations-layout {
     --green: #176b4d;
     --green-dark: #193b32;
