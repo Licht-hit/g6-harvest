@@ -12,6 +12,7 @@ Do not copy the parent project's local email/payment configuration files into th
 - Buyer, staff, farmer, and administrator roles. Farmers have the same farm-operation permissions as staff; existing staff roles are retained. New registrations are buyers; roles are never chosen in the browser.
 - Product catalog, product details, saved cart, checkout, order history, and receipts.
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
+- Administrator dashboard with sales and harvest trends, inventory charts, stock alerts, top sellers, recent orders, inventory updates, and activity.
 - Transactional PostgreSQL functions for inventory changes, harvest adjustments, checkout, order status, COD collection, and payment events.
 - PayMongo GCash/card checkout, COD, cancellation/stock restoration rules, and a signed webhook at `/api/paymongo-webhook`.
 - A MySQL import script that carries existing user accounts/roles and farm/order records into Supabase.

@@ -80,6 +80,21 @@ function dateInputValue(value = new Date()) {
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
+function dateTimeLabel(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('en-PH', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+}
+
+function dateTimeBoundary(day, endOfDay = false) {
+    const time = endOfDay ? '23:59:59.999' : '00:00:00';
+    return new Date(`${day}T${time}`).toISOString();
+}
+
 function notify(message, type = 'success') {
     notice.textContent = message;
     notice.className = `notice ${type}`;
@@ -228,16 +243,45 @@ function drawDashboardChart(canvasId, labels, values, color) {
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     const width = bounds.width;
     const height = bounds.height;
-    const left = 42;
+    const horizontal = canvas.dataset.chart === 'horizontal';
+    const line = canvas.dataset.chart === 'line';
+    const left = horizontal ? Math.min(150, width * .4) : 42;
     const right = 12;
     const top = 14;
-    const bottom = 34;
+    const bottom = horizontal ? 12 : 34;
     const plotWidth = width - left - right;
     const plotHeight = height - top - bottom;
     const maximum = Math.max(1, ...values) * 1.12;
     context.clearRect(0, 0, width, height);
     context.font = '11px system-ui, sans-serif';
     context.fillStyle = '#718078';
+    if (horizontal) {
+        for (let tick = 0; tick <= 4; tick += 1) {
+            const x = left + plotWidth * tick / 4;
+            context.beginPath();
+            context.strokeStyle = '#e7eee7';
+            context.moveTo(x, top);
+            context.lineTo(x, top + plotHeight);
+            context.stroke();
+            context.textAlign = 'center';
+            context.textBaseline = 'top';
+            context.fillStyle = '#718078';
+            context.fillText(String(Math.round(maximum * tick / 4)), x, top + plotHeight + 5);
+        }
+        const slot = plotHeight / Math.max(1, labels.length);
+        values.forEach((value, index) => {
+            const y = top + slot * index + slot * .2;
+            const barWidth = Math.max(0, value / maximum * plotWidth);
+            context.fillStyle = color;
+            context.fillRect(left, y, barWidth, slot * .6);
+            context.textAlign = 'right';
+            context.textBaseline = 'middle';
+            context.fillStyle = '#718078';
+            const label = labels[index].length > 20 ? `${labels[index].slice(0, 18)}…` : labels[index];
+            context.fillText(label, left - 7, y + slot * .3);
+        });
+        return;
+    }
     for (let tick = 0; tick <= 4; tick += 1) {
         const y = top + plotHeight * tick / 4;
         context.beginPath();
@@ -247,19 +291,87 @@ function drawDashboardChart(canvasId, labels, values, color) {
         context.stroke();
         context.textAlign = 'right';
         context.textBaseline = 'middle';
-        context.fillText(String(Math.round(maximum * (4 - tick) / 4)), left - 6, y);
+        const tickValue = maximum * (4 - tick) / 4;
+        const tickLabel = canvas.dataset.format === 'currency'
+            ? `₱${Math.round(tickValue).toLocaleString('en-PH')}`
+            : String(Math.round(tickValue));
+        context.fillText(tickLabel, left - 6, y);
     }
     const slot = plotWidth / Math.max(1, labels.length);
-    values.forEach((value, index) => {
-        const barHeight = Math.max(0, value / maximum * plotHeight);
-        const x = left + slot * index + slot * .2;
-        context.fillStyle = color;
-        context.fillRect(x, top + plotHeight - barHeight, slot * .6, barHeight);
+    if (line) {
+        context.beginPath();
+        context.strokeStyle = color;
+        context.lineWidth = 2.5;
+        values.forEach((value, index) => {
+            const x = left + slot * (index + .5);
+            const y = top + plotHeight - Math.max(0, value / maximum * plotHeight);
+            if (index === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+        });
+        context.stroke();
+        values.forEach((value, index) => {
+            const x = left + slot * (index + .5);
+            const y = top + plotHeight - Math.max(0, value / maximum * plotHeight);
+            context.beginPath();
+            context.fillStyle = color;
+            context.arc(x, y, 3, 0, Math.PI * 2);
+            context.fill();
+        });
+    } else {
+        values.forEach((value, index) => {
+            const barHeight = Math.max(0, value / maximum * plotHeight);
+            const x = left + slot * index + slot * .2;
+            context.fillStyle = color;
+            context.fillRect(x, top + plotHeight - barHeight, slot * .6, barHeight);
+        });
+    }
+    const labelStep = Math.max(1, Math.ceil(labels.length / 7));
+    labels.forEach((label, index) => {
+        if (index % labelStep !== 0 && index !== labels.length - 1) return;
+        const x = left + slot * (index + .5);
         context.textAlign = 'center';
         context.textBaseline = 'top';
         context.fillStyle = '#718078';
-        context.fillText(labels[index], x + slot * .3, top + plotHeight + 8);
+        context.fillText(label, x, top + plotHeight + 8);
     });
+}
+
+function drawDashboardDoughnut(canvasId, values) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !values.length) return;
+    const bounds = canvas.getBoundingClientRect();
+    const ratio = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(bounds.width * ratio);
+    canvas.height = Math.round(bounds.height * ratio);
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const colors = ['#218653', '#76a85b', '#e0b84c', '#5b9c9b', '#9a82b4', '#d98661', '#5478a5'];
+    const total = values.reduce((sum, value) => sum + value, 0);
+    if (!total) return;
+    const centerX = bounds.width / 2;
+    const centerY = bounds.height / 2;
+    const radius = Math.max(1, Math.min(bounds.width, bounds.height) * .44);
+    let angle = -Math.PI / 2;
+    values.forEach((value, index) => {
+        const nextAngle = angle + value / total * Math.PI * 2;
+        context.beginPath();
+        context.moveTo(centerX, centerY);
+        context.arc(centerX, centerY, radius, angle, nextAngle);
+        context.closePath();
+        context.fillStyle = colors[index % colors.length];
+        context.fill();
+        angle = nextAngle;
+    });
+    context.beginPath();
+    context.arc(centerX, centerY, radius * .57, 0, Math.PI * 2);
+    context.fillStyle = '#fff';
+    context.fill();
+    context.fillStyle = '#31513a';
+    context.font = '600 13px system-ui, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(total.toFixed(2), centerX, centerY);
 }
 
 function table(headers, rows, emptyText = 'No records found.') {
@@ -271,6 +383,15 @@ async function queryOrThrow(query) {
     const { data, error } = await query;
     if (error) throw error;
     return data || [];
+}
+
+async function queryAllRows(createQuery) {
+    const rows = [];
+    for (let offset = 0; ; offset += 500) {
+        const page = await queryOrThrow(createQuery().range(offset, offset + 499));
+        rows.push(...page);
+        if (page.length < 500) return rows;
+    }
 }
 
 async function getProducts(activeOnly = false) {
@@ -414,33 +535,87 @@ async function renderDashboard() {
         return;
     }
 
+    const isAdmin = state.profile.role === 'admin';
+    const requestedPeriod = Number(new URLSearchParams(location.search).get('period'));
+    const chartPeriod = isAdmin && [7, 30, 90].includes(requestedPeriod) ? requestedPeriod : 7;
     const today = dateInputValue();
+    const chartStart = dateInputValue(new Date(Date.now() - (chartPeriod - 1) * 86400000));
+    const comparisonStart = dateInputValue(new Date(Date.now() - 13 * 86400000));
+    const salesStart = chartStart < comparisonStart ? chartStart : comparisonStart;
     const weekStart = dateInputValue(new Date(Date.now() - 6 * 86400000));
-    const [vegetables, inventory, paidOrders, harvests, recentOrders, recentHarvests, dailyHarvests] = await Promise.all([
-        queryOrThrow(state.supabase.from('vegetables').select('id, name, unit').eq('active', true)),
-        queryOrThrow(state.supabase.from('inventory').select('quantity')),
-        queryOrThrow(state.supabase.from('orders').select('final_total, created_at').eq('payment_status', 'paid').gte('created_at', `${weekStart}T00:00:00`)),
-        queryOrThrow(state.supabase.from('harvests').select('id').is('archived_at', null)),
-        queryOrThrow(state.supabase.from('orders').select('order_code, buyer_id, final_total, order_status, payment_status, created_at').order('created_at', { ascending: false }).limit(8)),
+    const topSellingStart = dateInputValue(new Date(Date.now() - 29 * 86400000));
+    const [vegetables, inventory, paidOrders, dailyHarvests, recentOrders, recentHarvests,
+        recentInventory, harvestCount, openOrderCount, topSellingRows, activityRows] = await Promise.all([
+        queryOrThrow(state.supabase.from('vegetables').select('id, name, unit, active')),
+        queryOrThrow(state.supabase.from('inventory').select('vegetable_id, quantity, updated_at')),
+        queryAllRows(() => state.supabase.from('orders').select('final_total, created_at')
+            .eq('payment_status', 'paid')
+            .gte('created_at', dateTimeBoundary(salesStart))
+            .lte('created_at', dateTimeBoundary(today, true))
+            .order('created_at')),
+        queryAllRows(() => state.supabase.from('harvests').select('quantity, harvested_on')
+            .is('archived_at', null)
+            .gte('harvested_on', chartStart)
+            .lte('harvested_on', today)
+            .order('harvested_on')),
+        queryOrThrow(state.supabase.from('orders')
+            .select('order_code, buyer_id, eligible_quantity, final_total, order_status, payment_status, created_at')
+            .order('created_at', { ascending: false }).limit(8)),
         queryOrThrow(state.supabase.from('harvests').select('id, harvested_on, quantity, planting_id').is('archived_at', null).order('harvested_on', { ascending: false }).limit(6)),
-        queryOrThrow(state.supabase.from('harvests').select('quantity, harvested_on').is('archived_at', null).gte('harvested_on', weekStart).lte('harvested_on', today)),
+        queryOrThrow(state.supabase.from('inventory').select('vegetable_id, quantity, updated_at')
+            .order('updated_at', { ascending: false }).limit(6)),
+        (async () => {
+            const { count, error } = await state.supabase.from('harvests').select('id', { count: 'exact', head: true }).is('archived_at', null);
+            if (error) throw error;
+            return count || 0;
+        })(),
+        (async () => {
+            const { count, error } = await state.supabase.from('orders').select('id', { count: 'exact', head: true })
+                .not('order_status', 'in', '(delivered,cancelled)');
+            if (error) throw error;
+            return count || 0;
+        })(),
+        isAdmin
+            ? queryAllRows(() => state.supabase.from('sales')
+                .select('vegetable_id, quantity, orders!inner(payment_status, created_at)')
+                .eq('orders.payment_status', 'paid')
+                .gte('orders.created_at', dateTimeBoundary(topSellingStart))
+                .lte('orders.created_at', dateTimeBoundary(today, true)))
+            : Promise.resolve([]),
+        isAdmin
+            ? queryOrThrow(state.supabase.from('activity_logs')
+                .select('user_id, action, entity_type, details, created_at')
+                .order('created_at', { ascending: false }).limit(8))
+            : Promise.resolve([]),
     ]);
-    const profiles = recentOrders.length
-        ? await queryOrThrow(state.supabase.from('profiles').select('id, name').in('id', [...new Set(recentOrders.map((row) => row.buyer_id))]))
+
+    const profileIds = [...new Set([
+        ...recentOrders.map((row) => row.buyer_id),
+        ...activityRows.map((row) => row.user_id).filter(Boolean),
+    ])];
+    const profiles = profileIds.length
+        ? await queryOrThrow(state.supabase.from('profiles').select('id, name').in('id', profileIds))
         : [];
     const names = new Map(profiles.map((profile) => [profile.id, profile.name]));
     const totalStock = inventory.reduce((sum, row) => sum + Number(row.quantity), 0);
+    const inventoryByVegetable = new Map(inventory.map((row) => [row.vegetable_id, row]));
+    const activeVegetables = vegetables.filter((vegetable) => vegetable.active);
+    const inventoryRows = activeVegetables.map((vegetable) => ({
+        ...vegetable,
+        quantity: Number(inventoryByVegetable.get(vegetable.id)?.quantity || 0),
+    })).sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name));
+    const lowStockItems = inventoryRows.filter((item) => item.quantity <= 5);
     const salesByDay = new Map();
     paidOrders.forEach((row) => {
-        const day = row.created_at.slice(0, 10);
+        const day = dateInputValue(new Date(row.created_at));
         salesByDay.set(day, (salesByDay.get(day) || 0) + Number(row.final_total));
     });
     const harvestsByDay = new Map();
     dailyHarvests.forEach((row) => {
         harvestsByDay.set(row.harvested_on, (harvestsByDay.get(row.harvested_on) || 0) + Number(row.quantity));
     });
-    const chartDays = Array.from({ length: 7 }, (_, index) => {
-        const day = dateInputValue(new Date(Date.now() - (6 - index) * 86400000));
+    const chartDays = Array.from({ length: chartPeriod }, (_, index) => {
+        const day = dateInputValue(new Date(Date.now() - (chartPeriod - index - 1) * 86400000));
         return {
             day,
             label: new Date(`${day}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
@@ -449,15 +624,34 @@ async function renderDashboard() {
     const salesValues = chartDays.map((item) => salesByDay.get(item.day) || 0);
     const harvestValues = chartDays.map((item) => harvestsByDay.get(item.day) || 0);
     const todayRevenue = salesByDay.get(today) || 0;
-    const activeVegetableIds = new Set(vegetables.map((item) => item.id));
-    const activeInventory = activeVegetableIds.size
-        ? await queryOrThrow(state.supabase.from('inventory').select('vegetable_id, quantity').in('vegetable_id', [...activeVegetableIds]))
+    const currentPeriodSales = [...salesByDay.entries()]
+        .filter(([day]) => day >= weekStart && day <= today)
+        .reduce((sum, [, value]) => sum + value, 0);
+    const previousPeriodSales = [...salesByDay.entries()]
+        .filter(([day]) => day >= comparisonStart && day < weekStart)
+        .reduce((sum, [, value]) => sum + value, 0);
+    const salesTrend = previousPeriodSales > 0
+        ? ((currentPeriodSales - previousPeriodSales) / previousPeriodSales) * 100
+        : null;
+
+    const orderCodes = recentOrders.map((row) => row.order_code);
+    const orderLines = orderCodes.length
+        ? await queryOrThrow(state.supabase.from('sales').select('order_code, quantity').in('order_code', orderCodes))
         : [];
-    const vegetableById = new Map(vegetables.map((item) => [item.id, item]));
-    const lowStockItems = activeInventory
-        .filter((item) => Number(item.quantity) <= 5)
-        .map((item) => ({ ...vegetableById.get(item.vegetable_id), quantity: Number(item.quantity) }));
-    const orderRows = recentOrders.map((order) => `<tr><td><strong>${escapeHtml(order.order_code)}</strong><span class="table-secondary">${dateLabel(order.created_at)}</span></td><td>${escapeHtml(names.get(order.buyer_id) || 'Buyer')}</td><td>${money(order.final_total)}</td><td>${statusBadge(order.order_status)}</td></tr>`);
+    const itemsByOrder = new Map();
+    orderLines.forEach((line) => {
+        const items = itemsByOrder.get(line.order_code) || { count: 0, quantity: 0 };
+        items.count += 1;
+        items.quantity += Number(line.quantity);
+        itemsByOrder.set(line.order_code, items);
+    });
+    const orderRows = recentOrders.map((order) => {
+        const items = itemsByOrder.get(order.order_code) || { count: 0, quantity: Number(order.eligible_quantity || 0) };
+        return isAdmin
+            ? `<tr><td><strong>${escapeHtml(order.order_code)}</strong><span class="table-secondary">${dateTimeLabel(order.created_at)}</span></td><td>${escapeHtml(names.get(order.buyer_id) || 'Buyer')}</td><td>${items.count} product(s)<span class="table-secondary">${items.quantity.toFixed(2)} units</span></td><td><strong>${money(order.final_total)}</strong></td><td>${statusBadge(order.payment_status)}<span class="table-secondary">${statusBadge(order.order_status)}</span></td></tr>`
+            : `<tr><td><strong>${escapeHtml(order.order_code)}</strong><span class="table-secondary">${dateTimeLabel(order.created_at)}</span></td><td>${escapeHtml(names.get(order.buyer_id) || 'Buyer')}</td><td>${money(order.final_total)}</td><td>${statusBadge(order.order_status)}</td></tr>`;
+    });
+
     const plantingIds = [...new Set(recentHarvests.map((row) => row.planting_id))];
     const plantings = plantingIds.length
         ? await queryOrThrow(state.supabase.from('plantings').select('id, vegetable_id').in('id', plantingIds))
@@ -472,29 +666,82 @@ async function renderDashboard() {
         const vegetable = vegetableDetails.get(plantingVegetable.get(row.planting_id));
         return `<li><span class="recent-harvest-icon" aria-hidden="true">⌁</span><span class="recent-harvest-copy"><strong>${escapeHtml(vegetable?.name || 'Produce')}</strong><small>${dateLabel(row.harvested_on)}</small></span><strong>${Number(row.quantity).toFixed(2)} <small>${escapeHtml(vegetable?.unit || '')}</small></strong></li>`;
     });
+    const topSellingByVegetable = new Map();
+    topSellingRows.forEach((row) => {
+        const quantity = (topSellingByVegetable.get(row.vegetable_id) || 0) + Number(row.quantity);
+        topSellingByVegetable.set(row.vegetable_id, quantity);
+    });
+    const vegetableById = new Map(vegetables.map((row) => [row.id, row]));
+    const topSelling = [...topSellingByVegetable.entries()]
+        .map(([id, quantity]) => ({ ...vegetableById.get(id), quantity }))
+        .filter((row) => row.name)
+        .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
+        .slice(0, 7);
+    const recentInventoryRows = recentInventory.map((row) => {
+        const details = vegetableById.get(row.vegetable_id);
+        return `<tr><td>${escapeHtml(details?.name || 'Vegetable')}</td><td>${Number(row.quantity).toFixed(2)} ${escapeHtml(details?.unit || '')}</td><td>${dateTimeLabel(row.updated_at)}</td></tr>`;
+    });
+    const activityRowsHtml = activityRows.map((row) => `<li>
+        <span class="dashboard-activity-mark" aria-hidden="true">•</span>
+        <span class="dashboard-activity-copy"><strong>${escapeHtml(row.action.replaceAll('_', ' '))}</strong>
+            <small>${escapeHtml(row.details || row.entity_type.replaceAll('_', ' '))} · ${escapeHtml(names.get(row.user_id) || (row.user_id ? 'Former user' : 'System'))}</small>
+        </span><time datetime="${escapeHtml(row.created_at)}">${dateTimeLabel(row.created_at)}</time>
+    </li>`);
+    const inventoryTotal = inventoryRows.reduce((sum, row) => sum + row.quantity, 0);
 
     app.innerHTML = `
-        <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">Farm operations</p><h1>Welcome back, ${escapeHtml(state.profile.name)}</h1><p>Here’s what’s happening across your farm today.</p></div><div class="dashboard-date"><span aria-hidden="true">▦</span>${dateLabel(today)}</div></section>
-        <section class="dashboard-stat-grid" aria-label="Farm summary">
-            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">◉</span><span class="dashboard-stat-label">Active vegetables</span><strong>${vegetables.length}</strong><small>Available in the catalog</small></article>
-            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Total inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Across all recorded stock</small></article>
-            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">↗</span><span class="dashboard-stat-label">Sales today</span><strong>${money(todayRevenue)}</strong><small>Paid orders today</small></article>
-            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Total harvests</span><strong>${harvests.length}</strong><small>Active harvest records</small></article>
+        <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">${isAdmin ? 'Farm operations · Admin' : 'Daily farm operations'}</p><h1>Welcome back, ${escapeHtml(state.profile.name)}</h1><p>${isAdmin ? 'Here’s what’s happening across your farm today.' : 'Your farm activity and priorities for today.'}</p></div><div class="dashboard-date"><span aria-hidden="true">▦</span>${dateLabel(today)}</div></section>
+        <section class="dashboard-stat-grid ${isAdmin ? 'dashboard-admin-stats' : ''}" aria-label="Farm summary">
+            ${isAdmin ? `
+                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">◉</span><span class="dashboard-stat-label">Active vegetables</span><strong>${activeVegetables.length}</strong><small>Available in the catalog</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Total inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Combined quantity across catalog units</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">↗</span><span class="dashboard-stat-label">Sales today</span><strong>${money(todayRevenue)}</strong><small>Paid orders today</small><small class="dashboard-stat-trend ${salesTrend === null ? '' : salesTrend >= 0 ? 'is-positive' : 'is-negative'}">${salesTrend === null ? (currentPeriodSales > 0 ? 'Sales recorded this week' : 'No sales in the last 7 days') : `${salesTrend >= 0 ? '↑' : '↓'} ${Math.abs(salesTrend).toFixed(1)}% vs previous 7 days`}</small></article>
+                <a class="dashboard-stat-card dashboard-stat-card-link" href="?page=sales" data-page="sales"><span class="dashboard-stat-icon">▱</span><span class="dashboard-stat-label">Open orders</span><strong>${openOrderCount}</strong><small>Need fulfillment</small></a>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Total harvests</span><strong>${harvestCount}</strong><small>Active harvest records</small></article>
+                <a class="dashboard-stat-card dashboard-stat-card-link dashboard-stat-card-warning" href="?page=inventory" data-page="inventory"><span class="dashboard-stat-icon">!</span><span class="dashboard-stat-label">Low stock items</span><strong>${lowStockItems.length}</strong><small>At or below 5.00 units</small></a>
+            ` : `
+                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">◉</span><span class="dashboard-stat-label">Active vegetables</span><strong>${activeVegetables.length}</strong><small>Available in the catalog</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Total inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Across all recorded stock</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">↗</span><span class="dashboard-stat-label">Sales today</span><strong>${money(todayRevenue)}</strong><small>Paid orders today</small></article>
+                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Total harvests</span><strong>${harvestCount}</strong><small>Active harvest records</small></article>
+            `}
         </section>
-        ${lowStockItems.length ? `<section class="dashboard-alert section"><div class="dashboard-alert-heading"><span class="dashboard-alert-icon">!</span><div><h2>Stock needs attention</h2><p>${lowStockItems.length} active item(s) are at or below 5 units.</p></div></div><div class="dashboard-alert-items">${lowStockItems.slice(0, 5).map((item) => `<a href="?page=inventory" data-page="inventory"><span>${escapeHtml(item.name)}</span><strong>${item.quantity.toFixed(2)} ${escapeHtml(item.unit)}</strong></a>`).join('')}</div></section>` : ''}
+        ${lowStockItems.length ? `<section class="dashboard-alert section"><div class="dashboard-alert-heading"><span class="dashboard-alert-icon">!</span><div><h2>Stock needs attention</h2><p>${lowStockItems.length} active ${lowStockItems.length === 1 ? 'item is' : 'items are'} at or below 5.00 units.</p></div></div><div class="dashboard-alert-items">${lowStockItems.slice(0, 5).map((item) => `<a href="?page=inventory" data-page="inventory"><span>${escapeHtml(item.name)}</span><strong>${item.quantity.toFixed(2)} ${escapeHtml(item.unit)}</strong></a>`).join('')}${lowStockItems.length > 5 ? `<a class="dashboard-alert-more" href="?page=inventory" data-page="inventory">+${lowStockItems.length - 5} more</a>` : ''}</div></section>` : ''}
         <section class="dashboard-chart-grid" aria-label="Farm performance charts">
-            <article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Sales performance</h2><p>Paid revenue · last 7 days</p></div></div><div class="dashboard-canvas-wrap"><canvas id="sales-chart" class="dashboard-chart" aria-label="Daily paid sales for the last seven days" role="img"></canvas></div></article>
-            <article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Harvest activity</h2><p>Harvest quantity · last 7 days</p></div></div><div class="dashboard-canvas-wrap"><canvas id="harvest-chart" class="dashboard-chart" aria-label="Daily harvest quantity for the last seven days" role="img"></canvas></div></article>
+            ${isAdmin ? `<form class="dashboard-chart-period" data-form="dashboard-period"><label for="dashboard-period">Chart period</label><select id="dashboard-period" name="period">${[7, 30, 90].map((period) => `<option value="${period}" ${chartPeriod === period ? 'selected' : ''}>Last ${period} days</option>`).join('')}</select><button class="button secondary" type="submit">Update charts</button></form>` : ''}
+            <article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Sales performance</h2><p>Paid revenue · last ${chartPeriod} days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">↗</span></div>${salesValues.some((value) => value > 0) ? `<div class="dashboard-canvas-wrap"><canvas id="sales-chart" class="dashboard-chart" data-chart="${isAdmin ? 'line' : 'bar'}" data-format="currency" aria-label="Paid revenue for the last ${chartPeriod} days" role="img"></canvas></div>` : `<p class="empty">No paid sales in the last ${chartPeriod} days.</p>`}</article>
+            ${isAdmin ? `<article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Inventory overview</h2><p>Available stock by vegetable</p></div><span class="dashboard-chart-symbol" aria-hidden="true">◌</span></div>${inventoryTotal > 0 ? `<div class="dashboard-inventory-chart"><canvas id="inventory-chart" class="dashboard-chart dashboard-doughnut" aria-label="Doughnut chart of inventory by vegetable" role="img"></canvas><ul class="dashboard-chart-legend">${inventoryRows.map((item, index) => `<li><span class="chart-legend-dot chart-color-${index % 7}" aria-hidden="true"></span>${escapeHtml(item.name)}<strong>${item.quantity.toFixed(2)} ${escapeHtml(item.unit)}</strong></li>`).join('')}</ul></div>` : '<p class="empty">No inventory quantities to visualize.</p>'}</article>` : ''}
+            <article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Harvest production</h2><p>Recorded quantity · last ${chartPeriod} days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">⌁</span></div>${harvestValues.some((value) => value > 0) ? `<div class="dashboard-canvas-wrap"><canvas id="harvest-chart" class="dashboard-chart" aria-label="Harvest quantity over the last ${chartPeriod} days" role="img"></canvas></div>` : `<p class="empty">No active harvests in the last ${chartPeriod} days.</p>`}</article>
+            ${isAdmin ? `<article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Stock comparison</h2><p>Top stocked active vegetables</p></div><span class="dashboard-chart-symbol" aria-hidden="true">▥</span></div>${inventoryRows.length ? `<div class="dashboard-canvas-wrap dashboard-canvas-wrap-tall"><canvas id="stock-chart" class="dashboard-chart" data-chart="horizontal" aria-label="Stock quantities by vegetable" role="img"></canvas></div>` : '<p class="empty">Add vegetables to view stock comparisons.</p>'}</article>` : ''}
+            ${isAdmin ? `<article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Top-selling vegetables</h2><p>Paid quantities · last 30 days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">↗</span></div>${topSelling.length ? `<div class="dashboard-canvas-wrap dashboard-canvas-wrap-tall"><canvas id="top-selling-chart" class="dashboard-chart" data-chart="horizontal" aria-label="Top-selling vegetables by paid quantity over the last 30 days" role="img"></canvas></div>` : '<p class="empty">No paid vegetable sales in the last 30 days.</p>'}</article>` : ''}
         </section>
-        <section class="panel section"><h2>Quick actions</h2><p class="muted">Jump into your day-to-day farm tasks.</p><div class="app-dashboard-links">
-            <a href="?page=vegetables" data-page="vegetables">Manage vegetables →</a><a href="?page=harvests" data-page="harvests">Record harvest →</a><a href="?page=sales" data-page="sales">Review sales →</a><a href="?page=reports" data-page="reports">View reports →</a>
-        </div></section>
+        ${isAdmin
+        ? `<section class="dashboard-section dashboard-actions"><div><h2>Quick actions</h2><p>Shortcuts to your farm management tools.</p></div><div class="dashboard-action-links">
+                <a class="button" href="?page=vegetables" data-page="vegetables">＋ Add vegetable</a><a class="button secondary" href="?page=harvests" data-page="harvests">⌁ Record harvest</a><a class="button secondary" href="?page=inventory" data-page="inventory">▤ Manage inventory</a><a class="button secondary" href="?page=sales" data-page="sales">↗ Review orders</a><a class="button secondary" href="?page=reports" data-page="reports">▥ Reports</a>
+            </div></section>`
+        : `<section class="panel section"><h2>Quick actions</h2><p class="muted">Jump into your day-to-day farm tasks.</p><div class="app-dashboard-links">
+                <a href="?page=vegetables" data-page="vegetables">Manage vegetables →</a><a href="?page=harvests" data-page="harvests">Record harvest →</a><a href="?page=sales" data-page="sales">Review sales →</a><a href="?page=reports" data-page="reports">View reports →</a>
+            </div></section>`}
         <section class="dashboard-bottom-grid">
-            <article class="dashboard-table-card"><div class="dashboard-card-heading"><div><h2>Recent sales</h2><p>Latest customer orders</p></div><a href="?page=sales" data-page="sales">View all</a></div>${table(['Order', 'Buyer', 'Total', 'Status'], orderRows, 'No orders have been placed.')}</article>
+            <article class="dashboard-table-card"><div class="dashboard-card-heading"><div><h2>${isAdmin ? 'Recent orders' : 'Recent sales'}</h2><p>${isAdmin ? 'Latest order activity' : 'Latest customer orders'}</p></div><a href="?page=sales" data-page="sales">${isAdmin ? 'Review orders' : 'View all'}</a></div>${table(isAdmin ? ['Order', 'Buyer', 'Items', 'Total', 'Payment / delivery'] : ['Order', 'Buyer', 'Total', 'Status'], orderRows, 'No orders have been placed.')}</article>
             <article class="dashboard-table-card"><div class="dashboard-card-heading"><div><h2>Recent harvests</h2><p>Latest recorded harvests</p></div><a href="?page=harvests" data-page="harvests">View all</a></div><ul class="recent-harvest-list">${harvestRows.length ? harvestRows.join('') : '<li class="muted">No harvest records yet.</li>'}</ul></article>
         </section>`;
-    drawDashboardChart('sales-chart', chartDays.map((item) => item.label), salesValues, '#218653');
-    drawDashboardChart('harvest-chart', chartDays.map((item) => item.label), harvestValues, '#76a85b');
+    if (isAdmin) {
+        app.insertAdjacentHTML('beforeend', `
+            <section class="dashboard-table-card dashboard-inventory-updates">
+                <div class="dashboard-card-heading"><div><h2>Recent inventory updates</h2><p>Latest recorded stock quantities</p></div><a href="?page=inventory" data-page="inventory">View inventory</a></div>
+                ${table(['Vegetable', 'Available', 'Last updated'], recentInventoryRows, 'Inventory updates will appear here.')}
+            </section>
+            <section class="dashboard-table-card dashboard-activity-card">
+                <div class="dashboard-card-heading"><div><h2>Recent activity</h2><p>Latest changes made across the farm</p></div><a href="?page=activity" data-page="activity">View activity log</a></div>
+                <ul class="dashboard-activity-list">${activityRowsHtml.length ? activityRowsHtml.join('') : '<li class="muted">Activity will appear here as the team works.</li>'}</ul>
+            </section>`);
+    }
+    if (salesValues.some((value) => value > 0)) drawDashboardChart('sales-chart', chartDays.map((item) => item.label), salesValues, '#218653');
+    if (harvestValues.some((value) => value > 0)) drawDashboardChart('harvest-chart', chartDays.map((item) => item.label), harvestValues, '#76a85b');
+    if (inventoryTotal > 0) drawDashboardDoughnut('inventory-chart', inventoryRows.map((item) => item.quantity));
+    if (inventoryRows.length) drawDashboardChart('stock-chart', inventoryRows.slice(0, 7).map((item) => `${item.name} (${item.unit})`), inventoryRows.slice(0, 7).map((item) => item.quantity), '#218653');
+    if (topSelling.length) drawDashboardChart('top-selling-chart', topSelling.map((item) => `${item.name} (${item.unit})`), topSelling.map((item) => item.quantity), '#76a85b');
 }
 
 function renderShop(products) {
@@ -1280,6 +1527,16 @@ async function handleSubmit(form) {
     }
     const values = readForm(form);
     const formName = form.dataset.form;
+    if (formName === 'dashboard-period') {
+        const period = Number(values.period);
+        if (![7, 30, 90].includes(period)) throw new Error('Choose a chart period of 7, 30, or 90 days.');
+        const url = new URL(location.href);
+        url.searchParams.set('page', 'dashboard');
+        url.searchParams.set('period', String(period));
+        history.pushState({}, '', url);
+        state.page = 'dashboard';
+        return await renderPage();
+    }
     if (formName === 'login') {
         const { error } = await state.supabase.auth.signInWithPassword({
             email: values.email.trim(),
