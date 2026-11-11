@@ -379,7 +379,7 @@ function renderAuth(page) {
                 <h1>Fresh Harvest,<br>Fresh Choices.</h1>
                 <p>Discover fresh vegetables and farm products, grown with care and brought to your table.</p>
             </div></div>
-            <div class="auth-form-panel">${form}<a class="auth-home-link" href="/" data-page="home">← Back to home</a></div>
+            <div class="auth-form-panel">${form}</div>
         </section>`;
 }
 
