@@ -159,12 +159,21 @@ function updateNavigation() {
     const menu = document.querySelector('#account-menu');
     const guest = document.querySelector('#guest-navigation');
     const nav = document.querySelector('#primary-navigation');
+    const header = document.querySelector('.site-header');
+    const navToggle = document.querySelector('[data-nav-toggle]');
+    const isOperationsUser = Boolean(state.session && state.profile && isFarmStaffRole(state.profile.role));
+    document.body.classList.toggle('operations-layout', isOperationsUser);
+    header.classList.toggle('operations-sidebar', isOperationsUser);
+    if (!isOperationsUser) document.body.classList.remove('sidebar-collapsed');
+    nav.setAttribute('aria-label', isOperationsUser ? 'Farm operations' : 'Main navigation');
     if (!state.session || !state.profile) {
         menu.hidden = true;
         guest.hidden = false;
         nav.innerHTML = state.page === 'home'
             ? '<a href="#home">Home</a><a href="#about">About</a><a href="#featured">Produce</a><a href="#why-harvest">Why Harvest</a><a href="#farming-process">Our process</a><a href="#contact">Contact</a>'
             : '<a href="/" data-page="home">Home</a>';
+        navToggle.setAttribute('aria-expanded', 'false');
+        navToggle.setAttribute('aria-label', 'Open navigation');
         return;
     }
     menu.hidden = false;
@@ -176,29 +185,46 @@ function updateNavigation() {
     document.querySelector('#account-email').textContent = state.profile.email;
     document.querySelector('#account-dropdown-role').textContent = state.profile.role;
 
-    const links = state.profile.role === 'buyer'
-        ? [
+    if (isOperationsUser) {
+        const links = [
+            ['dashboard', '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>', 'Dashboard'],
+            ['vegetables', '<path d="M20 4c-7 0-13 3-13 9a5 5 0 0 0 5 5c6 0 8-7 8-14Z"/><path d="M4 21c3-5 7-8 12-11"/>', 'Vegetables'],
+            ['plantings', '<path d="M12 22v-8"/><path d="M12 14c-4 0-7-2-7-6 4 0 7 2 7 6Z"/><path d="M12 11c0-4 3-7 7-7 0 4-3 7-7 7Z"/>', 'Plantings'],
+            ['harvests', '<path d="M12 22V8"/><path d="M12 13 7 9"/><path d="m12 17 6-5"/><path d="M7 9c-2-2-2-4-1-6 3 1 4 3 4 6"/><path d="M18 12c2-2 2-4 1-6-3 1-4 3-4 6"/>', 'Harvests'],
+            ['inventory', '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 8 9 5 9-5"/><path d="M3 8v9l9 5 9-5V8"/><path d="M12 13v9"/>', 'Inventory'],
+            ['sales', '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 7H6"/>', 'Sales'],
+            ['quality', '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>', 'Quality'],
+            ['reports', '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>', 'Reports'],
+            ...(state.profile.role === 'admin' ? [['activity', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', 'Activity']] : []),
+        ];
+        nav.innerHTML = links.map(([page, icon, label]) => `
+            <a class="nav-link ${state.page === page ? 'active' : ''}" href="?page=${page}" data-page="${page}" title="${label}" ${state.page === page ? 'aria-current="page"' : ''}>
+                <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></span>
+                <span class="nav-link-label">${label}</span>
+            </a>
+        `).join('');
+    } else {
+        const links = [
             ['dashboard', '▦', 'Dashboard'],
             ['shop', '⌂', 'Shop'],
             ['orders', '▤', 'My orders'],
             ['cart', '▱', `Cart <span class="app-cart-count">${cartCount()}</span>`],
-        ]
-        : [
-            ['dashboard', '▦', 'Dashboard'],
-            ['vegetables', '◉', 'Vegetables'],
-            ['plantings', '♧', 'Plantings'],
-            ['harvests', '⌁', 'Harvests'],
-            ['inventory', '▤', 'Inventory'],
-            ['sales', '↗', 'Sales'],
-            ['quality', '✓', 'Quality'],
-            ['reports', '▥', 'Reports'],
-            ...(state.profile.role === 'admin' ? [['activity', '◷', 'Activity']] : []),
         ];
-    nav.innerHTML = links.map(([page, icon, label]) => `
-        <a class="${state.page === page ? 'active' : ''}" href="?page=${page}" data-page="${page}">
-            <span class="nav-icon" aria-hidden="true">${icon}</span>${label}
-        </a>
-    `).join('');
+        nav.innerHTML = links.map(([page, icon, label]) => `
+            <a class="${state.page === page ? 'active' : ''}" href="?page=${page}" data-page="${page}" ${state.page === page ? 'aria-current="page"' : ''}>
+                <span class="nav-icon" aria-hidden="true">${icon}</span>${label}
+            </a>
+        `).join('');
+    }
+
+    const isMobile = window.matchMedia(isOperationsUser ? '(max-width: 900px)' : '(max-width: 1180px)').matches;
+    const isCollapsed = isOperationsUser && document.body.classList.contains('sidebar-collapsed');
+    navToggle.setAttribute('aria-expanded', String(isOperationsUser && !isMobile && !isCollapsed));
+    navToggle.setAttribute('aria-label', isMobile
+        ? 'Open navigation'
+        : isOperationsUser
+            ? (isCollapsed ? 'Expand navigation' : 'Collapse navigation')
+            : 'Open navigation');
 }
 
 function go(page, replace = false) {
@@ -2014,9 +2040,57 @@ document.addEventListener('change', async (event) => {
 document.querySelector('[data-nav-toggle]').addEventListener('click', (event) => {
     const button = event.currentTarget;
     const nav = document.querySelector('#primary-navigation');
+    const isOperationsUser = document.body.classList.contains('operations-layout');
+    if (isOperationsUser && window.matchMedia('(min-width: 901px)').matches) {
+        const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+        button.setAttribute('aria-expanded', String(!isCollapsed));
+        button.setAttribute('aria-label', isCollapsed ? 'Expand navigation' : 'Collapse navigation');
+        return;
+    }
+
+    const isMobile = window.matchMedia(isOperationsUser ? '(max-width: 900px)' : '(max-width: 1180px)').matches;
+    if (!isMobile) return;
     const open = nav.classList.toggle('is-open');
     button.setAttribute('aria-expanded', String(open));
     button.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+});
+
+window.matchMedia('(max-width: 900px)').addEventListener('change', (event) => {
+    const nav = document.querySelector('#primary-navigation');
+    const button = document.querySelector('[data-nav-toggle]');
+    nav.classList.remove('is-open');
+    if (document.body.classList.contains('operations-layout')) {
+        document.body.classList.remove('sidebar-collapsed');
+    }
+    const expanded = document.body.classList.contains('operations-layout') && !event.matches;
+    button.setAttribute('aria-expanded', String(expanded));
+    button.setAttribute('aria-label', event.matches
+        ? 'Open navigation'
+        : expanded
+            ? 'Collapse navigation'
+            : 'Open navigation');
+});
+
+document.querySelector('#primary-navigation').addEventListener('click', (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest('a')) return;
+    const isOperationsUser = document.body.classList.contains('operations-layout');
+    const isMobile = window.matchMedia(isOperationsUser ? '(max-width: 900px)' : '(max-width: 1180px)').matches;
+    if (!isMobile) return;
+    document.querySelector('#primary-navigation').classList.remove('is-open');
+    const button = document.querySelector('[data-nav-toggle]');
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-label', 'Open navigation');
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const nav = document.querySelector('#primary-navigation');
+    if (!nav.classList.contains('is-open')) return;
+    nav.classList.remove('is-open');
+    const button = document.querySelector('[data-nav-toggle]');
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-label', 'Open navigation');
+    button.focus();
 });
 
 document.querySelector('#logout-button').addEventListener('click', async () => {

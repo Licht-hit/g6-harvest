@@ -1078,6 +1078,369 @@
     }
 }
 
+body.operations-layout {
+    --green: #176b4d;
+    --green-dark: #193b32;
+    --green-light: #e8f3ec;
+    --ink: #193b32;
+    --muted: #7a8982;
+    --line: #e4ebe5;
+    --surface: #fff;
+    --background: #f7f9f5;
+    background: var(--background);
+}
+
+.operations-layout .site-header.operations-sidebar {
+    position: fixed;
+    z-index: 30;
+    inset: 0 auto 0 0;
+    display: flex;
+    width: 256px;
+    height: 100vh;
+    min-height: 100vh;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1.4rem;
+    padding: 1.25rem 1rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: #fff;
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+    box-shadow: 8px 0 28px #193b3208;
+    backdrop-filter: none;
+    transition: width .2s ease;
+}
+
+.operations-sidebar .brand {
+    align-self: flex-start;
+    margin: .15rem 0 .4rem .3rem;
+}
+
+.operations-sidebar .nav-toggle {
+    position: absolute;
+    top: 1.15rem;
+    right: .8rem;
+    display: grid;
+    place-content: center;
+    margin: 0;
+    background: transparent;
+    border: 1px solid transparent;
+}
+
+.operations-sidebar .nav-toggle:hover {
+    background: var(--green-light);
+}
+
+.operations-sidebar .main-nav {
+    display: flex;
+    width: 100%;
+    min-height: 0;
+    align-items: stretch;
+    flex: 1;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: .25rem;
+    padding: .3rem 0;
+}
+
+.operations-sidebar .main-nav::before {
+    margin: 0 0 .45rem .7rem;
+    color: var(--muted);
+    content: "FARM MANAGEMENT";
+    font-size: .66rem;
+    font-weight: 750;
+    letter-spacing: .12em;
+}
+
+.operations-sidebar .main-nav a {
+    min-height: 44px;
+    gap: .75rem;
+    padding: .65rem .75rem;
+    color: #53665e;
+    border-radius: 10px;
+    font-size: .88rem;
+}
+
+.operations-sidebar .main-nav a:hover,
+.operations-sidebar .main-nav a.active {
+    color: var(--green-dark);
+    background: #eaf4ed;
+}
+
+.operations-sidebar .main-nav a.active {
+    box-shadow: inset 3px 0 #25845e;
+}
+
+.operations-sidebar .nav-icon {
+    display: inline-grid;
+    width: 1.35rem;
+    flex: 0 0 1.35rem;
+    place-items: center;
+    color: var(--green);
+    font-size: 1rem;
+}
+
+.operations-sidebar .nav-icon svg {
+    display: block;
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.operations-sidebar .account-menu {
+    margin-top: auto;
+    padding-top: .75rem;
+    border-top: 1px solid var(--line);
+}
+
+.operations-sidebar .account-menu[open] {
+    z-index: 40;
+}
+
+.operations-sidebar .account-dropdown {
+    position: fixed;
+    top: auto;
+    right: auto;
+    bottom: 1rem;
+    left: calc(256px + .75rem);
+    z-index: 40;
+    width: min(280px, calc(100vw - 280px - 2rem));
+}
+
+.operations-sidebar .account-menu summary {
+    min-height: 48px;
+    padding: .35rem;
+}
+
+.operations-sidebar .account-copy {
+    max-width: 150px;
+}
+
+body.operations-layout.sidebar-collapsed .site-header.operations-sidebar {
+    width: 80px;
+    align-items: center;
+    padding-right: .55rem;
+    padding-left: .55rem;
+}
+
+body.operations-layout.sidebar-collapsed .operations-sidebar .brand {
+    align-self: center;
+    margin-right: 0;
+    margin-left: 0;
+}
+
+body.operations-layout.sidebar-collapsed .operations-sidebar .brand > span:last-child,
+body.operations-layout.sidebar-collapsed .operations-sidebar .nav-link-label,
+body.operations-layout.sidebar-collapsed .operations-sidebar .main-nav::before,
+body.operations-layout.sidebar-collapsed .operations-sidebar .account-copy,
+body.operations-layout.sidebar-collapsed .operations-sidebar .account-chevron {
+    display: none;
+}
+
+body.operations-layout.sidebar-collapsed .operations-sidebar .nav-toggle {
+    top: 4.1rem;
+    right: 1.15rem;
+}
+
+body.operations-layout.sidebar-collapsed .operations-sidebar .main-nav {
+    align-items: center;
+    padding-top: 2rem;
+}
+
+body.operations-layout.sidebar-collapsed .operations-sidebar .main-nav a {
+    width: 48px;
+    justify-content: center;
+    padding: .65rem;
+}
+
+body.operations-layout.sidebar-collapsed .operations-sidebar .account-menu summary {
+    justify-content: center;
+}
+
+body.operations-layout.sidebar-collapsed .operations-sidebar .account-dropdown {
+    left: calc(80px + .75rem);
+    width: min(280px, calc(100vw - 104px));
+}
+
+.operations-layout > main.container {
+    width: auto;
+    max-width: 1600px;
+    min-height: calc(100vh - 76px);
+    margin: 0 2.5rem 0 288px;
+    padding: 2rem 0 1.5rem;
+}
+
+.operations-layout > .site-footer {
+    margin-left: 256px;
+    padding: 1rem 2rem;
+    background: transparent;
+    border-top: 1px solid var(--line);
+}
+
+body.operations-layout.sidebar-collapsed > main.container {
+    margin-left: 108px;
+}
+
+body.operations-layout.sidebar-collapsed > .site-footer {
+    margin-left: 80px;
+}
+
+@media (max-width: 1100px) and (min-width: 901px) {
+    .operations-layout .dashboard-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .operations-layout .dashboard-bottom-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .operations-layout .site-header.operations-sidebar {
+        position: sticky;
+        inset: auto;
+        display: flex;
+        width: 100%;
+        height: auto;
+        min-height: 66px;
+        align-items: center;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: .65rem;
+        padding: .55rem 1rem;
+        overflow: visible;
+        background: #fff;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        box-shadow: 0 4px 16px #193b3208;
+    }
+
+    .operations-sidebar .brand {
+        align-self: center;
+        margin: 0;
+    }
+
+    .operations-sidebar .nav-toggle {
+        position: static;
+        order: 2;
+        display: grid;
+        margin-left: auto;
+    }
+
+    .operations-sidebar .main-nav {
+        display: none;
+        order: 4;
+        flex: 0 0 100%;
+        align-items: stretch;
+        gap: .2rem;
+        padding: .3rem 0 .4rem;
+    }
+
+    .operations-sidebar .main-nav.is-open {
+        display: flex;
+    }
+
+    .operations-sidebar .main-nav::before {
+        margin-top: .4rem;
+    }
+
+    .operations-sidebar .main-nav a {
+        width: auto;
+        justify-content: flex-start;
+    }
+
+    .operations-sidebar .nav-link-label,
+    .operations-sidebar .account-copy,
+    .operations-sidebar .account-chevron {
+        display: initial;
+    }
+
+    .operations-sidebar .account-menu {
+        position: static;
+        order: 3;
+        margin: 0;
+        padding: 0;
+        border: 0;
+    }
+
+    .operations-sidebar .account-dropdown {
+        position: absolute;
+        top: calc(100% + .65rem);
+        right: .75rem;
+        bottom: auto;
+        left: auto;
+        width: min(280px, calc(100vw - 2rem));
+    }
+
+    .operations-sidebar .account-menu summary {
+        justify-content: flex-start;
+    }
+
+    .operations-layout > main.container {
+        width: min(100% - 2rem, 1600px);
+        min-height: calc(100vh - 140px);
+        margin: 0 auto;
+        padding: 1.5rem 0;
+    }
+
+    .operations-layout > .site-footer {
+        margin-left: 0;
+        padding: 1rem;
+    }
+
+    .operations-layout .dashboard-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .operations-layout .dashboard-chart-grid,
+    .operations-layout .dashboard-bottom-grid {
+        grid-template-columns: 1fr;
+    }
+
+    body.operations-layout.sidebar-collapsed .site-header.operations-sidebar {
+        width: 100%;
+        align-items: center;
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+
+    body.operations-layout.sidebar-collapsed .operations-sidebar .brand {
+        align-self: center;
+        margin: 0;
+    }
+
+    body.operations-layout.sidebar-collapsed .operations-sidebar .brand > span:last-child,
+    body.operations-layout.sidebar-collapsed .operations-sidebar .nav-link-label,
+    body.operations-layout.sidebar-collapsed .operations-sidebar .account-copy,
+    body.operations-layout.sidebar-collapsed .operations-sidebar .account-chevron {
+        display: initial;
+    }
+
+    body.operations-layout.sidebar-collapsed .operations-sidebar .nav-toggle {
+        top: auto;
+        right: auto;
+    }
+
+    body.operations-layout.sidebar-collapsed .operations-sidebar .main-nav {
+        align-items: stretch;
+        padding-top: .3rem;
+    }
+
+    body.operations-layout.sidebar-collapsed .operations-sidebar .main-nav a {
+        width: auto;
+        justify-content: flex-start;
+    }
+
+    body.operations-layout.sidebar-collapsed > main.container {
+        width: min(100% - 2rem, 1600px);
+        margin: 0 auto;
+    }
+
+    body.operations-layout.sidebar-collapsed > .site-footer {
+        margin-left: 0;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .landing-hero-copy,
     .landing-photo-grid,
