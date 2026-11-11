@@ -5,6 +5,10 @@ import { isFarmStaffRole } from '../../src/roles.js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const configuredContactEmail = import.meta.env.VITE_CONTACT_EMAIL?.trim() || '';
+const contactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(configuredContactEmail)
+    ? configuredContactEmail
+    : '';
 const app = document.querySelector('#app');
 const notice = document.querySelector('#app-notice');
 const cartStorageKey = 'harvest-cart-v1';
@@ -144,7 +148,7 @@ function updateNavigation() {
         menu.hidden = true;
         guest.hidden = false;
         nav.innerHTML = state.page === 'home'
-            ? '<a href="#home">Home</a><a href="#featured">Produce</a><a href="#about">Our story</a><a href="#why-harvest">Why Harvest</a>'
+            ? '<a href="#home">Home</a><a href="#about">About</a><a href="#featured">Produce</a><a href="#why-harvest">Why Harvest</a><a href="#farming-process">Our process</a><a href="#contact">Contact</a>'
             : '<a href="/" data-page="home">Home</a>';
         return;
     }
@@ -572,16 +576,48 @@ function renderLanding(products, catalogUnavailable = false) {
             <section class="landing-story" id="about" aria-labelledby="landing-story-title">
                 <div class="landing-story-image">${productPicture('Kale')}</div>
                 <div class="landing-story-copy">
-                    <p class="landing-eyebrow">Our farm</p>
-                    <h2 id="landing-story-title">Fresh choices, thoughtfully grown.</h2>
-                    <p>Harvest connects farm operations with a live produce shop. Browse fresh picks, learn about each item, and bring a little more goodness to your table.</p>
-                    <a class="landing-secondary-link" href="#featured">Explore the current harvest <span aria-hidden="true">↗</span></a>
+                    <p class="landing-eyebrow">A closer connection to the farm</p>
+                    <h2 id="landing-story-title">Farm to <em>your table.</em></h2>
+                    <p>Harvest brings farm operations and produce ordering together. Staff can record plantings and harvests, track inventory, and share current availability with shoppers.</p>
+                    <p>Customers can explore real catalog details, save favorite produce, and manage orders through their own account.</p>
+                    <a class="landing-secondary-link" href="#farming-process">See how Harvest works <span aria-hidden="true">→</span></a>
                 </div>
             </section>
-            <section class="landing-cta" id="why-harvest">
-                <p class="landing-eyebrow">From our farm to your table</p>
-                <h2>Find your next fresh favorite.</h2>
-                <a class="button" href="?page=register" data-page="register">Create your account <span aria-hidden="true">→</span></a>
+            <section class="landing-section landing-why" id="why-harvest" aria-labelledby="landing-why-title">
+                <div class="landing-section-heading">
+                    <div><p class="landing-eyebrow">The Harvest difference</p><h2 id="landing-why-title">Farm details, made easier to find.</h2></div>
+                    <p>A connected view of produce, availability, and ordering.</p>
+                </div>
+                <div class="landing-feature-grid">
+                    <article class="landing-feature-card"><span aria-hidden="true">🌱</span><h3>Current catalog</h3><p>Explore active produce and see the prices and units listed by the farm.</p></article>
+                    <article class="landing-feature-card"><span aria-hidden="true">📦</span><h3>Clear availability</h3><p>Check current inventory before choosing what to order.</p></article>
+                    <article class="landing-feature-card"><span aria-hidden="true">♡</span><h3>Favorites that stay yours</h3><p>Save produce to your buyer account and find your regular picks again.</p></article>
+                    <article class="landing-feature-card"><span aria-hidden="true">🧺</span><h3>Order management</h3><p>Place orders through your account and keep track of their status.</p></article>
+                </div>
+            </section>
+            <section class="landing-section landing-process" id="farming-process" aria-labelledby="landing-process-title">
+                <div class="landing-section-heading">
+                    <div><p class="landing-eyebrow">From farm records to fresh picks</p><h2 id="landing-process-title">Connected at every step.</h2></div>
+                    <p>Harvest brings farm records and the customer shop into one place.</p>
+                </div>
+                <ol class="landing-process-grid">
+                    <li><span>01</span><h3>Plan</h3><p>Staff record what is planted and when it is expected to grow.</p></li>
+                    <li><span>02</span><h3>Harvest</h3><p>Harvest records keep quantities and dates together.</p></li>
+                    <li><span>03</span><h3>Track</h3><p>Inventory shows the produce currently listed as available.</p></li>
+                    <li><span>04</span><h3>Choose</h3><p>Customers browse the catalog and place orders from their account.</p></li>
+                </ol>
+            </section>
+            <section class="landing-contact" id="contact" aria-labelledby="landing-contact-title">
+                <div>
+                    <p class="landing-eyebrow">We're here to help</p>
+                    <h2 id="landing-contact-title">Questions about your next order?</h2>
+                    <p>Sign in to manage an order, or create a buyer account to start browsing and save produce you love.</p>
+                </div>
+                <div class="landing-contact-actions">
+                    ${contactEmail ? `<a class="landing-contact-email" href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''}
+                    <a class="button" href="?page=register" data-page="register">Create a buyer account <span aria-hidden="true">→</span></a>
+                    <a class="landing-secondary-link" href="?page=login" data-page="login">Already have an account? Log in</a>
+                </div>
             </section>
         </div>`;
 }

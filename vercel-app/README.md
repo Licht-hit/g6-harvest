@@ -26,9 +26,11 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 2. In **SQL Editor**, run `supabase/migrations/001_initial_schema.sql` exactly once. It creates the tables and app functions.
 3. Then run `supabase/migrations/002_roles_and_payment_safety.sql`. It adds the farmer role and safer payment-event handling. It is safe to run again.
 4. Run `supabase/migrations/003_public_catalog.sql` to let signed-out visitors read active vegetables on the landing page. Row-level security keeps inactive vegetables and inventory private.
-    - If migration 001 finished successfully before, run any required later migrations only. Apply migration 003 to enable the public catalog.
+5. Run `supabase/migrations/004_vegetable_category.sql` to add the product category field used by the catalog. It is safe to run on existing projects and defaults existing products to `Other`.
+6. Run `supabase/migrations/005_seed_catalog.sql` to add the ten sample products to an empty catalog. Existing products with the same names are left unchanged; no inventory is added.
+    - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004 and 005.
    - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
-   - If migration 001 finished successfully before, run migration 002 only.
+   - Do not rerun migrations that have already been applied.
    - If you are unsure whether migration 001 finished, check that the core tables exist with this query:
 
      ```sql
@@ -46,7 +48,7 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 4. In **Authentication → URL Configuration**, set the Site URL to your Vercel deployment URL and allow its callback URL. Repeat with your production domain when you add one.
 5. Configure Supabase Auth email delivery and enable email confirmation. Supabase sends verification and password-reset links; the PHP SMTP configuration is not used.
 
-The schema intentionally starts empty. It does not insert example products or user accounts.
+The schema does not insert user accounts. Migration 005 adds the ten sample products shown in the original MySQL schema, but does not add inventory; set stock quantities from the farm dashboard before accepting orders.
 
 ### 2. Install and deploy the converted folder
 
@@ -67,6 +69,7 @@ The schema intentionally starts empty. It does not insert example products or us
 | `SUPABASE_ANON_KEY` | The same Supabase **anon/public** or **publishable** key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase **service_role secret** key. Keep it private; do not add `VITE_` to this name. |
 | `APP_URL` | Your deployed Vercel address, for example `https://your-project.vercel.app` |
+| `VITE_CONTACT_EMAIL` (optional) | Public email address to show in the homepage Contact section. |
 
 Add these only if you are turning on online payments:
 
