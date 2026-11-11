@@ -11,8 +11,6 @@ const contactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(configuredContactEmail)
     : '';
 const app = document.querySelector('#app');
 const notice = document.querySelector('#app-notice');
-let revealObserver;
-let featuredCarouselResizeObserver;
 const cartStorageKey = 'harvest-cart-v1';
 const imageByName = {
     tomato: 'tomato.webp',
@@ -161,53 +159,11 @@ function updateNavigation() {
     const menu = document.querySelector('#account-menu');
     const guest = document.querySelector('#guest-navigation');
     const nav = document.querySelector('#primary-navigation');
-    const publicHome = state.page === 'home' && (!state.session || !state.profile);
-    nav.classList.remove('is-open');
-    document.querySelector('[data-nav-toggle]').setAttribute('aria-expanded', 'false');
-    document.querySelector('[data-nav-toggle]').setAttribute('aria-label', 'Open navigation');
-    document.body.classList.toggle('public-home-page', publicHome);
-    document.querySelector('.site-header').classList.toggle('public-site-header', publicHome);
-    nav.classList.toggle('public-main-nav', publicHome);
-    document.querySelector('[data-nav-toggle]').classList.toggle('public-nav-toggle', publicHome);
-    guest.classList.toggle('public-header-actions', publicHome);
-    const footer = document.querySelector('#site-footer');
-    footer.classList.toggle('public-footer', publicHome);
-    guest.querySelectorAll('a').forEach((link, index) => {
-        link.classList.toggle('public-header-login', publicHome && index === 0);
-        link.classList.toggle('public-header-register', publicHome && index === 1);
-    });
-    if (publicHome) {
-        footer.innerHTML = `
-            <div class="public-footer-main">
-                <div class="public-footer-brand">
-                    <a class="brand" href="/" aria-label="Harvest home" data-page="home">
-                        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M25.8 5.2C16 5.5 8.3 8.8 8.3 17.1c0 3.2 2.2 5.4 5.1 5.4 8.8 0 11.6-8.8 12.4-17.3Z" fill="currentColor"/><path d="M5.2 27c4.6-7.5 9.2-11 16.3-15.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
-                        <span>Harvest<span class="brand-period">.</span></span>
-                    </a>
-                    <p>A farm operations and produce shop connecting planting, inventory, and customer orders.</p>
-                </div>
-                <nav class="public-footer-links" aria-label="Footer navigation">
-                    <strong>Explore</strong>
-                    <a href="#featured">Featured produce</a>
-                    <a href="#about">About Harvest</a>
-                    <a href="#farming-process">How it works</a>
-                </nav>
-                <nav class="public-footer-links" aria-label="Account links">
-                    <strong>Your account</strong>
-                    <a href="?page=login" data-page="login">Log in</a>
-                    <a href="?page=register" data-page="register">Create account</a>
-                    ${contactEmail ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''}
-                </nav>
-            </div>
-            <div class="public-footer-bottom"><p>&copy; ${new Date().getFullYear()} Harvest. Farm operations and produce sales.</p><a href="#home">Back to top ↑</a></div>`;
-    } else {
-        footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} Harvest. Farm operations and produce sales.</p>`;
-    }
     if (!state.session || !state.profile) {
         menu.hidden = true;
         guest.hidden = false;
-        nav.innerHTML = publicHome
-            ? '<a href="#home" aria-current="page">Home</a><a href="#about">About</a><a href="#featured">Produce</a><a href="#why-harvest">Why Harvest</a><a href="#farming-process">Our process</a><a href="#contact">Contact</a>'
+        nav.innerHTML = state.page === 'home'
+            ? '<a href="#home">Home</a><a href="#about">About</a><a href="#featured">Produce</a><a href="#why-harvest">Why Harvest</a><a href="#farming-process">Our process</a><a href="#contact">Contact</a>'
             : '<a href="/" data-page="home">Home</a>';
         return;
     }
@@ -453,12 +409,11 @@ async function getProducts(activeOnly = false) {
 }
 
 async function getPublicProducts() {
-    return queryOrThrow(state.supabase.rpc('get_public_featured_products'));
-}
-
-async function getPublicHomeStats() {
-    const rows = await queryOrThrow(state.supabase.rpc('get_public_home_stats'));
-    return rows[0] || null;
+    return queryOrThrow(state.supabase.from('vegetables')
+        .select('id, name, category, variety, description, unit, price')
+        .eq('active', true)
+        .order('name')
+        .limit(6));
 }
 
 async function loadProfile(user) {
@@ -577,18 +532,6 @@ async function renderDashboard() {
                 <div class="app-dashboard-links"><a href="?page=shop" data-page="shop">Browse fresh produce →</a><a href="?page=cart" data-page="cart">View your cart (${cartCount()}) →</a><a href="?page=orders" data-page="orders">Track your orders →</a></div>
             </section>
             <section class="panel section"><h2>Recent orders</h2>${table(['Order', 'Total', 'Delivery', 'Payment'], rows, 'You have not placed any orders yet.')}</section>`;
-        return;
-    }
-
-    const productsDirection = target.closest('[data-products-direction]');
-    if (productsDirection) {
-        const track = app.querySelector('.public-product-track');
-        if (track) {
-            track.scrollBy({
-                left: Number(productsDirection.dataset.productsDirection) * track.clientWidth * 0.85,
-                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-            });
-        }
         return;
     }
 
@@ -745,42 +688,105 @@ async function renderDashboard() {
         </span><time datetime="${escapeHtml(row.created_at)}">${dateTimeLabel(row.created_at)}</time>
     </li>`);
     const inventoryTotal = inventoryRows.reduce((sum, row) => sum + row.quantity, 0);
+    const dashboardDate = new Date(`${today}T00:00:00`).toLocaleDateString('en-PH', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+    const summaryCards = isAdmin
+        ? `
+            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">◉</span><span class="dashboard-stat-label">Active vegetables</span><strong>${activeVegetables.length}</strong><small>Available in the catalog</small></article>
+            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Total inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Combined quantity across catalog units</small></article>
+            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">↗</span><span class="dashboard-stat-label">Sales today</span><strong>${money(todayRevenue)}</strong><small>Paid orders today</small><small class="dashboard-stat-trend ${salesTrend === null ? '' : salesTrend >= 0 ? 'is-positive' : 'is-negative'}">${salesTrend === null ? (currentPeriodSales > 0 ? 'Sales recorded this week' : 'No sales in the last 7 days') : `${salesTrend >= 0 ? '↑' : '↓'} ${Math.abs(salesTrend).toFixed(1)}% vs previous 7 days`}</small></article>
+            <a class="dashboard-stat-card dashboard-stat-card-link" href="?page=sales" data-page="sales" aria-label="View ${openOrderCount} open orders"><span class="dashboard-stat-icon">▱</span><span class="dashboard-stat-label">Open orders</span><strong>${openOrderCount}</strong><small>Need fulfillment</small></a>
+            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Total harvests</span><strong>${harvestCount}</strong><small>Active harvest records</small></article>
+            <a class="dashboard-stat-card dashboard-stat-card-link dashboard-stat-card-warning" href="?page=inventory" data-page="inventory" aria-label="View ${lowStockItems.length} low stock items"><span class="dashboard-stat-icon">!</span><span class="dashboard-stat-label">Low stock items</span><strong>${lowStockItems.length}</strong><small>At or below 5.00 units</small></a>`
+        : `
+            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Today's harvest</span><strong>${(harvestsByDay.get(today) || 0).toFixed(2)}</strong><small>Combined quantity; units vary by crop</small></article>
+            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Available inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Combined quantity across catalog units</small></article>
+            <a class="dashboard-stat-card dashboard-stat-card-link" href="?page=sales" data-page="sales" aria-label="Review ${openOrderCount} open orders"><span class="dashboard-stat-icon">▱</span><span class="dashboard-stat-label">Open orders</span><strong>${openOrderCount}</strong><small>Ready for staff review</small></a>`;
+    const quickActions = isAdmin
+        ? `<section class="dashboard-section dashboard-actions" aria-label="Quick actions">
+                <div><h2>Quick actions</h2><p>Shortcuts to your farm management tools.</p></div>
+                <div class="dashboard-action-links">
+                    <a class="button" href="?page=vegetables" data-page="vegetables"><span aria-hidden="true">＋</span> Add vegetable</a>
+                    <a class="button secondary" href="?page=harvests" data-page="harvests"><span aria-hidden="true">⌁</span> Record harvest</a>
+                    <a class="button secondary" href="?page=inventory" data-page="inventory"><span aria-hidden="true">▤</span> Manage inventory</a>
+                    <a class="button secondary" href="?page=sales" data-page="sales"><span aria-hidden="true">↗</span> Review orders</a>
+                    <a class="button secondary" href="?page=reports" data-page="reports"><span aria-hidden="true">▥</span> Reports</a>
+                </div>
+            </section>`
+        : `<section class="dashboard-section dashboard-actions" aria-label="Quick actions">
+                <div><h2>Quick actions</h2><p>The tools you need for today's farm work.</p></div>
+                <div class="dashboard-action-links">
+                    <a class="button" href="?page=harvests" data-page="harvests"><span aria-hidden="true">⌁</span> Record harvest</a>
+                    <a class="button secondary" href="?page=inventory" data-page="inventory"><span aria-hidden="true">▤</span> Update inventory</a>
+                    <a class="button secondary" href="?page=vegetables" data-page="vegetables"><span aria-hidden="true">◉</span> Vegetables</a>
+                    <a class="button secondary" href="?page=plantings" data-page="plantings"><span aria-hidden="true">♧</span> Plantings</a>
+                </div>
+            </section>`;
+    const salesChartCard = isAdmin
+        ? `<article class="dashboard-chart-card">
+                <div class="dashboard-card-heading"><div><h2>Sales performance</h2><p>Paid revenue · last ${chartPeriod} days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">↗</span></div>
+                ${salesValues.some((value) => value > 0)
+        ? `<div class="dashboard-canvas-wrap"><canvas id="sales-chart" class="dashboard-chart" data-chart="line" data-format="currency" aria-label="Line chart of paid sales revenue over the last ${chartPeriod} days" role="img"></canvas></div>`
+        : `<p class="empty">No paid sales in the last ${chartPeriod} days.</p>`}
+            </article>`
+        : '';
+    const inventoryChartCard = `<article class="dashboard-chart-card">
+            <div class="dashboard-card-heading"><div><h2>Inventory overview</h2><p>Available stock by vegetable</p></div><span class="dashboard-chart-symbol" aria-hidden="true">◌</span></div>
+            ${inventoryTotal > 0
+        ? `<div class="dashboard-inventory-chart"><canvas id="inventory-chart" class="dashboard-chart dashboard-doughnut" aria-label="Doughnut chart of inventory by vegetable" role="img"></canvas><ul class="dashboard-chart-legend">${inventoryRows.map((item, index) => `<li><span class="chart-legend-dot chart-color-${index % 7}" aria-hidden="true"></span>${escapeHtml(item.name)}<strong>${item.quantity.toFixed(2)} ${escapeHtml(item.unit)}</strong></li>`).join('')}</ul></div>`
+        : '<p class="empty">No inventory quantities to visualize.</p>'}
+        </article>`;
+    const harvestChartCard = `<article class="dashboard-chart-card">
+            <div class="dashboard-card-heading"><div><h2>Harvest production</h2><p>Recorded quantity · last ${chartPeriod} days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">⌁</span></div>
+            ${harvestValues.some((value) => value > 0)
+        ? `<div class="dashboard-canvas-wrap"><canvas id="harvest-chart" class="dashboard-chart" aria-label="Bar chart of harvest quantity over the last ${chartPeriod} days" role="img"></canvas></div>`
+        : `<p class="empty">No active harvests in the last ${chartPeriod} days.</p>`}
+        </article>`;
+    const stockChartCard = `<article class="dashboard-chart-card">
+            <div class="dashboard-card-heading"><div><h2>Stock comparison</h2><p>Top stocked active vegetables</p></div><span class="dashboard-chart-symbol" aria-hidden="true">▥</span></div>
+            ${inventoryRows.length
+        ? '<div class="dashboard-canvas-wrap dashboard-canvas-wrap-tall"><canvas id="stock-chart" class="dashboard-chart" data-chart="horizontal" aria-label="Horizontal bar chart comparing stock quantities by vegetable" role="img"></canvas></div>'
+        : '<p class="empty">Add vegetables to view stock comparisons.</p>'}
+        </article>`;
+    const topSellingChartCard = isAdmin
+        ? `<article class="dashboard-chart-card">
+                <div class="dashboard-card-heading"><div><h2>Top-selling vegetables</h2><p>Paid quantities · last 30 days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">↗</span></div>
+                ${topSelling.length
+        ? '<div class="dashboard-canvas-wrap dashboard-canvas-wrap-tall"><canvas id="top-selling-chart" class="dashboard-chart" data-chart="horizontal" aria-label="Horizontal bar chart of top-selling vegetables by paid quantity over the last 30 days" role="img"></canvas></div>'
+        : '<p class="empty">No paid vegetable sales in the last 30 days.</p>'}
+            </article>`
+        : '';
+    const recentPrimaryCard = isAdmin
+        ? `<article class="dashboard-table-card">
+                <div class="dashboard-card-heading"><div><h2>Recent orders</h2><p>Latest order activity</p></div><a href="?page=sales" data-page="sales">Review orders</a></div>
+                ${table(['Order', 'Buyer', 'Items', 'Total', 'Payment / delivery'], orderRows, 'Sales will appear here after the first order is placed.')}
+            </article>`
+        : `<article class="dashboard-table-card">
+                <div class="dashboard-card-heading"><div><h2>Recently updated inventory</h2><p>Latest stock updates</p></div><a href="?page=inventory" data-page="inventory">View inventory</a></div>
+                ${table(['Vegetable', 'Available', 'Last updated'], recentInventoryRows, 'Inventory updates will appear here.')}
+            </article>`;
 
     app.innerHTML = `
-        <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">${isAdmin ? 'Farm operations · Admin' : 'Daily farm operations'}</p><h1>Welcome back, ${escapeHtml(state.profile.name)}</h1><p>${isAdmin ? 'Here’s what’s happening across your farm today.' : 'Your farm activity and priorities for today.'}</p></div><div class="dashboard-date"><span aria-hidden="true">▦</span>${dateLabel(today)}</div></section>
+        <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">${isAdmin ? 'Farm operations · Admin' : 'Daily farm operations'}</p><h1>Welcome back, ${escapeHtml(state.profile.name)}</h1><p>${isAdmin ? 'Here’s what’s happening across your farm today.' : 'Your farm activity and priorities for today.'}</p></div><div class="dashboard-date"><span class="dashboard-date-icon" aria-hidden="true">▦</span>${escapeHtml(dashboardDate)}</div></section>
         <section class="dashboard-stat-grid ${isAdmin ? 'dashboard-admin-stats' : ''}" aria-label="Farm summary">
-            ${isAdmin ? `
-                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">◉</span><span class="dashboard-stat-label">Active vegetables</span><strong>${activeVegetables.length}</strong><small>Available in the catalog</small></article>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Total inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Combined quantity across catalog units</small></article>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">↗</span><span class="dashboard-stat-label">Sales today</span><strong>${money(todayRevenue)}</strong><small>Paid orders today</small><small class="dashboard-stat-trend ${salesTrend === null ? '' : salesTrend >= 0 ? 'is-positive' : 'is-negative'}">${salesTrend === null ? (currentPeriodSales > 0 ? 'Sales recorded this week' : 'No sales in the last 7 days') : `${salesTrend >= 0 ? '↑' : '↓'} ${Math.abs(salesTrend).toFixed(1)}% vs previous 7 days`}</small></article>
-                <a class="dashboard-stat-card dashboard-stat-card-link" href="?page=sales" data-page="sales"><span class="dashboard-stat-icon">▱</span><span class="dashboard-stat-label">Open orders</span><strong>${openOrderCount}</strong><small>Need fulfillment</small></a>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Total harvests</span><strong>${harvestCount}</strong><small>Active harvest records</small></article>
-                <a class="dashboard-stat-card dashboard-stat-card-link dashboard-stat-card-warning" href="?page=inventory" data-page="inventory"><span class="dashboard-stat-icon">!</span><span class="dashboard-stat-label">Low stock items</span><strong>${lowStockItems.length}</strong><small>At or below 5.00 units</small></a>
-            ` : `
-                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">◉</span><span class="dashboard-stat-label">Active vegetables</span><strong>${activeVegetables.length}</strong><small>Available in the catalog</small></article>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Total inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Across all recorded stock</small></article>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">↗</span><span class="dashboard-stat-label">Sales today</span><strong>${money(todayRevenue)}</strong><small>Paid orders today</small></article>
-                <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Total harvests</span><strong>${harvestCount}</strong><small>Active harvest records</small></article>
-            `}
+            ${summaryCards}
         </section>
-        ${lowStockItems.length ? `<section class="dashboard-alert section"><div class="dashboard-alert-heading"><span class="dashboard-alert-icon">!</span><div><h2>Stock needs attention</h2><p>${lowStockItems.length} active ${lowStockItems.length === 1 ? 'item is' : 'items are'} at or below 5.00 units.</p></div></div><div class="dashboard-alert-items">${lowStockItems.slice(0, 5).map((item) => `<a href="?page=inventory" data-page="inventory"><span>${escapeHtml(item.name)}</span><strong>${item.quantity.toFixed(2)} ${escapeHtml(item.unit)}</strong></a>`).join('')}${lowStockItems.length > 5 ? `<a class="dashboard-alert-more" href="?page=inventory" data-page="inventory">+${lowStockItems.length - 5} more</a>` : ''}</div></section>` : ''}
+        ${quickActions}
+        ${lowStockItems.length ? `<section class="dashboard-alert section" aria-labelledby="low-stock-title"><div class="dashboard-alert-heading"><span class="dashboard-alert-icon" aria-hidden="true">!</span><div><h2 id="low-stock-title">Stock needs attention</h2><p>${lowStockItems.length} active ${lowStockItems.length === 1 ? 'item is' : 'items are'} at or below 5.00 units.</p></div></div><div class="dashboard-alert-items">${lowStockItems.slice(0, 5).map((item) => `<a href="?page=inventory" data-page="inventory"><span>${escapeHtml(item.name)}</span><strong>${item.quantity.toFixed(2)} ${escapeHtml(item.unit)}</strong></a>`).join('')}${lowStockItems.length > 5 ? `<a class="dashboard-alert-more" href="?page=inventory" data-page="inventory">+${lowStockItems.length - 5} more</a>` : ''}</div></section>` : ''}
         <section class="dashboard-chart-grid" aria-label="Farm performance charts">
             ${isAdmin ? `<form class="dashboard-chart-period" data-form="dashboard-period"><label for="dashboard-period">Chart period</label><select id="dashboard-period" name="period">${[7, 30, 90].map((period) => `<option value="${period}" ${chartPeriod === period ? 'selected' : ''}>Last ${period} days</option>`).join('')}</select><button class="button secondary" type="submit">Update charts</button></form>` : ''}
-            <article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Sales performance</h2><p>Paid revenue · last ${chartPeriod} days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">↗</span></div>${salesValues.some((value) => value > 0) ? `<div class="dashboard-canvas-wrap"><canvas id="sales-chart" class="dashboard-chart" data-chart="${isAdmin ? 'line' : 'bar'}" data-format="currency" aria-label="Paid revenue for the last ${chartPeriod} days" role="img"></canvas></div>` : `<p class="empty">No paid sales in the last ${chartPeriod} days.</p>`}</article>
-            ${isAdmin ? `<article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Inventory overview</h2><p>Available stock by vegetable</p></div><span class="dashboard-chart-symbol" aria-hidden="true">◌</span></div>${inventoryTotal > 0 ? `<div class="dashboard-inventory-chart"><canvas id="inventory-chart" class="dashboard-chart dashboard-doughnut" aria-label="Doughnut chart of inventory by vegetable" role="img"></canvas><ul class="dashboard-chart-legend">${inventoryRows.map((item, index) => `<li><span class="chart-legend-dot chart-color-${index % 7}" aria-hidden="true"></span>${escapeHtml(item.name)}<strong>${item.quantity.toFixed(2)} ${escapeHtml(item.unit)}</strong></li>`).join('')}</ul></div>` : '<p class="empty">No inventory quantities to visualize.</p>'}</article>` : ''}
-            <article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Harvest production</h2><p>Recorded quantity · last ${chartPeriod} days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">⌁</span></div>${harvestValues.some((value) => value > 0) ? `<div class="dashboard-canvas-wrap"><canvas id="harvest-chart" class="dashboard-chart" aria-label="Harvest quantity over the last ${chartPeriod} days" role="img"></canvas></div>` : `<p class="empty">No active harvests in the last ${chartPeriod} days.</p>`}</article>
-            ${isAdmin ? `<article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Stock comparison</h2><p>Top stocked active vegetables</p></div><span class="dashboard-chart-symbol" aria-hidden="true">▥</span></div>${inventoryRows.length ? `<div class="dashboard-canvas-wrap dashboard-canvas-wrap-tall"><canvas id="stock-chart" class="dashboard-chart" data-chart="horizontal" aria-label="Stock quantities by vegetable" role="img"></canvas></div>` : '<p class="empty">Add vegetables to view stock comparisons.</p>'}</article>` : ''}
-            ${isAdmin ? `<article class="dashboard-chart-card"><div class="dashboard-card-heading"><div><h2>Top-selling vegetables</h2><p>Paid quantities · last 30 days</p></div><span class="dashboard-chart-symbol" aria-hidden="true">↗</span></div>${topSelling.length ? `<div class="dashboard-canvas-wrap dashboard-canvas-wrap-tall"><canvas id="top-selling-chart" class="dashboard-chart" data-chart="horizontal" aria-label="Top-selling vegetables by paid quantity over the last 30 days" role="img"></canvas></div>` : '<p class="empty">No paid vegetable sales in the last 30 days.</p>'}</article>` : ''}
+            ${salesChartCard}
+            ${inventoryChartCard}
+            ${harvestChartCard}
+            ${stockChartCard}
+            ${topSellingChartCard}
         </section>
-        ${isAdmin
-        ? `<section class="dashboard-section dashboard-actions"><div><h2>Quick actions</h2><p>Shortcuts to your farm management tools.</p></div><div class="dashboard-action-links">
-                <a class="button" href="?page=vegetables" data-page="vegetables">＋ Add vegetable</a><a class="button secondary" href="?page=harvests" data-page="harvests">⌁ Record harvest</a><a class="button secondary" href="?page=inventory" data-page="inventory">▤ Manage inventory</a><a class="button secondary" href="?page=sales" data-page="sales">↗ Review orders</a><a class="button secondary" href="?page=reports" data-page="reports">▥ Reports</a>
-            </div></section>`
-        : `<section class="panel section"><h2>Quick actions</h2><p class="muted">Jump into your day-to-day farm tasks.</p><div class="app-dashboard-links">
-                <a href="?page=vegetables" data-page="vegetables">Manage vegetables →</a><a href="?page=harvests" data-page="harvests">Record harvest →</a><a href="?page=sales" data-page="sales">Review sales →</a><a href="?page=reports" data-page="reports">View reports →</a>
-            </div></section>`}
         <section class="dashboard-bottom-grid">
-            <article class="dashboard-table-card"><div class="dashboard-card-heading"><div><h2>${isAdmin ? 'Recent orders' : 'Recent sales'}</h2><p>${isAdmin ? 'Latest order activity' : 'Latest customer orders'}</p></div><a href="?page=sales" data-page="sales">${isAdmin ? 'Review orders' : 'View all'}</a></div>${table(isAdmin ? ['Order', 'Buyer', 'Items', 'Total', 'Payment / delivery'] : ['Order', 'Buyer', 'Total', 'Status'], orderRows, 'No orders have been placed.')}</article>
+            ${recentPrimaryCard}
             <article class="dashboard-table-card"><div class="dashboard-card-heading"><div><h2>Recent harvests</h2><p>Latest recorded harvests</p></div><a href="?page=harvests" data-page="harvests">View all</a></div><ul class="recent-harvest-list">${harvestRows.length ? harvestRows.join('') : '<li class="muted">No harvest records yet.</li>'}</ul></article>
         </section>`;
     if (isAdmin) {
@@ -826,132 +832,7 @@ function renderShop(products) {
         <section class="card-grid shop-product-grid">${cards || '<div class="empty">There are no active products in the catalog.</div>'}</section>`;
 }
 
-function renderLanding(products, catalogUnavailable = false, stats = null) {
-    document.body.classList.remove('auth-page');
-    const cards = products.map((product) => `
-        <article class="public-product-card" data-reveal>
-            <div class="public-product-image">${productPicture(product.name)}
-                <span class="public-stock-badge${product.in_stock ? '' : ' is-unavailable'}">${product.in_stock ? 'In stock' : 'Currently unavailable'}</span>
-            </div>
-            <div class="public-product-copy">
-                <div class="public-product-heading"><div><p>${escapeHtml(product.category || 'From the farm')}</p><h3>${escapeHtml(product.name)}</h3></div><strong>${money(product.price)}<small> / ${escapeHtml(product.unit)}</small></strong></div>
-                <p class="public-product-description">${escapeHtml(product.description || 'Explore this item in the current Harvest catalog.')}</p>
-                ${product.variety ? `<p class="public-product-variety">Variety: ${escapeHtml(product.variety)}</p>` : ''}
-            </div>
-        </article>`).join('');
-
-    app.innerHTML = `
-        <section class="public-hero" id="home" aria-labelledby="public-hero-title">
-            <div class="public-hero-copy" data-reveal>
-                <p class="public-eyebrow"><span aria-hidden="true"></span> From our farm to your table</p>
-                <h1 id="public-hero-title">A little more <em>goodness</em> in every day.</h1>
-                <p class="public-hero-intro">Get to know the produce in our live farm catalog and find fresh picks for your table.</p>
-                <div class="public-hero-actions"><a class="public-button" href="#featured">Shop the harvest <span aria-hidden="true">→</span></a><a class="public-text-link" href="#about">Learn more <span aria-hidden="true">↗</span></a></div>
-                <p class="public-hero-footnote"><span aria-hidden="true">✳</span> Prices and availability are shown from the current catalog.</p>
-            </div>
-            <div class="public-hero-art" data-reveal aria-label="Fresh vegetable photography">
-                <span class="public-hero-orbit public-hero-orbit--one" aria-hidden="true"></span><span class="public-hero-orbit public-hero-orbit--two" aria-hidden="true"></span>
-                <figure class="public-hero-photo public-hero-photo--main">${productPicture('Carrot')}</figure>
-                <figure class="public-hero-photo public-hero-photo--tomato" aria-hidden="true">${productPicture('Tomato')}</figure>
-                <figure class="public-hero-photo public-hero-photo--greens" aria-hidden="true">${productPicture('Zucchini')}</figure>
-                <span class="public-hero-photo-label"><span aria-hidden="true">✳</span> A fresh look at the harvest</span>
-            </div>
-            <aside class="public-hero-highlights" aria-label="Shopping highlights" data-reveal>
-                <p class="public-highlight-heading">Good things, made simple</p>
-                <article class="public-highlight"><span class="public-highlight-icon" aria-hidden="true">♧</span><span><strong>See what is available</strong><small>Check produce and stock from the live catalog.</small></span></article>
-                <article class="public-highlight"><span class="public-highlight-icon" aria-hidden="true">₱</span><span><strong>Know what you are choosing</strong><small>Browse item details, prices, and units.</small></span></article>
-                <article class="public-highlight"><span class="public-highlight-icon" aria-hidden="true">▣</span><span><strong>Order when you are ready</strong><small>Create an account to save favorites and shop.</small></span></article>
-            </aside>
-        </section>
-        <section class="public-trust-strip" aria-label="Harvest at a glance" data-reveal>
-            <div><strong>Live catalog</strong><span>Explore produce currently listed by the farm.</span></div><div><strong>Clear availability</strong><span>Check current stock before you decide.</span></div><div><strong>Your favorites</strong><span>Save regular picks to a buyer account.</span></div>
-        </section>
-        <section class="public-section public-featured" id="featured" aria-labelledby="featured-title">
-            <div class="public-section-heading" data-reveal><div><p class="public-eyebrow">From the current catalog</p><h2 id="featured-title">Meet the fresh picks.</h2></div><p>Every item below comes from the farm's active produce catalog.</p></div>
-            ${products.length ? `
-                <div class="public-product-carousel"><div class="public-product-track" role="list" aria-label="Featured produce">${cards}</div>
-                    ${products.length > 3 ? '<div class="public-products-controls" aria-label="Featured produce carousel controls"><button class="public-slider-arrow" type="button" data-products-direction="-1" aria-label="Show previous produce">←</button><span class="public-slider-hint">Scroll to explore fresh picks</span><button class="public-slider-arrow" type="button" data-products-direction="1" aria-label="Show more produce">→</button></div>' : ''}
-                </div>
-                <div class="public-products-cta" data-reveal><p>Ready to choose your produce?</p><a class="public-button public-button-small" href="?page=register" data-page="register">Create an account to shop <span aria-hidden="true">→</span></a></div>
-            ` : `<div class="public-empty-state" role="status"><span aria-hidden="true">🌱</span><h3>${catalogUnavailable ? 'The live catalog is temporarily unavailable.' : 'The next harvest is on its way.'}</h3><p>${catalogUnavailable ? 'Please check back soon.' : 'There are no active produce items in the catalog just yet. Please check back soon.'}</p></div>`}
-        </section>
-        <section class="public-about public-section" id="about" aria-labelledby="about-title">
-            <div class="public-about-art" data-reveal>${productPicture('Kale')}<span class="public-about-stamp"><span aria-hidden="true">✳</span> Growing good things together</span></div>
-            <div class="public-about-copy" data-reveal><p class="public-eyebrow">A closer connection to the farm</p><h2 id="about-title">A farm story, from planting to <em>your table.</em></h2>
-                <p>Harvest brings farm operations and produce ordering together. Staff can record plantings and harvests, track inventory, and share current availability with shoppers.</p><p>Customers can explore real catalog details, save favorite produce, and manage orders through their own account.</p>
-                <a class="public-arrow-link" href="#farming-process">See how Harvest works <span aria-hidden="true">→</span></a>
-            </div>
-        </section>
-        <section class="public-section public-why" id="why-harvest" aria-labelledby="why-title">
-            <div class="public-section-heading" data-reveal><div><p class="public-eyebrow">The Harvest difference</p><h2 id="why-title">Farm details, made easier to find.</h2></div><p>A connected view of produce, availability, and ordering.</p></div>
-            <div class="public-feature-grid">
-                <article class="public-feature-card" data-reveal><span aria-hidden="true">♧</span><h3>Current catalog</h3><p>Explore active produce items and see the prices and units listed by the farm.</p></article>
-                <article class="public-feature-card" data-reveal><span aria-hidden="true">▣</span><h3>Clear availability</h3><p>Inventory information helps you understand what is in stock before you order.</p></article>
-                <article class="public-feature-card" data-reveal><span aria-hidden="true">♡</span><h3>Favorites that stay yours</h3><p>Save produce to your buyer account and find your regular picks again.</p></article>
-                <article class="public-feature-card" data-reveal><span aria-hidden="true">🧺</span><h3>Order management</h3><p>Use your customer account to place orders and follow their status.</p></article>
-            </div>
-        </section>
-        <section class="public-process public-section" id="farming-process" aria-labelledby="process-title">
-            <div class="public-section-heading" data-reveal><div><p class="public-eyebrow">From farm records to fresh picks</p><h2 id="process-title">A little more connected at every step.</h2></div><p>Harvest helps bring the farm's records and customer shop into one place.</p></div>
-            <ol class="public-process-grid"><li data-reveal><span>01</span><h3>Plan</h3><p>Staff record what is planted and when it is expected to grow.</p></li><li data-reveal><span>02</span><h3>Harvest</h3><p>Harvest records keep quantities and dates together.</p></li><li data-reveal><span>03</span><h3>Track</h3><p>Inventory shows the produce currently listed as available.</p></li><li data-reveal><span>04</span><h3>Choose</h3><p>Customers browse the catalog and place orders from their account.</p></li></ol>
-        </section>
-        <section class="public-stats public-section" aria-label="Harvest statistics" data-reveal>
-            <div><strong>${homeStat(stats?.vegetable_count)}</strong><span>Active produce items</span></div><div><strong>${homeStat(stats?.available_count)}</strong><span>Items in stock</span></div><div><strong>${homeStat(stats?.completed_orders)}</strong><span>Delivered orders</span></div><div><strong>${homeStat(stats?.harvest_count)}</strong><span>Harvest records</span></div>
-        </section>
-        <section class="public-contact public-section" id="contact" aria-labelledby="contact-title">
-            <div data-reveal><p class="public-eyebrow">We're here to help</p><h2 id="contact-title">Questions about your next order?</h2><p>Sign in to manage an order, or create a buyer account to start browsing and save produce you love.</p></div>
-            <div class="public-contact-actions" data-reveal>${contactEmail ? `<a class="public-contact-email" href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''}<a class="public-button" href="?page=register" data-page="register">Create a buyer account <span aria-hidden="true">→</span></a><a class="public-text-link" href="?page=login" data-page="login">Already have an account? Log in</a></div>
-        </section>`;
-    observeScrollReveals();
-    setupFeaturedCarousel();
-}
-
-function homeStat(value) {
-    if (value == null || !Number.isFinite(Number(value))) return '—';
-    return Number(value).toLocaleString('en-PH');
-}
-
-function observeScrollReveals() {
-    revealObserver?.disconnect();
-    const elements = app.querySelectorAll('[data-reveal]');
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reducedMotion || !('IntersectionObserver' in window)) {
-        document.body.classList.remove('motion-ready');
-        elements.forEach((element) => element.classList.add('is-visible'));
-        return;
-    }
-
-    document.body.classList.add('motion-ready');
-    revealObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach((entry) => {
-            if (!entry.isIntersecting) return;
-            entry.target.classList.add('is-visible');
-            observer.unobserve(entry.target);
-        });
-    }, { threshold: 0.12 });
-    elements.forEach((element) => revealObserver.observe(element));
-}
-
-function setupFeaturedCarousel() {
-    const track = app.querySelector('.public-product-track');
-    featuredCarouselResizeObserver?.disconnect();
-    if (!track) return;
-    const buttons = app.querySelectorAll('[data-products-direction]');
-    const updateButtons = () => {
-        const maxScroll = track.scrollWidth - track.clientWidth;
-        buttons.forEach((button) => {
-            button.disabled = Number(button.dataset.productsDirection) < 0
-                ? track.scrollLeft <= 1
-                : track.scrollLeft >= maxScroll - 1;
-        });
-    };
-    track.addEventListener('scroll', updateButtons, { passive: true });
-    featuredCarouselResizeObserver = new ResizeObserver(updateButtons);
-    featuredCarouselResizeObserver.observe(track);
-    updateButtons();
-}
-
-function renderLandingLegacy(products, catalogUnavailable = false) {
+function renderLanding(products, catalogUnavailable = false) {
     document.body.classList.remove('auth-page');
     const cards = products.map((product) => `
         <article class="landing-product">
@@ -1558,17 +1439,10 @@ async function renderPage() {
         updateNavigation();
         if (page === 'home') {
             try {
-                const products = await getPublicProducts();
-                let stats = null;
-                try {
-                    stats = await getPublicHomeStats();
-                } catch (error) {
-                    showError(error);
-                }
-                return renderLanding(products, false, stats);
+                return renderLanding(await getPublicProducts());
             } catch (error) {
                 showError(error);
-                return renderLanding([], true);
+                return renderLanding([]);
             }
         }
         renderAuth(page);
@@ -1928,15 +1802,6 @@ async function handleSubmit(form) {
 }
 
 async function handleClick(target) {
-    const publicNavLink = target.closest('#primary-navigation a[href^="#"]');
-    if (publicNavLink) {
-        const nav = document.querySelector('#primary-navigation');
-        nav.classList.remove('is-open');
-        const toggle = document.querySelector('[data-nav-toggle]');
-        toggle.setAttribute('aria-expanded', 'false');
-        toggle.setAttribute('aria-label', 'Open navigation');
-    }
-
     const pageLink = target.closest('[data-page]');
     if (pageLink) {
         const page = pageLink.dataset.page;
