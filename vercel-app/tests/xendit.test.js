@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getXenditEventValues, verifyXenditCallbackToken } from '../lib/xendit.js';
+import {
+    getXenditEventValues,
+    isValidXenditCheckoutHostname,
+    verifyXenditCallbackToken,
+} from '../lib/xendit.js';
+
+test('Xendit checkout URLs allow the documented test and production hosts only', () => {
+    assert.equal(isValidXenditCheckoutHostname('dev.xen.to'), true);
+    assert.equal(isValidXenditCheckoutHostname('xen.to'), true);
+    assert.equal(isValidXenditCheckoutHostname('checkout.xendit.co'), true);
+    assert.equal(isValidXenditCheckoutHostname('dev.xen.to.attacker.example'), false);
+    assert.equal(isValidXenditCheckoutHostname('xendit.co.attacker.example'), false);
+    assert.equal(isValidXenditCheckoutHostname(undefined), false);
+});
 
 test('Xendit callback token comparison requires an exact match', () => {
     assert.equal(verifyXenditCallbackToken('callback-secret', 'callback-secret'), true);

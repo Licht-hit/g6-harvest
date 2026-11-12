@@ -1,4 +1,5 @@
 import { serviceClient, getRequestUser, readJsonBody, sendJson } from '../lib/supabaseServer.js';
+import { isValidXenditCheckoutHostname } from '../lib/xendit.js';
 import { isFarmStaffRole } from '../src/roles.js';
 
 function requiredEnvironmentValue(name) {
@@ -113,8 +114,7 @@ async function createXenditCheckout(order) {
     } catch {
         throw new Error('Xendit returned an invalid checkout URL.');
     }
-    const validHost = parsedUrl.hostname === 'xen.to'
-        || parsedUrl.hostname.endsWith('.xendit.co');
+    const validHost = isValidXenditCheckoutHostname(parsedUrl.hostname);
     if (!sessionId || parsedUrl.protocol !== 'https:' || !validHost
         || parsedUrl.username || parsedUrl.password) {
         throw new Error('Xendit returned an invalid checkout session.');

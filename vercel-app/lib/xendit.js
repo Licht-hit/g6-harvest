@@ -1,5 +1,12 @@
 import { timingSafeEqual } from 'node:crypto';
 
+export function isValidXenditCheckoutHostname(hostname) {
+    return typeof hostname === 'string'
+        && (hostname === 'xen.to'
+            || hostname === 'dev.xen.to'
+            || hostname.endsWith('.xendit.co'));
+}
+
 export function verifyXenditCallbackToken(received, expected) {
     if (typeof received !== 'string' || typeof expected !== 'string' || !expected) return false;
     const supplied = Buffer.from(received);
