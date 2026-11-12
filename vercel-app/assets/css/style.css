@@ -38,7 +38,7 @@ a {
 }
 
 .site-header {
-    position: relative;
+    position: sticky;
     z-index: 20;
     top: 0;
     display: flex;
@@ -2949,8 +2949,6 @@ main.container:has(> .shop-hero) {
 
 @media (max-width: 1180px) {
     .site-header {
-        position: relative;
-        z-index: 20;
         flex-wrap: wrap;
         gap: .65rem;
         min-height: 68px;
