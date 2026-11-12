@@ -2399,7 +2399,7 @@ async function handleClick(target) {
         if (!item) return;
         const { error } = await state.supabase.from('vegetables').update({ active: !item.active }).eq('id', item.id);
         if (error) throw error;
-        notify(item.active ? 'Vegetable deactivated.' : 'Vegetable activated.');
+        notify(item.active ? 'Vegetable deactivated.' : 'Vegetable activated.', 'success', false);
         return await renderPage();
     }
     if (action.dataset.action === 'edit-vegetable') {
