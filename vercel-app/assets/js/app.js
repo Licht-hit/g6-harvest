@@ -24,7 +24,7 @@ const buyerCopy = {
         viewCart: 'View cart', farmFresh: 'Farm fresh', harvestedCare: 'Harvested with care',
         seasonalProduce: 'Seasonal produce', availableToday: "See what's available today",
         localDelivery: 'Local delivery', flatDelivery: 'Flat ₱20 delivery fee',
-        deliveryNote: 'Delivery is a flat ₱20 per order. Include your barangay and city in the address.',
+        deliveryNote: 'Flat ₱20 delivery fee per order. The order summary shows the fee and final total.',
         catalogTitle: "Today's harvest", catalogIntro: 'Choose from the current catalog.',
         searchProducts: 'Search produce', searchPlaceholder: 'Name, variety, or description',
         category: 'Category', allCategories: 'All categories', inStockOnly: 'In stock only',
@@ -43,7 +43,13 @@ const buyerCopy = {
         delivery: 'Delivery', estimatedTotal: 'Estimated total',
         bulkNote: 'Orders of 20 or more combined units receive a 10% produce discount.',
         checkoutTitle: 'Checkout', backToCart: 'Back to cart', deliveryDetails: 'Delivery details',
-        deliveryAddress: 'Delivery address', addressHint: 'Include your barangay and city.',
+        deliveryAddress: 'Delivery address', addressHint: 'Enter the house number and street.',
+        recipient: 'Recipient name', contactNumber: 'Contact number',
+        streetAddress: 'House number and street', barangay: 'Barangay',
+        cityMunicipality: 'City / Municipality', deliveryInstructions: 'Delivery instructions',
+        instructionsHint: 'Optional: landmark or directions for the rider.',
+        completeDeliveryDetails: 'Enter the recipient, contact number, and complete delivery address.',
+        invalidContactNumber: 'Enter a valid contact number.',
         paymentMethod: 'Payment method', cod: 'Cash on Delivery',
         onlinePayment: 'Online payment (GCash/card)', placeOrder: 'Place order',
         orderSummary: 'Order summary', browseProduce: 'Browse produce',
@@ -88,7 +94,7 @@ const buyerCopy = {
         viewCart: 'Tingnan ang cart', farmFresh: 'Sariwa mula sa bukid', harvestedCare: 'Maingat na inani',
         seasonalProduce: 'Pana-panahong ani', availableToday: 'Tingnan ang mga available ngayon',
         localDelivery: 'Lokal na delivery', flatDelivery: '₱20 ang delivery bawat order',
-        deliveryNote: '₱20 ang delivery bawat order. Isama ang barangay at lungsod sa address.',
+        deliveryNote: 'Flat na ₱20 ang delivery bawat order. Makikita sa buod ang bayad at kabuuang halaga.',
         catalogTitle: 'Ani ngayon', catalogIntro: 'Pumili mula sa kasalukuyang talaan.',
         searchProducts: 'Maghanap ng gulay', searchPlaceholder: 'Pangalan, variety, o paglalarawan',
         category: 'Kategorya', allCategories: 'Lahat ng kategorya', inStockOnly: 'May stock lamang',
@@ -107,7 +113,13 @@ const buyerCopy = {
         delivery: 'Delivery', estimatedTotal: 'Tantiyang kabuuan',
         bulkNote: 'May 10% diskuwento sa gulay kapag umabot sa 20 pinagsamang yunit ang order.',
         checkoutTitle: 'Checkout', backToCart: 'Bumalik sa cart', deliveryDetails: 'Detalye ng delivery',
-        deliveryAddress: 'Address ng delivery', addressHint: 'Isama ang barangay at lungsod.',
+        deliveryAddress: 'Address ng delivery', addressHint: 'Ilagay ang house number at kalye.',
+        recipient: 'Pangalan ng tatanggap', contactNumber: 'Contact number',
+        streetAddress: 'House number at kalye', barangay: 'Barangay',
+        cityMunicipality: 'Lungsod / Munisipalidad', deliveryInstructions: 'Tagubilin sa delivery',
+        instructionsHint: 'Opsyonal: landmark o direksiyon para sa rider.',
+        completeDeliveryDetails: 'Ilagay ang pangalan ng tatanggap, contact number, at kumpletong address.',
+        invalidContactNumber: 'Maglagay ng wastong contact number.',
         paymentMethod: 'Paraan ng bayad', cod: 'Bayad pagdating (COD)',
         onlinePayment: 'Online na bayad (GCash/card)', placeOrder: 'Ilagay ang order',
         orderSummary: 'Buod ng order', browseProduce: 'Mamili ng gulay',
@@ -1370,7 +1382,12 @@ async function renderCheckout() {
         <div class="card-grid">
             <section class="panel"><h2>${buyerText('deliveryDetails')}</h2>
                 <form class="app-form" data-form="checkout">
-                    <div class="field field-wide"><label for="delivery-address">${buyerText('deliveryAddress')}</label><textarea id="delivery-address" name="deliveryAddress" required minlength="10" maxlength="1000" placeholder="${buyerText('addressHint')}"></textarea></div>
+                    <div class="field"><label for="recipient-name">${buyerText('recipient')}</label><input id="recipient-name" name="recipientName" type="text" autocomplete="name" required minlength="2" maxlength="100"></div>
+                    <div class="field"><label for="contact-number">${buyerText('contactNumber')}</label><input id="contact-number" name="contactNumber" type="tel" inputmode="tel" autocomplete="tel" required minlength="7" maxlength="20" pattern="(?=.*[0-9])[+0-9() .-]{7,20}"></div>
+                    <div class="field field-wide"><label for="street-address">${buyerText('streetAddress')}</label><input id="street-address" name="streetAddress" type="text" autocomplete="address-line1" required minlength="3" maxlength="200" placeholder="${buyerText('addressHint')}"></div>
+                    <div class="field"><label for="delivery-barangay">${buyerText('barangay')}</label><input id="delivery-barangay" name="barangay" type="text" required minlength="2" maxlength="100"></div>
+                    <div class="field"><label for="delivery-city">${buyerText('cityMunicipality')}</label><input id="delivery-city" name="cityMunicipality" type="text" autocomplete="address-level2" required minlength="2" maxlength="100"></div>
+                    <div class="field field-wide"><label for="delivery-instructions">${buyerText('deliveryInstructions')}</label><textarea id="delivery-instructions" name="deliveryInstructions" maxlength="300" placeholder="${buyerText('instructionsHint')}"></textarea></div>
                     <p class="app-muted field-wide">${buyerText('deliveryNote')}</p>
                     <div class="field field-wide"><label>${buyerText('paymentMethod')}</label><div class="app-checkout-methods">
                         <label><input type="radio" name="paymentMethod" value="cod" checked> ${buyerText('cod')}</label>
@@ -1391,6 +1408,7 @@ async function renderBuyerOrders() {
         await renderOrderDetails(orderCode);
         return;
     }
+    app.innerHTML = '';
     const payment = new URLSearchParams(location.search).get('payment');
     if (payment === 'success') {
         app.innerHTML = `<section class="panel app-alert"><h1>${buyerText('paymentReturn')}</h1><p>${buyerText('paymentReturnNote')}</p></section>`;
@@ -1431,7 +1449,7 @@ async function renderOrderDetails(orderCode) {
     app.innerHTML = `
         <div class="page-heading"><h1>${buyerText('order')} ${escapeHtml(order.order_code)}</h1><div class="app-actions">${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}<a class="button secondary" href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></div></div>
         <section class="stats"><article class="card"><span class="muted">${buyerText('deliveryStatus')}</span><strong class="stat-value">${buyerStatusBadge(order.order_status)}</strong></article><article class="card"><span class="muted">${buyerText('paymentStatus')}</span><strong class="stat-value">${buyerStatusBadge(order.payment_status)}</strong></article><article class="card"><span class="muted">${buyerText('total')}</span><strong class="stat-value">${money(order.final_total)}</strong></article></section>
-        <section class="panel section"><h2>${buyerText('deliveryDetails')}</h2><p><strong>${buyerText('address')}:</strong> ${escapeHtml(order.delivery_address)}</p><p><strong>${buyerText('payment')}:</strong> ${escapeHtml(buyerPaymentMethod(order.payment_method))}</p><p><strong>${buyerText('placed')}:</strong> ${dateLabel(order.created_at)}</p></section>
+        <section class="panel section"><h2>${buyerText('deliveryDetails')}</h2><p class="app-delivery-address">${escapeHtml(order.delivery_address)}</p><p><strong>${buyerText('payment')}:</strong> ${escapeHtml(buyerPaymentMethod(order.payment_method))}</p><p><strong>${buyerText('placed')}:</strong> ${dateLabel(order.created_at)}</p></section>
         <section class="panel section"><h2>${buyerText('items')}</h2>${table([buyerText('produce'), buyerText('quantity'), buyerText('unitPrice'), buyerText('lineTotal')], lineRows)}</section>
         <section class="panel section app-summary"><h2>${buyerText('orderTotal')}</h2>${summaryRows({ subtotal: order.subtotal, discountPercentage: order.discount_percentage, discountAmount: order.discount_amount, deliveryFee: order.delivery_fee, finalTotal: order.final_total })}</section>
         <section class="panel section"><h2>${buyerText('paymentHistory')}</h2>${table([buyerText('date'), buyerText('event'), buyerText('paymentStatus'), buyerText('amount'), buyerText('reference'), buyerText('details')], eventRows, buyerText('noPaymentEvents'))}</section>`;
@@ -2027,15 +2045,35 @@ async function handleSubmit(form) {
         return;
     }
     if (formName === 'checkout') {
+        const recipientName = values.recipientName.trim();
+        const contactNumber = values.contactNumber.trim();
+        const streetAddress = values.streetAddress.trim();
+        const barangay = values.barangay.trim();
+        const cityMunicipality = values.cityMunicipality.trim();
+        const deliveryInstructions = values.deliveryInstructions.trim();
+        if (!recipientName || !contactNumber || !streetAddress || !barangay || !cityMunicipality) {
+            throw new Error(buyerText('completeDeliveryDetails'));
+        }
+        if (!/^(?=.*\d)[+0-9() .-]{7,20}$/.test(contactNumber)) {
+            throw new Error(buyerText('invalidContactNumber'));
+        }
         const checkoutToken = sessionStorage.getItem('harvest-checkout-token') || cartToken();
         sessionStorage.setItem('harvest-checkout-token', checkoutToken);
         const items = Object.entries(state.cart).map(([id, quantity]) => ({ id: Number(id), quantity: Number(quantity) }));
+        const deliveryAddress = [
+            `${buyerText('recipient')}: ${recipientName}`,
+            `${buyerText('contactNumber')}: ${contactNumber}`,
+            `${buyerText('address')}: ${[streetAddress, barangay, cityMunicipality].join(', ')}`,
+            deliveryInstructions
+                ? `${buyerText('deliveryInstructions')}: ${deliveryInstructions}`
+                : '',
+        ].filter(Boolean).join('\n');
         let result;
         try {
             result = await apiRequest('/api/orders', {
                 action: 'checkout',
                 items,
-                deliveryAddress: values.deliveryAddress.trim(),
+                deliveryAddress,
                 paymentMethod: values.paymentMethod,
                 checkoutToken,
             });

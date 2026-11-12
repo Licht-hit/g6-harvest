@@ -28,8 +28,8 @@
 }
 
 .dashboard-stat-card-warning .dashboard-stat-icon {
-    color: #8a6212;
-    background: #f9e9b9;
+    color: var(--warning);
+    background: var(--warning-light);
 }
 
 .dashboard-stat-trend {
@@ -37,11 +37,11 @@
 }
 
 .dashboard-stat-trend.is-positive {
-    color: #287348;
+    color: var(--success);
 }
 
 .dashboard-stat-trend.is-negative {
-    color: #a33b36;
+    color: var(--danger);
 }
 
 .dashboard-chart-period {
@@ -236,8 +236,8 @@
 .app-status {
     display: inline-block;
     padding: .2rem .55rem;
-    color: #285d78;
-    background: #e8f4fa;
+    color: var(--info);
+    background: var(--info-light);
     border-radius: 999px;
     font-size: .75rem;
     font-weight: 700;
@@ -245,24 +245,33 @@
 }
 
 .app-status.paid,
+.app-status.confirmed,
 .app-status.delivered {
-    color: #25643d;
-    background: #eaf6ed;
+    color: var(--success);
+    background: var(--success-light);
 }
 
 .app-status.cancelled,
 .app-status.failed,
-.app-status.refunded,
 .app-status.rejected {
-    color: #8d2929;
-    background: #fff0ef;
+    color: var(--danger);
+    background: var(--danger-light);
 }
 
+.app-status.refunded,
+.app-status.out_for_delivery,
+.app-status.ready_for_delivery,
+.app-status.processing {
+    color: var(--info);
+    background: var(--info-light);
+}
+
+.app-status.pending,
 .app-status.pending_payment,
 .app-status.preparing,
 .app-status.growing {
-    color: #805c12;
-    background: #fff5d8;
+    color: var(--warning);
+    background: var(--warning-light);
 }
 
 .app-pagination {
@@ -272,6 +281,10 @@
 
 .app-muted {
     color: var(--muted);
+}
+
+.app-delivery-address {
+    white-space: pre-line;
 }
 
 .app-error {
@@ -351,14 +364,15 @@
 
 .app-alert {
     padding: .8rem 1rem;
-    background: #fff5d8;
-    border: 1px solid #efdfb3;
+    color: var(--warning);
+    background: var(--warning-light);
+    border: 1px solid var(--accent-line);
     border-radius: 10px;
 }
 
 .landing-page {
-    --landing-green: #1d6845;
-    --landing-ink: #263d2e;
+    --landing-green: var(--green-dark);
+    --landing-ink: var(--ink);
     margin: -2rem calc(50% - 50vw) 0;
     color: var(--landing-ink);
 }
@@ -396,7 +410,7 @@
 .landing-hero .landing-eyebrow span {
     width: .5rem;
     height: .5rem;
-    background: #bb762e;
+    background: var(--accent);
     border-radius: 50%;
 }
 
@@ -417,7 +431,7 @@
 }
 
 .landing-hero h1 em {
-    color: #8b5a2a;
+    color: var(--accent);
     font-weight: 500;
 }
 
@@ -453,7 +467,7 @@
 
 .landing-note {
     margin: 1.75rem 0 0;
-    color: #718078;
+    color: var(--muted);
     font-size: .8rem;
 }
 
@@ -545,7 +559,7 @@
 }
 
 .landing-highlights small {
-    color: #718078;
+    color: var(--muted);
     font-size: .75rem;
 }
 
@@ -648,7 +662,7 @@
 
 .landing-product-category {
     margin: 0 0 .3rem;
-    color: #8b5a2a;
+    color: var(--accent);
     font-size: .68rem;
     font-weight: 750;
     text-transform: uppercase;
@@ -836,7 +850,7 @@
 }
 
 .landing-process-grid li > span {
-    color: #8b5a2a;
+    color: var(--accent);
     font-size: .78rem;
     font-weight: 750;
     letter-spacing: .08em;
@@ -1122,14 +1136,6 @@
 }
 
 body.operations-layout {
-    --green: #176b4d;
-    --green-dark: #193b32;
-    --green-light: #e8f3ec;
-    --ink: #193b32;
-    --muted: #7a8982;
-    --line: #e4ebe5;
-    --surface: #fff;
-    --background: #f7f9f5;
     background: var(--background);
 }
 
@@ -1150,7 +1156,7 @@ body.operations-layout {
     background: #fff;
     border-right: 1px solid var(--line);
     border-bottom: 0;
-    box-shadow: 8px 0 28px #193b3208;
+    box-shadow: 8px 0 28px #14532d08;
     backdrop-filter: none;
     transition: width .2s ease;
 }
@@ -1200,7 +1206,7 @@ body.operations-layout {
     min-height: 44px;
     gap: .75rem;
     padding: .65rem .75rem;
-    color: #53665e;
+    color: var(--muted);
     border-radius: 10px;
     font-size: .88rem;
 }
@@ -1208,11 +1214,11 @@ body.operations-layout {
 .operations-sidebar .main-nav a:hover,
 .operations-sidebar .main-nav a.active {
     color: var(--green-dark);
-    background: #eaf4ed;
+    background: var(--green-light);
 }
 
 .operations-sidebar .main-nav a.active {
-    box-shadow: inset 3px 0 #25845e;
+    box-shadow: inset 3px 0 var(--green);
 }
 
 .operations-sidebar .nav-icon {
@@ -1355,7 +1361,7 @@ body.operations-layout.sidebar-collapsed > .site-footer {
         background: #fff;
         border-right: 0;
         border-bottom: 1px solid var(--line);
-        box-shadow: 0 4px 16px #193b3208;
+        box-shadow: 0 4px 16px #14532d08;
     }
 
     .operations-sidebar .brand {
