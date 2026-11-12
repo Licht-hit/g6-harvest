@@ -217,13 +217,13 @@
 .app-quantity-control {
     display: flex;
     align-items: center;
-    gap: .3rem;
+    gap: .25rem;
 }
 
 .app-quantity-stepper {
     display: grid;
-    width: 36px;
-    height: 40px;
+    width: 30px;
+    height: 34px;
     flex: 0 0 auto;
     padding: 0;
     place-items: center;
@@ -231,7 +231,7 @@
     background: #eaf3eb;
     border: 1px solid #dce5de;
     border-radius: 9px;
-    font-size: 1.3rem;
+    font-size: 1.1rem;
     line-height: 1;
     transition: background .16s ease, transform .16s ease;
 }
@@ -251,7 +251,7 @@
 }
 
 .app-quantity-input {
-    width: 3.5rem;
+    width: 3.1rem;
     max-width: none;
     min-width: 0;
     padding: .35rem .2rem;
