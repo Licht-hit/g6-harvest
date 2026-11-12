@@ -236,6 +236,12 @@
     transition: background .16s ease, transform .16s ease;
 }
 
+.app-product-actions .app-quantity-stepper {
+    width: 30px;
+    min-width: 30px;
+    min-height: 34px;
+}
+
 .app-quantity-stepper:hover:not(:disabled) {
     background: #d7eadb;
 }
@@ -258,6 +264,16 @@
     text-align: center;
     appearance: textfield;
     -moz-appearance: textfield;
+}
+
+.app-product-actions .app-quantity-input,
+.app-inline-form .app-quantity-input {
+    width: 3.1rem;
+    min-width: 3.1rem;
+    max-width: 3.1rem;
+    padding: .35rem .1rem;
+    color: var(--ink);
+    text-align: center;
 }
 
 .app-quantity-input::-webkit-inner-spin-button,
