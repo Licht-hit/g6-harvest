@@ -1173,8 +1173,13 @@ body.operations-layout {
     display: grid;
     place-content: center;
     margin: 0;
-    background: transparent;
-    border: 1px solid transparent;
+    background: var(--green-light);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.operations-sidebar .nav-toggle span {
+    width: 20px;
 }
 
 .operations-sidebar .nav-toggle:hover {
