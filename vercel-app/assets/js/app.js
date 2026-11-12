@@ -339,6 +339,7 @@ function updateNavigation() {
     if (!isOperationsUser) document.body.classList.remove('sidebar-collapsed');
     nav.setAttribute('aria-label', isOperationsUser ? 'Farm operations' : 'Main navigation');
     if (!state.session || !state.profile) {
+        menu.open = false;
         menu.hidden = true;
         guest.hidden = false;
         nav.innerHTML = state.page === 'home'
@@ -402,6 +403,7 @@ function updateNavigation() {
 }
 
 function go(page, replace = false) {
+    document.querySelector('#account-menu').open = false;
     state.page = page;
     const url = new URL(location.href);
     url.search = '';
@@ -2437,6 +2439,8 @@ document.addEventListener('submit', async (event) => {
 document.addEventListener('click', async (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const accountMenu = document.querySelector('#account-menu');
+    if (!accountMenu.contains(target)) accountMenu.open = false;
     try {
         await handleClick(target);
     } catch (error) {
@@ -2559,6 +2563,12 @@ document.querySelector('#primary-navigation').addEventListener('click', (event) 
 
 document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    const accountMenu = document.querySelector('#account-menu');
+    if (accountMenu.open) {
+        accountMenu.open = false;
+        accountMenu.querySelector('summary').focus();
+        return;
+    }
     const nav = document.querySelector('#primary-navigation');
     if (!nav.classList.contains('is-open')) return;
     nav.classList.remove('is-open');
@@ -2583,9 +2593,15 @@ document.querySelector('#logout-button').addEventListener('click', async () => {
 });
 
 window.addEventListener('popstate', () => {
+    document.querySelector('#account-menu').open = false;
     state.page = new URLSearchParams(location.search).get('page') || 'home';
     void renderPage();
 });
+
+window.addEventListener('scroll', () => {
+    const accountMenu = document.querySelector('#account-menu');
+    if (accountMenu.open) accountMenu.open = false;
+}, { passive: true });
 
 async function start() {
     document.querySelector('#current-year').textContent = new Date().getFullYear();
