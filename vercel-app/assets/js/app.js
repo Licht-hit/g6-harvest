@@ -33,6 +33,7 @@ const buyerCopy = {
         clearFilters: 'Clear filters', productsShown: 'products shown',
         noMatchingProducts: 'No produce matches these filters.',
         quantity: 'Quantity', addToCart: 'Add to cart', viewDetails: 'View details',
+        decreaseQuantity: 'Decrease quantity', increaseQuantity: 'Increase quantity',
         available: 'available', lowStock: 'Low stock', outOfStock: 'Out of stock',
         lastUpdated: 'Stock updated', emptyCatalog: 'There are no active products in the catalog.',
         cartTitle: 'Your cart', continueShopping: 'Continue shopping', produce: 'Produce',
@@ -103,6 +104,7 @@ const buyerCopy = {
         clearFilters: 'I-reset ang filter', productsShown: 'produkto ang ipinapakita',
         noMatchingProducts: 'Walang produktong tumutugma sa mga filter.',
         quantity: 'Dami', addToCart: 'Idagdag sa cart', viewDetails: 'Tingnan ang detalye',
+        decreaseQuantity: 'Bawasan ang dami', increaseQuantity: 'Dagdagan ang dami',
         available: 'available', lowStock: 'Kaunti na lang', outOfStock: 'Ubos na',
         lastUpdated: 'Na-update ang stock', emptyCatalog: 'Walang aktibong produkto sa talaan.',
         cartTitle: 'Ang cart mo', continueShopping: 'Magpatuloy mamili', produce: 'Produkto',
@@ -469,6 +471,30 @@ function buyerOrderStatusBadge(orderCode, value) {
 
 function buyerPaymentStatusBadge(orderCode, value) {
     return `<span data-payment-status-for="${escapeHtml(orderCode)}">${buyerStatusBadge(value)}</span>`;
+}
+
+function quantityStepper(inputId, min, max, value, disabled = false) {
+    const minimum = Number(min);
+    const maximum = Number(max);
+    const quantity = Number(value);
+    const noQuantity = disabled || !Number.isFinite(quantity);
+    return `<div class="app-quantity-control" data-quantity-control>
+        <button type="button" class="app-quantity-stepper" data-quantity-step="-1" aria-label="${buyerText('decreaseQuantity')}" ${noQuantity || quantity <= minimum ? 'disabled' : ''}>−</button>
+        <input id="${escapeHtml(inputId)}" class="app-quantity-input" aria-label="${buyerText('quantity')}" type="number" name="quantity" min="${minimum}" max="${maximum}" step="0.01" value="${escapeHtml(String(value))}" ${disabled ? 'disabled' : ''}>
+        <button type="button" class="app-quantity-stepper" data-quantity-step="1" aria-label="${buyerText('increaseQuantity')}" ${noQuantity || quantity >= maximum ? 'disabled' : ''}>+</button>
+    </div>`;
+}
+
+function updateQuantityStepper(input) {
+    const control = input.closest('[data-quantity-control]');
+    if (!control) return;
+    const quantity = Number(input.value);
+    const minimum = Number(input.min);
+    const maximum = Number(input.max);
+    const decreaseButton = control.querySelector('[data-quantity-step="-1"]');
+    const increaseButton = control.querySelector('[data-quantity-step="1"]');
+    decreaseButton.disabled = !Number.isFinite(quantity) || quantity <= minimum;
+    increaseButton.disabled = !Number.isFinite(quantity) || quantity >= maximum;
 }
 
 function updateVisibleBuyerOrderStatus(order) {
@@ -1125,7 +1151,7 @@ function renderShop(products) {
             </div>
             <form class="product-card-form" data-form="add-cart" data-product="${product.id}">
                 <label for="product-quantity-${product.id}">${buyerText('quantity')} (${escapeHtml(product.unit)})</label>
-                <div class="app-product-actions"><input id="product-quantity-${product.id}" type="number" name="quantity" min="0.01" max="${Math.max(0, product.quantity)}" step="0.01" value="${product.quantity > 0 ? '1' : '0'}" ${product.quantity <= 0 ? 'disabled' : ''}><button type="submit" ${product.quantity <= 0 ? 'disabled' : ''}>${buyerText('addToCart')}</button></div>
+                <div class="app-product-actions">${quantityStepper(`product-quantity-${product.id}`, 0.01, product.quantity, product.quantity > 0 ? Math.min(1, product.quantity) : 0, product.quantity <= 0)}<button type="submit" ${product.quantity <= 0 ? 'disabled' : ''}>${buyerText('addToCart')}</button></div>
             </form>
         </article>`).join('');
     const filters = `
@@ -1321,7 +1347,7 @@ async function renderProduct(product) {
                 ${product.inventoryUpdatedAt ? `<small class="product-stock-updated">${buyerText('lastUpdated')} ${dateTimeLabel(product.inventoryUpdatedAt)}</small>` : ''}
                 <form class="product-detail-form" data-form="add-cart" data-product="${product.id}">
                     <label for="detail-quantity">${buyerText('quantity')} (${escapeHtml(product.unit)})</label>
-                    <div class="app-product-actions"><input id="detail-quantity" type="number" name="quantity" min="0.01" max="${Math.max(0, product.quantity)}" step="0.01" value="1" ${product.quantity <= 0 ? 'disabled' : ''}><button type="submit" ${product.quantity <= 0 ? 'disabled' : ''}>${buyerText('addToCart')}</button></div>
+                    <div class="app-product-actions">${quantityStepper('detail-quantity', 0.01, product.quantity, product.quantity > 0 ? Math.min(1, product.quantity) : 0, product.quantity <= 0)}<button type="submit" ${product.quantity <= 0 ? 'disabled' : ''}>${buyerText('addToCart')}</button></div>
                 </form>
             </div>
         </section>
@@ -1344,7 +1370,7 @@ async function renderCart() {
         if (safeQuantity <= 0) continue;
         validCart[id] = safeQuantity;
         rows.push(`<tr><td><strong>${escapeHtml(product.name)}</strong><span class="table-secondary">${money(product.price)} / ${escapeHtml(product.unit)}</span></td>
-            <td><form class="app-inline-form" data-form="update-cart" data-product="${product.id}"><input aria-label="${buyerText('quantity')} (${escapeHtml(product.unit)})" type="number" name="quantity" min="0" max="${product.quantity}" step="0.01" value="${safeQuantity}"><button type="submit" class="button secondary">${buyerText('update')}</button></form></td>
+            <td><form class="app-inline-form" data-form="update-cart" data-product="${product.id}">${quantityStepper(`cart-quantity-${product.id}`, 0, product.quantity, safeQuantity)}<button type="submit" class="button secondary">${buyerText('update')}</button></form></td>
             <td>${money(product.price * safeQuantity)}</td><td><button class="button danger" type="button" data-action="remove-cart" data-product="${product.id}">${buyerText('remove')}</button></td></tr>`);
     }
     state.cart = validCart;
@@ -2289,6 +2315,22 @@ async function handleSubmit(form) {
 }
 
 async function handleClick(target) {
+    const quantityButton = target.closest('[data-quantity-step]');
+    if (quantityButton instanceof HTMLButtonElement) {
+        const control = quantityButton.closest('[data-quantity-control]');
+        const input = control?.querySelector('.app-quantity-input');
+        if (!(input instanceof HTMLInputElement)) return;
+        const minimum = Number(input.min);
+        const maximum = Number(input.max);
+        const current = Number(input.value);
+        const increment = Number(quantityButton.dataset.quantityStep);
+        const startingQuantity = Number.isFinite(current) ? current : minimum;
+        const nextQuantity = Math.max(minimum, Math.min(maximum, startingQuantity + increment));
+        input.value = String(Math.round(nextQuantity * 100) / 100);
+        updateQuantityStepper(input);
+        return;
+    }
+
     const pageLink = target.closest('[data-page]');
     if (pageLink) {
         const page = pageLink.dataset.page;
@@ -2505,6 +2547,13 @@ document.addEventListener('click', async (event) => {
         await handleClick(target);
     } catch (error) {
         showError(error);
+    }
+});
+
+document.addEventListener('input', (event) => {
+    if (event.target instanceof HTMLInputElement
+        && event.target.matches('[data-quantity-control] .app-quantity-input')) {
+        updateQuantityStepper(event.target);
     }
 });
 

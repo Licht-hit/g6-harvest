@@ -214,6 +214,58 @@
     max-width: 100px;
 }
 
+.app-quantity-control {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.app-quantity-stepper {
+    display: grid;
+    width: 36px;
+    height: 40px;
+    flex: 0 0 auto;
+    padding: 0;
+    place-items: center;
+    color: var(--green-dark);
+    background: #eaf3eb;
+    border: 1px solid #dce5de;
+    border-radius: 9px;
+    font-size: 1.3rem;
+    line-height: 1;
+    transition: background .16s ease, transform .16s ease;
+}
+
+.app-quantity-stepper:hover:not(:disabled) {
+    background: #d7eadb;
+}
+
+.app-quantity-stepper:active:not(:disabled) {
+    transform: scale(.94);
+}
+
+.app-quantity-stepper:disabled {
+    color: #a6b1a8;
+    background: #f0f3f0;
+    cursor: not-allowed;
+}
+
+.app-quantity-input {
+    width: 3.5rem;
+    max-width: none;
+    min-width: 0;
+    padding: .35rem .2rem;
+    text-align: center;
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.app-quantity-input::-webkit-inner-spin-button,
+.app-quantity-input::-webkit-outer-spin-button {
+    margin: 0;
+    appearance: none;
+}
+
 .app-summary {
     max-width: 520px;
     margin-left: auto;
