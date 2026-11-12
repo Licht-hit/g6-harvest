@@ -6751,3 +6751,24 @@ body.public-home-page {
         translate: none;
     }
 }
+
+.buyer-language-toggle {
+    min-height: 36px;
+    padding: .35rem .7rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--green-dark);
+    background: #fff;
+    font: inherit;
+    font-size: .78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.vegetable-photo-preview img {
+    display: block;
+    width: min(100%, 240px);
+    max-height: 180px;
+    border-radius: 10px;
+    object-fit: cover;
+}

@@ -31,7 +31,7 @@ if (!$product) {
     exit('Product not found.');
 }
 
-$picture = product_picture($product['name']);
+$picture = product_picture($product['name'], $product['image_path']);
 $stock = (float) $product['stock'];
 $lowStockThreshold = 5.0;
 $stockStatus = $stock <= 0

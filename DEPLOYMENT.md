@@ -6,7 +6,7 @@ MySQL database, payment provider, and web server must be configured together.
 ## Beginner-friendly PHP hosting setup
 
 1. Choose hosting that runs PHP 8.0 or newer with `mysqli`, `mysqlnd`, `openssl`,
-   and MySQL or MariaDB. Enable `allow_url_fopen` only if you plan to use PayMongo.
+   `fileinfo`, and MySQL or MariaDB. Enable `allow_url_fopen` only if you plan to use PayMongo.
    The PHP app is not the separate Vercel/Supabase app in `vercel-app/`.
 2. Create an empty database and a dedicated database user in your hosting panel.
    Grant that user access only to this database. Do not use MySQL `root`.
@@ -49,7 +49,7 @@ MySQL database, payment provider, and web server must be configured together.
 
 ## Before deployment
 
-- Use a supported PHP release with `mysqli`, `mysqlnd`, and `openssl` enabled.
+- Use a supported PHP release with `mysqli`, `mysqlnd`, `openssl`, and `fileinfo` enabled.
 - Create a dedicated MySQL database and a least-privilege app account. Do not use
   the MySQL root account for the website.
 - Set `DB_HOST`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in the server environment.
@@ -85,6 +85,8 @@ mysqldump --defaults-extra-file="C:\secure\harvest-backup.cnf" --single-transact
 `--single-transaction` provides a consistent snapshot for InnoDB tables. Store
 the dump somewhere separate from the application host when possible, encrypt it
 at rest, and define a retention policy that matches business and privacy needs.
+Back up `assets/uploads/vegetables/` separately so uploaded catalog photos can
+be restored alongside the database records that reference them.
 Back up production secrets separately using the hosting provider's secret manager;
 never put them in the SQL dump or source repository.
 

@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
-require_role('admin', 'staff');
+require_role('admin', 'staff', 'farmer');
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -39,6 +39,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         : false;
     $priceHasValidFormat = preg_match('/^\d{1,8}(?:\.\d{1,2})?$/', $priceInput) === 1;
     $description = trim($_POST['description'] ?? '');
+    $photoUpload = $_FILES['photo'] ?? null;
+    $hasPhotoUpload = is_array($photoUpload)
+        && ($photoUpload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+    $newPhotoPath = null;
 
     if (($action === 'update' && $vegetableId < 1)
         || $name === ''
@@ -51,48 +55,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         || $price < 0) {
         $error = 'Choose a category, enter a vegetable name and unit, and use a price with up to two decimal places.';
     } else {
+        $existing = null;
         if ($action === 'update') {
-            $existing = $db->prepare('SELECT id FROM vegetables WHERE id = ?');
-            $existing->execute([$vegetableId]);
-            if (!$existing->fetch()) {
+            $existingStatement = $db->prepare('SELECT id, image_path FROM vegetables WHERE id = ?');
+            $existingStatement->execute([$vegetableId]);
+            $existing = $existingStatement->fetch();
+            if (!$existing) {
                 $error = 'That vegetable could not be found.';
-            } else {
-                $statement = $db->prepare(
-                    'UPDATE vegetables
-                     SET name = ?, category = ?, variety = ?, description = ?, unit = ?, price = ?
-                     WHERE id = ?'
-                );
-                $statement->execute([
-                    $name,
-                    $category,
-                    $variety ?: null,
-                    $description ?: null,
-                    $unit,
-                    $price,
-                    $vegetableId,
-                ]);
+            }
+        }
+
+        if ($error === '' && $hasPhotoUpload) {
+            try {
+                $newPhotoPath = store_vegetable_photo($photoUpload);
+            } catch (RuntimeException $exception) {
+                $error = $exception->getMessage();
+            }
+        }
+
+        if ($error === '') {
+            $photoPath = $newPhotoPath ?? ($existing['image_path'] ?? null);
+            try {
+                if ($action === 'update') {
+                    $statement = $db->prepare(
+                        'UPDATE vegetables
+                         SET name = ?, category = ?, image_path = ?, variety = ?, description = ?, unit = ?, price = ?
+                         WHERE id = ?'
+                    );
+                    $statement->execute([
+                        $name,
+                        $category,
+                        $photoPath,
+                        $variety ?: null,
+                        $description ?: null,
+                        $unit,
+                        $price,
+                        $vegetableId,
+                    ]);
+                } else {
+                    $statement = $db->prepare(
+                        'INSERT INTO vegetables (name, category, image_path, variety, description, unit, price)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $statement->execute([
+                        $name,
+                        $category,
+                        $photoPath,
+                        $variety ?: null,
+                        $description ?: null,
+                        $unit,
+                        $price,
+                    ]);
+                    $vegetableId = (int) $db->lastInsertId();
+                }
+            } catch (Throwable $exception) {
+                if ($newPhotoPath !== null) {
+                    try {
+                        delete_vegetable_photo($newPhotoPath);
+                    } catch (RuntimeException $cleanupException) {
+                        error_log('Unable to clean up an unused vegetable photo: ' . $cleanupException->getMessage());
+                    }
+                }
+                throw $exception;
+            }
+
+            if ($action === 'update') {
+                if ($newPhotoPath !== null && !empty($existing['image_path'])) {
+                    try {
+                        delete_vegetable_photo($existing['image_path']);
+                    } catch (RuntimeException $exception) {
+                        error_log('Unable to remove a replaced vegetable photo: ' . $exception->getMessage());
+                        flash('error', 'Vegetable updated, but the previous photo could not be removed.');
+                        redirect(app_url('modules/vegetables.php'));
+                    }
+                }
                 log_activity('vegetable_updated', 'vegetable', $vegetableId, 'Vegetable details updated.');
                 flash('success', 'Vegetable updated.');
                 redirect(app_url('modules/vegetables.php'));
+            } else {
+                log_activity('vegetable_created', 'vegetable', $vegetableId, 'Vegetable added to catalog.');
+                flash('success', 'Vegetable added.');
             }
-        } else {
-            $statement = $db->prepare(
-                'INSERT INTO vegetables (name, category, variety, description, unit, price)
-                 VALUES (?, ?, ?, ?, ?, ?)'
-            );
-            $statement->execute([
-                $name,
-                $category,
-                $variety ?: null,
-                $description ?: null,
-                $unit,
-                $price,
-            ]);
-            $vegetableId = (int) $db->lastInsertId();
-            log_activity('vegetable_created', 'vegetable', $vegetableId, 'Vegetable added to catalog.');
-            flash('success', 'Vegetable added.');
+            redirect(app_url('modules/vegetables.php'));
         }
-        redirect(app_url('modules/vegetables.php'));
     }
 }
 
@@ -137,7 +182,7 @@ require __DIR__ . '/../includes/header.php';
         <p><a href="<?= h(app_url('modules/vegetables.php')) ?>">Cancel editing</a></p>
     <?php endif; ?>
 
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
         <?= csrf_field() ?>
         <?php if ($editingVegetable): ?>
             <input type="hidden" name="action" value="update">
@@ -187,6 +232,19 @@ require __DIR__ . '/../includes/header.php';
         <div class="field">
             <label for="description">Description</label>
             <textarea id="description" name="description"><?= h($editingVegetable['description'] ?? '') ?></textarea>
+        </div>
+
+        <?php if ($editingVegetable): ?>
+            <?php $editingPicture = product_picture($editingVegetable['name'], $editingVegetable['image_path']); ?>
+            <?php if ($editingPicture['url']): ?>
+                <div class="vegetable-photo-preview">
+                    <img src="<?= h($editingPicture['url']) ?>" alt="Current photo of <?= h($editingVegetable['name']) ?>">
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+        <div class="field">
+            <label for="photo">Vegetable photo (JPEG, PNG, or WebP; up to 5 MB)</label>
+            <input id="photo" type="file" name="photo" accept="image/jpeg,image/png,image/webp">
         </div>
 
         <button type="submit"><?= $editingVegetable ? 'Save changes' : 'Add vegetable' ?></button>

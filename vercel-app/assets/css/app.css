@@ -222,8 +222,8 @@
 
 .app-quantity-stepper {
     display: grid;
-    width: 30px;
-    height: 34px;
+    width: 26px;
+    height: 30px;
     flex: 0 0 auto;
     padding: 0;
     place-items: center;
@@ -231,15 +231,15 @@
     background: #eaf3eb;
     border: 1px solid #dce5de;
     border-radius: 9px;
-    font-size: 1.1rem;
+    font-size: 1rem;
     line-height: 1;
     transition: background .16s ease, transform .16s ease;
 }
 
 .app-product-actions .app-quantity-stepper {
-    width: 30px;
-    min-width: 30px;
-    min-height: 34px;
+    width: 26px;
+    min-width: 26px;
+    min-height: 30px;
 }
 
 .app-quantity-stepper:hover:not(:disabled) {

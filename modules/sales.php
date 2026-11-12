@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/inventory.php';
 require_once __DIR__ . '/../includes/payments.php';
-require_role('admin', 'staff');
+require_role('admin', 'staff', 'farmer');
 
 $validPaymentStatuses = ['', 'pending_payment', 'paid', 'failed', 'refunded'];
 $orderStatusLabels = [

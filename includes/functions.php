@@ -43,7 +43,7 @@ function dashboard_path_for_role(string $role): string
         return 'buyer/dashboard.php';
     }
 
-    if ($role === 'admin' || $role === 'staff') {
+    if (in_array($role, ['admin', 'staff', 'farmer'], true)) {
         return 'dashboard.php';
     }
 
@@ -174,7 +174,7 @@ function vegetable_categories(): array
     ];
 }
 
-function product_picture(string $productName): array
+function product_picture(string $productName, ?string $imagePath = null): array
 {
     static $pictures = [
         'tomato' => ['file' => 'tomato.webp', 'icon' => '🍅'],
@@ -193,6 +193,15 @@ function product_picture(string $productName): array
         'file' => null,
         'icon' => '🥬',
     ];
+    if ($imagePath !== null
+        && preg_match('/\A[a-f0-9]{64}\.(?:jpg|png|webp)\z/', $imagePath) === 1) {
+        $uploadedImage = __DIR__ . '/../assets/uploads/vegetables/' . $imagePath;
+        if (is_file($uploadedImage)) {
+            $picture['url'] = app_url('assets/uploads/vegetables/' . rawurlencode($imagePath));
+            return $picture;
+        }
+    }
+
     $imagePath = $picture['file']
         ? __DIR__ . '/../assets/images/' . $picture['file']
         : null;
@@ -202,6 +211,63 @@ function product_picture(string $productName): array
         : null;
 
     return $picture;
+}
+
+function store_vegetable_photo(array $upload): string
+{
+    $uploadError = $upload['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        $message = match ($uploadError) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Vegetable photos must be 5 MB or smaller.',
+            UPLOAD_ERR_NO_FILE => 'Choose a photo to upload.',
+            default => 'The photo could not be uploaded. Please try again.',
+        };
+        throw new RuntimeException($message);
+    }
+
+    $temporaryPath = $upload['tmp_name'] ?? '';
+    $fileSize = $upload['size'] ?? null;
+    if (!is_string($temporaryPath)
+        || !is_uploaded_file($temporaryPath)
+        || !is_int($fileSize)
+        || $fileSize < 1
+        || $fileSize > 5 * 1024 * 1024) {
+        throw new RuntimeException('Choose a valid photo that is 5 MB or smaller.');
+    }
+
+    if (!class_exists('finfo')) {
+        throw new RuntimeException('Photo uploads require the PHP fileinfo extension.');
+    }
+    $fileInfo = new finfo(FILEINFO_MIME_TYPE);
+    $mimeType = $fileInfo->file($temporaryPath);
+    $extensions = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+    if (!is_string($mimeType) || !isset($extensions[$mimeType]) || @getimagesize($temporaryPath) === false) {
+        throw new RuntimeException('Choose a JPEG, PNG, or WebP image.');
+    }
+
+    $filename = bin2hex(random_bytes(32)) . '.' . $extensions[$mimeType];
+    $destination = __DIR__ . '/../assets/uploads/vegetables/' . $filename;
+    if (!move_uploaded_file($temporaryPath, $destination)) {
+        throw new RuntimeException('The photo could not be saved. Check the uploads folder permissions.');
+    }
+
+    return $filename;
+}
+
+function delete_vegetable_photo(?string $imagePath): void
+{
+    if ($imagePath === null || preg_match('/\A[a-f0-9]{64}\.(?:jpg|png|webp)\z/', $imagePath) !== 1) {
+        return;
+    }
+
+    $uploadedImage = __DIR__ . '/../assets/uploads/vegetables/' . $imagePath;
+    if (is_file($uploadedImage) && !unlink($uploadedImage)) {
+        throw new RuntimeException('The old vegetable photo could not be removed.');
+    }
 }
 
 function auth_token_url(string $page, string $token): string

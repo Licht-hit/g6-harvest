@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
-require_role('admin', 'staff');
+require_role('admin', 'staff', 'farmer');
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

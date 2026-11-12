@@ -61,12 +61,16 @@ require __DIR__ . '/../includes/header.php';
     <h2>Order details</h2>
     <p>
         <strong>Delivery status:</strong>
-        <?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?>
+        <span data-order-status-for="<?= h($orderCode) ?>">
+            <?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?>
+        </span>
     </p>
     <p>
         <strong>Payment:</strong>
         <?= h(strtoupper($order['payment_method'])) ?> ·
-        <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
+        <span data-payment-status-for="<?= h($orderCode) ?>">
+            <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
+        </span>
     </p>
     <?php if ($order['order_status'] === 'cancelled' && $order['payment_status'] === 'paid'): ?>
         <p class="notice error" role="status">

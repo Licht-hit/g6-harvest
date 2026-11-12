@@ -17,6 +17,10 @@ expect_authorization(
     'Staff should land on the operations dashboard.'
 );
 expect_authorization(
+    dashboard_path_for_role('farmer') === 'dashboard.php',
+    'Farmers should land on the operations dashboard.'
+);
+expect_authorization(
     dashboard_path_for_role('admin') === 'dashboard.php',
     'Admins should land on the operations dashboard.'
 );
@@ -32,6 +36,14 @@ expect_authorization(
 expect_authorization(
     user_has_role(['role' => 'staff'], 'staff', 'admin'),
     'Staff should match their permitted operations role.'
+);
+expect_authorization(
+    user_has_role(['role' => 'farmer'], 'farmer', 'staff'),
+    'Farmers should match the farm-operation role.'
+);
+expect_authorization(
+    !user_has_role(['role' => 'farmer'], 'admin'),
+    'Farmers must not receive administrator permissions.'
 );
 expect_authorization(
     !user_has_role(['role' => 'admin'], 'staff'),

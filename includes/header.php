@@ -4,6 +4,10 @@ $pageClass = $pageClass ?? '';
 $user = current_user();
 $styleVersion = filemtime(__DIR__ . '/../assets/css/style.css');
 $scriptVersion = filemtime(__DIR__ . '/../assets/js/script.js');
+$buyerLanguageScriptPath = __DIR__ . '/../assets/js/buyer-language.js';
+$buyerLanguageScriptVersion = is_file($buyerLanguageScriptPath)
+    ? filemtime($buyerLanguageScriptPath)
+    : null;
 $uiCssPath = __DIR__ . '/../assets/vendor/ui.css';
 $uiScriptPath = __DIR__ . '/../assets/vendor/ui.js';
 $uiVersion = is_file($uiCssPath) && is_file($uiScriptPath)
@@ -11,7 +15,7 @@ $uiVersion = is_file($uiCssPath) && is_file($uiScriptPath)
     : null;
 $pageClassNames = preg_split('/\s+/', trim($pageClass)) ?: [];
 $isPublicHome = in_array('public-home-page', $pageClassNames, true);
-$isOperationsUser = $user && in_array($user['role'], ['admin', 'staff'], true);
+$isOperationsUser = $user && in_array($user['role'], ['admin', 'staff', 'farmer'], true);
 $notice = take_flash();
 
 // Send guests, buyers, and farm staff to the appropriate starting page.
@@ -49,8 +53,16 @@ if ($user && $user['role'] === 'admin') {
     <?php endif; ?>
     <link rel="stylesheet" href="<?= h(app_url('assets/css/style.css?v=' . $styleVersion)) ?>">
     <script src="<?= h(app_url('assets/js/script.js?v=' . $scriptVersion)) ?>" defer></script>
+    <?php if ($user && $user['role'] === 'buyer' && $buyerLanguageScriptVersion !== null): ?>
+        <script src="<?= h(app_url('assets/js/buyer-language.js?v=' . $buyerLanguageScriptVersion)) ?>" defer></script>
+    <?php endif; ?>
 </head>
-<body class="<?= h(trim($pageClass . ($isOperationsUser ? ' operations-layout' : ''))) ?>">
+<body
+    class="<?= h(trim($pageClass . ($isOperationsUser ? ' operations-layout' : ''))) ?>"
+    <?= $user && $user['role'] === 'buyer'
+        ? 'data-order-status-url="' . h(app_url('buyer/order_status_updates.php')) . '"'
+        : '' ?>
+>
 <header class="site-header<?= $isOperationsUser ? ' operations-sidebar' : '' ?><?= $isPublicHome ? ' public-site-header' : '' ?>">
     <a class="brand" href="<?= h(app_url($isPublicHome ? 'index.php' : $homePage)) ?>">
         <span class="brand-mark" aria-hidden="true">
@@ -119,6 +131,12 @@ if ($user && $user['role'] === 'admin') {
                 <a class="<?= $currentPage === 'cart.php' ? 'active' : '' ?>" href="<?= h(app_url('buyer/cart.php')) ?>" <?= $currentPage === 'cart.php' ? 'aria-current="page"' : '' ?>>
                     <span class="nav-icon" aria-hidden="true">▱</span> Cart <span class="nav-count"><?= cart_count() ?></span>
                 </a>
+                <button
+                    class="buyer-language-toggle"
+                    type="button"
+                    data-buyer-language-toggle
+                    aria-label="Switch to Filipino"
+                >Filipino</button>
             <?php else: ?>
                 <?php foreach ($managementLinks as $link): ?>
                     <?php $isActive = $currentPage === basename($link['path']); ?>
@@ -139,14 +157,14 @@ if ($user && $user['role'] === 'admin') {
                 <span class="account-avatar" aria-hidden="true"><?= h(strtoupper(substr($user['name'], 0, 1))) ?></span>
                 <span class="account-copy">
                     <strong><?= h($user['name']) ?></strong>
-                    <small><?= h(ucfirst($user['role'])) ?></small>
+                    <small><?= h($user['role'] === 'farmer' ? 'Farmer' : ucfirst($user['role'])) ?></small>
                 </span>
                 <span class="account-chevron" aria-hidden="true">⌄</span>
             </summary>
             <div class="account-dropdown">
                 <div class="account-dropdown-user">
                     <strong><?= h($user['name']) ?></strong>
-                    <small><?= h(ucfirst($user['role'])) ?></small>
+                    <small><?= h($user['role'] === 'farmer' ? 'Farmer' : ucfirst($user['role'])) ?></small>
                     <small class="account-dropdown-email"><?= h($user['email']) ?></small>
                 </div>
                 <form method="post" action="<?= h(app_url('auth/logout.php')) ?>">

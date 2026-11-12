@@ -1,5 +1,9 @@
 -- Run this against an existing vegetable_system database after backing it up.
 
+-- Farmers have the same farm-operation permissions as staff.
+ALTER TABLE users
+    MODIFY COLUMN role ENUM('admin', 'staff', 'farmer', 'buyer') NOT NULL DEFAULT 'buyer';
+
 SET @harvest_archive_column_exists = (
     SELECT COUNT(*)
     FROM information_schema.COLUMNS
@@ -32,6 +36,23 @@ SET @vegetable_category_migration = IF(
 PREPARE vegetable_category_migration_statement FROM @vegetable_category_migration;
 EXECUTE vegetable_category_migration_statement;
 DEALLOCATE PREPARE vegetable_category_migration_statement;
+
+-- Store an optional uploaded product photo for each vegetable.
+SET @vegetable_photo_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'vegetables'
+        AND COLUMN_NAME = 'image_path'
+);
+SET @vegetable_photo_migration = IF(
+    @vegetable_photo_column_exists = 0,
+    'ALTER TABLE vegetables ADD COLUMN image_path VARCHAR(255) NULL AFTER category',
+    'SELECT 1'
+);
+PREPARE vegetable_photo_migration_statement FROM @vegetable_photo_migration;
+EXECUTE vegetable_photo_migration_statement;
+DEALLOCATE PREPARE vegetable_photo_migration_statement;
 
 SET @vegetable_category_index_exists = (
     SELECT COUNT(*)

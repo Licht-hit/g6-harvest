@@ -55,9 +55,13 @@ require __DIR__ . '/../includes/header.php';
                             <td><?= money($order['final_total']) ?></td>
                             <td>
                                 <?= h(strtoupper($order['payment_method'])) ?> ·
-                                <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
+                                <span data-payment-status-for="<?= h($order['order_code']) ?>">
+                                    <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
+                                </span>
                             </td>
-                            <td><?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?></td>
+                            <td data-order-status-for="<?= h($order['order_code']) ?>">
+                                <?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?>
+                            </td>
                             <td>
                                 <a href="<?= h(app_url(
                                     'buyer/order_details.php?order=' . rawurlencode($order['order_code'])

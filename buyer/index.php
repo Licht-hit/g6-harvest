@@ -17,6 +17,7 @@ $vegetables = $db->query(
         v.id,
         v.name,
         v.category,
+        v.image_path,
         v.variety,
         v.description,
         v.unit,
@@ -108,7 +109,7 @@ require __DIR__ . '/../includes/header.php';
             ? (float) $shopCart[$vegetable['id']]
             : 0.0;
         $remainingStock = max(0, round((float) $vegetable['stock'] - $cartQuantity, 2));
-        $picture = product_picture($vegetable['name']);
+        $picture = product_picture($vegetable['name'], $vegetable['image_path']);
         $searchText = implode(' ', array_filter([
             $vegetable['name'],
             $vegetable['category'],

@@ -60,6 +60,7 @@ $favoritesStatement = $db->prepare(
         v.id,
         v.name,
         v.category,
+        v.image_path,
         v.unit,
         v.price,
         v.active,
@@ -96,7 +97,7 @@ require __DIR__ . '/../includes/header.php';
     <section class="favorites-grid" aria-label="Your saved produce">
         <?php foreach ($favorites as $vegetable): ?>
             <?php
-            $picture = product_picture($vegetable['name']);
+            $picture = product_picture($vegetable['name'], $vegetable['image_path'] ?? null);
             $available = (bool) $vegetable['active'] && (float) $vegetable['stock'] > 0;
             $cartQuantity = is_numeric($cart[$vegetable['id']] ?? null)
                 ? (float) $cart[$vegetable['id']]

@@ -1,13 +1,13 @@
 CREATE DATABASE IF NOT EXISTS vegetable_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE vegetable_system;
 
--- Stores admin, staff, and buyer login accounts.
+-- Stores admin, staff, farmer, and buyer login accounts.
 CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
     email VARCHAR(190) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'staff', 'buyer') NOT NULL DEFAULT 'buyer',
+    role ENUM('admin', 'staff', 'farmer', 'buyer') NOT NULL DEFAULT 'buyer',
     email_verified_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS vegetables (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
     category VARCHAR(80) NOT NULL DEFAULT 'Other',
+    image_path VARCHAR(255) NULL,
     variety VARCHAR(120) NULL,
     description TEXT NULL,
     unit VARCHAR(30) NOT NULL DEFAULT 'kg',

@@ -246,8 +246,12 @@ require __DIR__ . '/../includes/header.php';
                     <span>
                         <strong><?= h($order['order_code']) ?></strong>
                         <small>
-                            <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
-                            · <?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?>
+                            <span data-payment-status-for="<?= h($order['order_code']) ?>">
+                                <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
+                            </span>
+                            · <span data-order-status-for="<?= h($order['order_code']) ?>">
+                                <?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?>
+                            </span>
                         </small>
                     </span>
                     <a class="button secondary" href="<?= h(app_url(
@@ -402,10 +406,12 @@ require __DIR__ . '/../includes/header.php';
                             </td>
                             <td><strong><?= money($order['order_total']) ?></strong></td>
                             <td class="buyer-order-status">
-                                <span class="status-badge status-<?= h($order['payment_status']) ?>">
+                                <span class="status-badge status-<?= h($order['payment_status']) ?>"
+                                      data-payment-status-for="<?= h($order['order_code']) ?>">
                                     <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
                                 </span>
-                                <span class="status-badge status-<?= h($order['order_status']) ?>">
+                                <span class="status-badge status-<?= h($order['order_status']) ?>"
+                                      data-order-status-for="<?= h($order['order_code']) ?>">
                                     <?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?>
                                 </span>
                             </td>

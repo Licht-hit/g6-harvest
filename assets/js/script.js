@@ -652,3 +652,83 @@ if ('ResizeObserver' in window) {
 } else {
     window.addEventListener('resize', () => dashboardCharts.forEach(renderDashboardChart));
 }
+
+const orderStatusUrl = document.body.dataset.orderStatusUrl;
+const orderStatusElements = document.querySelectorAll('[data-order-status-for]');
+const liveOrderStatuses = new Set([
+    'pending',
+    'confirmed',
+    'preparing',
+    'ready_for_delivery',
+    'out_for_delivery',
+    'delivered',
+    'cancelled',
+    'pending_payment',
+    'paid',
+    'failed',
+    'refunded',
+]);
+
+if (orderStatusUrl && orderStatusElements.length > 0) {
+    async function refreshBuyerOrderStatuses() {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
+        try {
+            const response = await fetch(orderStatusUrl, {
+                headers: { Accept: 'application/json' },
+                cache: 'no-store',
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error(`Order status refresh failed with HTTP ${response.status}.`);
+            }
+
+            const result = await response.json();
+            if (!result || !Array.isArray(result.orders)) {
+                throw new Error('Order status response has an invalid shape.');
+            }
+
+            result.orders.forEach((order) => {
+                if (typeof order.order_code !== 'string') {
+                    return;
+                }
+
+                [
+                    ['order_status', '[data-order-status-for]'],
+                    ['payment_status', '[data-payment-status-for]'],
+                ].forEach(([field, selector]) => {
+                    const value = order[field];
+                    if (!liveOrderStatuses.has(value)) {
+                        return;
+                    }
+
+                    document.querySelectorAll(selector).forEach((element) => {
+                        const attribute = field === 'order_status'
+                            ? 'orderStatusFor'
+                            : 'paymentStatusFor';
+                        if (element.dataset[attribute] !== order.order_code) {
+                            return;
+                        }
+
+                        element.textContent = value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+                        if (element.classList.contains('status-badge')) {
+                            element.className = `status-badge status-${value}`;
+                        }
+                    });
+                });
+            });
+        } catch (error) {
+            console.error('Unable to refresh buyer order statuses.', error);
+        }
+    }
+
+    void refreshBuyerOrderStatuses();
+    window.setInterval(() => void refreshBuyerOrderStatuses(), 30000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            void refreshBuyerOrderStatuses();
+        }
+    });
+}

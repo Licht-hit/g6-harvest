@@ -226,6 +226,7 @@ require __DIR__ . '/../includes/header.php';
                         $roleLabels = [
                             'admin' => 'Administrator',
                             'staff' => 'Staff',
+                            'farmer' => 'Farmer',
                             'buyer' => 'Buyer',
                         ];
                         $actorName = $log['actor'] ?: 'Deleted user';

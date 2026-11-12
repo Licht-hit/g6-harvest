@@ -29,6 +29,7 @@ $featuredVegetables = $db->query(
         v.id,
         v.name,
         v.category,
+        v.image_path,
         v.variety,
         v.description,
         v.unit,
@@ -145,7 +146,7 @@ require __DIR__ . '/includes/header.php';
                 <div class="swiper-wrapper">
             <?php foreach ($featuredVegetables as $vegetable): ?>
                 <?php
-                $picture = product_picture($vegetable['name']);
+                $picture = product_picture($vegetable['name'], $vegetable['image_path']);
                 $inStock = (float) $vegetable['stock'] > 0;
                 $isFavorite = isset($favoriteIds[(int) $vegetable['id']]);
                 $description = trim((string) ($vegetable['description'] ?? ''));
