@@ -192,6 +192,8 @@ const state = {
     products: [],
     records: new Map(),
     orderDetails: null,
+    orderStatusChannel: null,
+    orderStatusBuyerId: null,
     cart: readCart(),
 };
 
@@ -262,11 +264,11 @@ function dateTimeBoundary(day, endOfDay = false) {
     return new Date(`${day}T${time}`).toISOString();
 }
 
-function notify(message, type = 'success') {
+function notify(message, type = 'success', scrollToTop = true) {
     notice.textContent = message;
     notice.className = `notice ${type}`;
     notice.hidden = false;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (scrollToTop) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function clearNotice() {
@@ -459,6 +461,62 @@ function buyerStatusBadge(value) {
     const key = keys[value];
     if (!key) return statusBadge(value);
     return `<span class="app-status ${escapeHtml(value)}">${escapeHtml(buyerText(key))}</span>`;
+}
+
+function buyerOrderStatusBadge(orderCode, value) {
+    return `<span data-order-status-for="${escapeHtml(orderCode)}">${buyerStatusBadge(value)}</span>`;
+}
+
+function buyerPaymentStatusBadge(orderCode, value) {
+    return `<span data-payment-status-for="${escapeHtml(orderCode)}">${buyerStatusBadge(value)}</span>`;
+}
+
+function updateVisibleBuyerOrderStatus(order) {
+    if (
+        state.profile?.role !== 'buyer'
+        || String(order.buyer_id) !== String(state.profile.id)
+        || !['dashboard', 'orders', 'order'].includes(state.page)
+    ) return;
+
+    const orderCode = String(order.order_code);
+    app.querySelectorAll('[data-order-status-for]').forEach((element) => {
+        if (element.dataset.orderStatusFor === orderCode) {
+            element.innerHTML = buyerStatusBadge(order.order_status);
+        }
+    });
+    app.querySelectorAll('[data-payment-status-for]').forEach((element) => {
+        if (element.dataset.paymentStatusFor === orderCode) {
+            element.innerHTML = buyerStatusBadge(order.payment_status);
+        }
+    });
+}
+
+function syncBuyerOrderStatusSubscription() {
+    const buyerId = state.profile?.role === 'buyer' ? state.profile.id : null;
+    const shouldSubscribe = buyerId !== null && ['dashboard', 'orders', 'order'].includes(state.page);
+    const sameBuyer = String(state.orderStatusBuyerId) === String(buyerId);
+
+    if ((!shouldSubscribe || !sameBuyer) && state.orderStatusChannel) {
+        void state.supabase.removeChannel(state.orderStatusChannel);
+        state.orderStatusChannel = null;
+        state.orderStatusBuyerId = null;
+    }
+    if (!shouldSubscribe || state.orderStatusChannel) return;
+
+    state.orderStatusBuyerId = buyerId;
+    state.orderStatusChannel = state.supabase
+        .channel(`buyer-order-status-${buyerId}`)
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'orders',
+            filter: `buyer_id=eq.${buyerId}`,
+        }, ({ new: order }) => updateVisibleBuyerOrderStatus(order))
+        .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.error('Live order status updates could not connect.', status);
+            }
+        });
 }
 
 function buyerPaymentMethod(value) {
@@ -756,7 +814,7 @@ async function renderDashboard() {
         ]);
         const rows = orders.map((order) => `<tr>
             <td><a href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${escapeHtml(order.order_code)}</a></td>
-            <td>${money(order.final_total)}</td><td>${buyerStatusBadge(order.order_status)}</td><td>${buyerStatusBadge(order.payment_status)}</td>
+            <td>${money(order.final_total)}</td><td>${buyerOrderStatusBadge(order.order_code, order.order_status)}</td><td>${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</td>
         </tr>`);
         app.innerHTML = `
             <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">${buyerText('buyerAccount')}</p><h1>${buyerText('welcome')}, ${escapeHtml(state.profile.name)}</h1><p>${buyerText('buyerIntro')}</p></div></section>
@@ -1422,7 +1480,7 @@ async function renderBuyerOrders() {
         .eq('buyer_id', state.profile.id)
         .order('created_at', { ascending: false }));
     const rows = orders.map((order) => `<tr><td><a href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${escapeHtml(order.order_code)}</a><span class="table-secondary">${dateLabel(order.created_at)}</span></td>
-        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerStatusBadge(order.order_status)}</td><td>${buyerStatusBadge(order.payment_status)}</td><td>${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : '—'}</td></tr>`);
+        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerOrderStatusBadge(order.order_code, order.order_status)}</td><td>${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</td><td>${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : '—'}</td></tr>`);
     app.insertAdjacentHTML('beforeend', `<section class="panel section"><div class="page-heading"><h1>${buyerText('ordersTitle')}</h1></div>${table([buyerText('order'), buyerText('total'), buyerText('payment'), buyerText('deliveryStatus'), buyerText('paymentStatus'), buyerText('actions')], rows, buyerText('noOrders'))}</section>`);
 }
 
@@ -1450,7 +1508,7 @@ async function renderOrderDetails(orderCode) {
     const eventRows = events.map((event) => `<tr><td>${dateLabel(event.created_at)}</td><td>${escapeHtml(event.event_type.replaceAll('_', ' '))}</td><td>${buyerStatusBadge(event.payment_status)}</td><td>${money(event.amount)}</td><td>${escapeHtml(event.payment_reference || '—')}</td><td>${escapeHtml(event.details || '—')}</td></tr>`);
     app.innerHTML = `
         <div class="page-heading"><h1>${buyerText('order')} ${escapeHtml(order.order_code)}</h1><div class="app-actions">${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}<a class="button secondary" href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></div></div>
-        <section class="stats"><article class="card"><span class="muted">${buyerText('deliveryStatus')}</span><strong class="stat-value">${buyerStatusBadge(order.order_status)}</strong></article><article class="card"><span class="muted">${buyerText('paymentStatus')}</span><strong class="stat-value">${buyerStatusBadge(order.payment_status)}</strong></article><article class="card"><span class="muted">${buyerText('total')}</span><strong class="stat-value">${money(order.final_total)}</strong></article></section>
+        <section class="stats"><article class="card"><span class="muted">${buyerText('deliveryStatus')}</span><strong class="stat-value">${buyerOrderStatusBadge(order.order_code, order.order_status)}</strong></article><article class="card"><span class="muted">${buyerText('paymentStatus')}</span><strong class="stat-value">${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</strong></article><article class="card"><span class="muted">${buyerText('total')}</span><strong class="stat-value">${money(order.final_total)}</strong></article></section>
         <section class="panel section"><h2>${buyerText('deliveryDetails')}</h2><p class="app-delivery-address">${escapeHtml(order.delivery_address)}</p><p><strong>${buyerText('payment')}:</strong> ${escapeHtml(buyerPaymentMethod(order.payment_method))}</p><p><strong>${buyerText('placed')}:</strong> ${dateLabel(order.created_at)}</p></section>
         <section class="panel section"><h2>${buyerText('items')}</h2>${table([buyerText('produce'), buyerText('quantity'), buyerText('unitPrice'), buyerText('lineTotal')], lineRows)}</section>
         <section class="panel section app-summary"><h2>${buyerText('orderTotal')}</h2>${summaryRows({ subtotal: order.subtotal, discountPercentage: order.discount_percentage, discountAmount: order.discount_amount, deliveryFee: order.delivery_fee, finalTotal: order.final_total })}</section>
@@ -1790,6 +1848,7 @@ async function renderActivity() {
 }
 
 async function renderPage() {
+    syncBuyerOrderStatusSubscription();
     if (!state.supabase) {
         const page = guestPage(state.page);
         state.page = page;
@@ -1843,6 +1902,7 @@ async function renderPage() {
     if (isStaff() && buyerPages.includes(page)) page = 'dashboard';
     if (page === 'activity' && state.profile.role !== 'admin') page = 'dashboard';
     state.page = page;
+    syncBuyerOrderStatusSubscription();
     document.body.classList.remove('auth-page');
     document.body.classList.remove('password-reset-page');
     updateNavigation();
@@ -2030,7 +2090,7 @@ async function handleSubmit(form) {
         state.cart[product.id] = alreadyInCart + quantity;
         saveCart();
         updateShopCartUI();
-        notify(`${product.name} ${buyerText('addedToCart')}`);
+        notify(`${product.name} ${buyerText('addedToCart')}`, 'success', false);
         notice.insertAdjacentHTML('beforeend', ` <a href="?page=cart" data-page="cart">${buyerText('openCart')} (${cartCount()})</a>`);
         return;
     }

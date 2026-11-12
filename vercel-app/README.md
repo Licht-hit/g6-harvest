@@ -32,6 +32,7 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 7. Run `supabase/migrations/007_fix_order_item_ambiguity.sql` to fix cart-item ambiguity in order checkout and call `pgcrypto` functions from Supabase's `extensions` schema. If you already ran an earlier copy of migration 007, run the updated file again; it safely replaces the checkout function.
 8. Run `supabase/migrations/008_xendit_payments.sql` to enable Xendit for new orders while retaining PayMongo processing for existing orders.
 9. Run `supabase/migrations/009_vegetable_photos.sql` to add vegetable photo storage. This creates a public image bucket with staff-only upload, replace, and delete permissions and a 5 MB JPEG/PNG/WebP limit.
+10. Run `supabase/migrations/010_buyer_order_status_realtime.sql` to enable live order-status updates for buyers. Buyer dashboards, order lists, and order details receive changes only for the signed-in buyer's orders.
     - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004, 005, and 007.
    - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
    - Do not rerun migrations that have already been applied.
