@@ -243,6 +243,9 @@ const state = {
     orderDetails: null,
     orderStatusChannel: null,
     orderStatusBuyerId: null,
+    returnRequestChannel: null,
+    returnRequestUserId: null,
+    pendingReturnCount: 0,
     cart: readCart(),
 };
 
@@ -418,14 +421,15 @@ function updateNavigation() {
             ['harvests', '<path d="M12 22V8"/><path d="M12 13 7 9"/><path d="m12 17 6-5"/><path d="M7 9c-2-2-2-4-1-6 3 1 4 3 4 6"/><path d="M18 12c2-2 2-4 1-6-3 1-4 3-4 6"/>', 'Harvests'],
             ['inventory', '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 8 9 5 9-5"/><path d="M3 8v9l9 5 9-5V8"/><path d="M12 13v9"/>', 'Inventory'],
             ['sales', '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 7H6"/>', 'Sales'],
+            ['returns', '<path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>', 'Returns', state.pendingReturnCount],
             ['quality', '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>', 'Quality'],
             ['reports', '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>', 'Reports'],
             ...(state.profile.role === 'admin' ? [['activity', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', 'Activity']] : []),
         ];
-        nav.innerHTML = links.map(([page, icon, label]) => `
-            <a class="nav-link ${state.page === page ? 'active' : ''}" href="?page=${page}" data-page="${page}" title="${label}" ${state.page === page ? 'aria-current="page"' : ''}>
+        nav.innerHTML = links.map(([page, icon, label, badgeCount]) => `
+            <a class="nav-link ${state.page === page ? 'active' : ''}" href="?page=${page}" data-page="${page}" title="${label}" aria-label="${label}${badgeCount ? `, ${badgeCount} pending` : ''}" ${state.page === page ? 'aria-current="page"' : ''}>
                 <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></span>
-                <span class="nav-link-label">${label}</span>
+                <span class="nav-link-label">${label}</span>${badgeCount ? `<span class="nav-return-count">${badgeCount}</span>` : ''}
             </a>
         `).join('');
     } else {
@@ -660,6 +664,87 @@ function syncBuyerOrderStatusSubscription() {
                 console.error('Live order status updates could not connect.', status);
             }
         });
+}
+
+async function refreshPendingReturnCount() {
+    const { count, error } = await state.supabase
+        .from('return_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+    if (error) throw error;
+    const pendingCount = count || 0;
+    if (state.pendingReturnCount !== pendingCount) {
+        state.pendingReturnCount = pendingCount;
+        updateNavigation();
+    }
+}
+
+function syncReturnRequestSubscription() {
+    const role = state.profile?.role;
+    const hasVerifiedSession = Boolean(state.session && state.profile?.email_verified_at);
+    const userId = hasVerifiedSession && role === 'buyer' ? state.profile.id : null;
+    const isOperationsUser = hasVerifiedSession && isStaff();
+    const subscriptionKey = userId ? `buyer-${userId}` : isOperationsUser ? `staff-${state.profile.id}` : null;
+    const sameUser = state.returnRequestUserId === subscriptionKey;
+
+    if ((!subscriptionKey || !sameUser) && state.returnRequestChannel) {
+        void state.supabase.removeChannel(state.returnRequestChannel);
+        state.returnRequestChannel = null;
+        state.returnRequestUserId = null;
+    }
+    if (!subscriptionKey || state.returnRequestChannel) {
+        if (!subscriptionKey && state.pendingReturnCount !== 0) {
+            state.pendingReturnCount = 0;
+            updateNavigation();
+        }
+        return;
+    }
+
+    state.returnRequestUserId = subscriptionKey;
+    const channel = state.supabase.channel(`return-requests-${subscriptionKey}`);
+    if (userId) {
+        channel.on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'return_requests',
+            filter: `buyer_id=eq.${userId}`,
+        }, ({ new: request }) => {
+            notify(`Your return request for order ${request.order_code} was ${request.status.replaceAll('_', ' ')}.`);
+            if (state.page === 'order') void renderPage().catch(showError);
+        });
+    } else {
+        const refreshCount = () => {
+            void refreshPendingReturnCount().catch((error) => {
+                console.error('Pending return requests could not be refreshed.', error);
+                notify('Pending return requests could not be refreshed. Refresh and try again.', 'error', false);
+            });
+        };
+        refreshCount();
+        channel.on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'return_requests',
+        }, (payload) => {
+            notify(`New return request for order ${payload.new.order_code}.`);
+            refreshCount();
+        });
+        channel.on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'return_requests',
+        }, refreshCount);
+        channel.on('postgres_changes', {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'return_requests',
+        }, refreshCount);
+    }
+    state.returnRequestChannel = channel.subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error('Live return request notifications could not connect.', status);
+            notify('Live return request notifications could not connect. Refresh and try again.', 'error', false);
+        }
+    });
 }
 
 function buyerPaymentMethod(value) {
@@ -1886,19 +1971,14 @@ async function renderSales() {
     const to = params.get('to') || '';
     const status = params.get('status') || '';
     const search = (params.get('search') || '').toLowerCase();
-    const [orders, sales, profiles, products, returnRequests] = await Promise.all([
+    const [orders, sales, profiles, products] = await Promise.all([
         queryOrThrow(state.supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(500)),
         queryOrThrow(state.supabase.from('sales').select('*').order('created_at', { ascending: false })),
         queryOrThrow(state.supabase.from('profiles').select('id, name, email')),
         getProducts(false),
-        queryOrThrow(state.supabase.from('return_requests').select('*').order('requested_at', { ascending: false }).limit(500)),
     ]);
-    const returnRequestItems = returnRequests.length
-        ? await queryOrThrow(state.supabase.from('return_request_items').select('*').in('return_request_id', returnRequests.map((request) => request.id)))
-        : [];
     const profileMap = new Map(profiles.map((row) => [row.id, row]));
     const productMap = new Map(products.map((row) => [row.id, row]));
-    const salesMap = new Map(sales.map((line) => [line.id, line]));
     const linesByOrder = new Map();
     sales.forEach((line) => {
         if (!linesByOrder.has(line.order_code)) linesByOrder.set(line.order_code, []);
@@ -1989,14 +2069,43 @@ async function renderSales() {
                 ${canCancel ? `<button type="button" class="button danger" data-action="cancel-order" data-id="${escapeHtml(order.order_code)}">Cancel</button>` : ''}
             </div></td></tr>`;
     });
-    const returnRows = returnRequests.map((request) => {
+    app.innerHTML = `
+        <section class="module-heading"><div><p class="module-eyebrow">Order management</p><h1>Sales</h1><p>Review orders, delivery progress, payment status, and FIFO stock allocations.</p></div><a class="button secondary" href="?page=returns" data-page="returns">Return requests${state.pendingReturnCount ? ` (${state.pendingReturnCount})` : ''}</a></section>
+        <section class="panel report-filters section"><form class="app-inline-form" data-form="sales-filter">
+            <div class="field"><label for="sales-search">Search order / buyer / product</label><input id="sales-search" name="search" value="${escapeHtml(params.get('search') || '')}"></div>
+            <div class="field"><label for="sales-status">Status</label><select id="sales-status" name="status"><option value="">All statuses</option>${['pending', 'confirmed', 'preparing', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled', 'pending_payment', 'paid', 'failed', 'refunded'].map((value) => `<option value="${value}" ${status === value ? 'selected' : ''}>${value.replaceAll('_', ' ')}</option>`).join('')}</select></div>
+            <div class="field"><label for="sales-from">From</label><input id="sales-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="sales-to">To</label><input id="sales-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
+        </form></section>
+        <section class="panel section"><h2>Orders</h2>${table(['Order', 'Buyer', 'Items', 'Total', 'FIFO allocation', 'Status', 'Actions'], rows, 'No orders match these filters.')}</section>`;
+}
+
+async function renderReturns() {
+    const [returnRequests, sales, profiles, products] = await Promise.all([
+        queryOrThrow(state.supabase.from('return_requests').select('*').order('requested_at', { ascending: false }).limit(500)),
+        queryOrThrow(state.supabase.from('sales').select('id, vegetable_id')),
+        queryOrThrow(state.supabase.from('profiles').select('id, name, email')),
+        getProducts(false),
+    ]);
+    const returnRequestItems = returnRequests.length
+        ? await queryOrThrow(state.supabase.from('return_request_items')
+            .select('*').in('return_request_id', returnRequests.map((request) => request.id)))
+        : [];
+    const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
+    const productMap = new Map(products.map((product) => [product.id, product]));
+    const salesMap = new Map(sales.map((sale) => [sale.id, sale]));
+    const itemsByRequest = new Map();
+    returnRequestItems.forEach((item) => {
+        const items = itemsByRequest.get(item.return_request_id) || [];
+        items.push(item);
+        itemsByRequest.set(item.return_request_id, items);
+    });
+    const rows = returnRequests.map((request) => {
         const buyer = profileMap.get(request.buyer_id);
-        const itemSummary = returnRequestItems
-            .filter((item) => item.return_request_id === request.id)
+        const itemSummary = (itemsByRequest.get(request.id) || [])
             .map((item) => {
                 const sale = salesMap.get(item.sales_id);
                 const product = sale ? productMap.get(sale.vegetable_id) : null;
-                return `${product?.name || 'Produce'} × ${Number(item.quantity).toFixed(2)} ${product?.unit || ''}`;
+                return `${product?.name || 'Produce'} × ${formatQuantity(item.quantity)} ${product?.unit || ''}`;
             })
             .join(', ');
         const actions = request.status === 'pending'
@@ -2011,14 +2120,8 @@ async function renderSales() {
             <td><div class="app-table-actions">${actions}</div></td></tr>`;
     });
     app.innerHTML = `
-        <section class="module-heading"><div><p class="module-eyebrow">Order management</p><h1>Sales</h1><p>Review orders, delivery progress, payment status, and FIFO stock allocations.</p></div></section>
-        <section class="panel report-filters section"><form class="app-inline-form" data-form="sales-filter">
-            <div class="field"><label for="sales-search">Search order / buyer / product</label><input id="sales-search" name="search" value="${escapeHtml(params.get('search') || '')}"></div>
-            <div class="field"><label for="sales-status">Status</label><select id="sales-status" name="status"><option value="">All statuses</option>${['pending', 'confirmed', 'preparing', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled', 'pending_payment', 'paid', 'failed', 'refunded'].map((value) => `<option value="${value}" ${status === value ? 'selected' : ''}>${value.replaceAll('_', ' ')}</option>`).join('')}</select></div>
-            <div class="field"><label for="sales-from">From</label><input id="sales-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="sales-to">To</label><input id="sales-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
-        </form></section>
-        <section class="panel section"><h2>Orders</h2>${table(['Order', 'Buyer', 'Items', 'Total', 'FIFO allocation', 'Status', 'Actions'], rows, 'No orders match these filters.')}</section>
-        <section class="panel section"><h2>Return requests</h2><p>Approving a request does not issue a refund or restock inventory. Complete those steps manually before marking it complete.</p>${table(['Order / requested', 'Buyer', 'Items', 'Reason', 'Status / staff notes', 'Actions'], returnRows, 'No return requests.')}</section>`;
+        <section class="module-heading"><div><p class="module-eyebrow">Order management</p><h1>Return requests</h1><p>Review and update product-return requests from buyers.</p></div><a class="button secondary" href="?page=sales" data-page="sales">Back to Sales</a></section>
+        <section class="panel section"><p>Approving a request does not issue a refund or restock inventory. Handle those steps manually before marking it complete.</p>${table(['Order / requested', 'Buyer', 'Items', 'Reason', 'Status / staff notes', 'Actions'], rows, 'No return requests.')}</section>`;
 }
 
 async function renderReports() {
@@ -2146,6 +2249,7 @@ async function renderActivity() {
 
 async function renderPage() {
     syncBuyerOrderStatusSubscription();
+    syncReturnRequestSubscription();
     if (!state.supabase) {
         const page = guestPage(state.page);
         state.page = page;
@@ -2194,7 +2298,7 @@ async function renderPage() {
         history.replaceState({}, '', url);
     }
     const buyerPages = ['shop', 'product', 'cart', 'checkout', 'orders', 'order'];
-    const staffPages = ['vegetables', 'plantings', 'harvests', 'inventory', 'sales', 'quality', 'reports', 'activity'];
+    const staffPages = ['vegetables', 'plantings', 'harvests', 'inventory', 'sales', 'returns', 'quality', 'reports', 'activity'];
     if (state.profile.role === 'buyer' && staffPages.includes(page)) page = 'dashboard';
     if (isStaff() && buyerPages.includes(page)) page = 'dashboard';
     if (page === 'activity' && state.profile.role !== 'admin') page = 'dashboard';
@@ -2230,6 +2334,7 @@ async function renderPage() {
         if (page === 'harvests') return await renderHarvests();
         if (page === 'quality') return await renderQuality();
         if (page === 'sales') return await renderSales();
+        if (page === 'returns') return await renderReturns();
         if (page === 'reports') return await renderReports();
         if (page === 'activity') return await renderActivity();
         return await renderDashboard();

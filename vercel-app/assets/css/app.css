@@ -1443,12 +1443,27 @@ body.operations-layout {
 }
 
 .operations-sidebar .main-nav a {
+    position: relative;
     min-height: 44px;
     gap: .75rem;
     padding: .65rem .75rem;
     color: var(--muted);
     border-radius: 10px;
     font-size: .88rem;
+}
+
+.operations-sidebar .nav-return-count {
+    display: inline-grid;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    place-items: center;
+    margin-left: auto;
+    padding: 0 .25rem;
+    color: #fff;
+    background: #b42318;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 750;
 }
 
 .operations-sidebar .main-nav a:hover,
@@ -1540,6 +1555,16 @@ body.operations-layout.sidebar-collapsed .operations-sidebar .main-nav a {
     width: 48px;
     justify-content: center;
     padding: .65rem;
+}
+
+body.operations-layout.sidebar-collapsed .operations-sidebar .nav-return-count {
+    position: absolute;
+    top: .1rem;
+    right: .1rem;
+    min-width: 1rem;
+    height: 1rem;
+    margin: 0;
+    font-size: .6rem;
 }
 
 body.operations-layout.sidebar-collapsed .operations-sidebar .account-menu summary {
