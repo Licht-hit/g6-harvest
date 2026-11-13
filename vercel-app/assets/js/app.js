@@ -243,6 +243,8 @@ const state = {
     orderDetails: null,
     orderStatusChannel: null,
     orderStatusBuyerId: null,
+    salesOrderChannel: null,
+    salesOrderUserId: null,
     returnRequestChannel: null,
     returnRequestUserId: null,
     pendingReturnCount: 0,
@@ -662,6 +664,48 @@ function syncBuyerOrderStatusSubscription() {
         .subscribe((status) => {
             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
                 console.error('Live order status updates could not connect.', status);
+            }
+        });
+}
+
+function syncSalesOrderSubscription() {
+    const userId = state.session && state.profile?.email_verified_at && isStaff() && state.page === 'sales'
+        ? state.profile.id
+        : null;
+    const sameUser = String(state.salesOrderUserId) === String(userId);
+
+    if ((!userId || !sameUser) && state.salesOrderChannel) {
+        void state.supabase.removeChannel(state.salesOrderChannel);
+        state.salesOrderChannel = null;
+        state.salesOrderUserId = null;
+    }
+    if (!userId || state.salesOrderChannel) return;
+
+    state.salesOrderUserId = userId;
+    state.salesOrderChannel = state.supabase
+        .channel(`sales-orders-${userId}`)
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'orders',
+        }, (payload) => {
+            if (state.page !== 'sales') return;
+            const list = app.querySelector('.app-sales-orders-scroll');
+            const previousScrollTop = list?.scrollTop || 0;
+            const wasAtBottom = list
+                ? list.scrollHeight - list.scrollTop - list.clientHeight < 24
+                : false;
+            notify(`New order ${payload.new.order_code} was added to the FIFO list.`, 'success', false);
+            void renderPage().then(() => {
+                const updatedList = app.querySelector('.app-sales-orders-scroll');
+                if (!updatedList) return;
+                updatedList.scrollTop = wasAtBottom ? updatedList.scrollHeight : previousScrollTop;
+            }).catch(showError);
+        })
+        .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.error('Live Sales order updates could not connect.', status);
+                notify('Live Sales order updates could not connect. Refresh and try again.', 'error', false);
             }
         });
 }
@@ -2251,6 +2295,7 @@ async function renderActivity() {
 
 async function renderPage() {
     syncBuyerOrderStatusSubscription();
+    syncSalesOrderSubscription();
     syncReturnRequestSubscription();
     if (!state.supabase) {
         const page = guestPage(state.page);
