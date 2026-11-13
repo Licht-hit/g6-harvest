@@ -243,6 +243,8 @@ const state = {
     orderDetails: null,
     orderStatusChannel: null,
     orderStatusBuyerId: null,
+    salesNotificationChannel: null,
+    salesNotificationUserId: null,
     returnRequestChannel: null,
     returnRequestUserId: null,
     pendingReturnCount: 0,
@@ -662,6 +664,37 @@ function syncBuyerOrderStatusSubscription() {
         .subscribe((status) => {
             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
                 console.error('Live order status updates could not connect.', status);
+            }
+        });
+}
+
+function syncSalesOrderNotificationSubscription() {
+    const userId = state.session && state.profile?.email_verified_at && isStaff()
+        ? state.profile.id
+        : null;
+    const sameUser = String(state.salesNotificationUserId) === String(userId);
+
+    if ((!userId || !sameUser) && state.salesNotificationChannel) {
+        void state.supabase.removeChannel(state.salesNotificationChannel);
+        state.salesNotificationChannel = null;
+        state.salesNotificationUserId = null;
+    }
+    if (!userId || state.salesNotificationChannel) return;
+
+    state.salesNotificationUserId = userId;
+    state.salesNotificationChannel = state.supabase
+        .channel(`sales-order-notifications-${userId}`)
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'orders',
+        }, ({ new: order }) => {
+            notify(`New order ${order.order_code} received. Open Sales to review it.`, 'success', false);
+        })
+        .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.error('New Sales order notifications could not connect.', status);
+                notify('New Sales order notifications could not connect. Refresh and try again.', 'error', false);
             }
         });
 }
@@ -2205,6 +2238,7 @@ async function renderActivity() {
 
 async function renderPage() {
     syncBuyerOrderStatusSubscription();
+    syncSalesOrderNotificationSubscription();
     syncReturnRequestSubscription();
     if (!state.supabase) {
         const page = guestPage(state.page);
