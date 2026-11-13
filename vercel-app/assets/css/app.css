@@ -342,6 +342,125 @@
     background: var(--warning-light);
 }
 
+.app-order-tracker {
+    margin-top: 1rem;
+}
+
+.app-order-tracker-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.app-order-tracker-heading h2 {
+    margin: 0 0 .35rem;
+}
+
+.app-order-tracker-heading p,
+.app-order-tracker-step p,
+.app-order-tracker-live,
+.app-order-tracker-pending,
+.app-order-tracker-cancelled {
+    margin: 0;
+    color: var(--muted);
+    font-size: .88rem;
+    line-height: 1.55;
+}
+
+.app-order-tracker-heading .app-status {
+    margin-top: .2rem;
+}
+
+.app-order-tracker-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.app-order-tracker-step {
+    position: relative;
+    min-width: 0;
+    padding-top: 2.45rem;
+}
+
+.app-order-tracker-step::before {
+    position: absolute;
+    top: .8rem;
+    left: calc(-100% + .075rem);
+    width: calc(100% + .75rem);
+    height: 2px;
+    background: var(--line);
+    content: "";
+}
+
+.app-order-tracker-step.is-current::before {
+    background: var(--green);
+}
+
+.app-order-tracker-step:first-child::before {
+    display: none;
+}
+
+.app-order-tracker-marker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    width: 1.65rem;
+    height: 1.65rem;
+    place-items: center;
+    color: var(--muted);
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: 50%;
+    font-size: .76rem;
+    font-weight: 750;
+}
+
+.app-order-tracker-step.is-complete .app-order-tracker-marker,
+.app-order-tracker-step.is-current .app-order-tracker-marker {
+    color: #fff;
+    background: var(--green);
+    border-color: var(--green);
+}
+
+.app-order-tracker-step.is-complete::before {
+    background: var(--green);
+}
+
+.app-order-tracker-step h3 {
+    margin: 0 0 .3rem;
+    color: var(--green-dark);
+    font-size: .9rem;
+}
+
+.app-order-tracker-step.is-upcoming h3 {
+    color: var(--muted);
+}
+
+.app-order-tracker-live {
+    margin-top: 1rem;
+    font-size: .78rem;
+}
+
+.app-order-tracker-pending,
+.app-order-tracker-cancelled {
+    margin-bottom: 1rem;
+    padding: .7rem .85rem;
+    background: var(--warning-light);
+    border-radius: 8px;
+}
+
+.app-order-tracker-cancelled {
+    margin: 0;
+    background: var(--danger-light);
+}
+
 .app-pagination {
     justify-content: space-between;
     margin-top: 1rem;
@@ -416,7 +535,9 @@
     display: flex;
     align-items: center;
     gap: .4rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    width: max-content;
+    white-space: nowrap;
 }
 
 .app-table-actions select {
@@ -1584,5 +1705,41 @@ body.operations-layout.sidebar-collapsed > .site-footer {
     .app-inline-form input,
     .app-inline-form select {
         width: 100%;
+    }
+
+    .app-order-tracker-heading {
+        flex-direction: column;
+    }
+
+    .app-order-tracker-list {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .app-order-tracker-step {
+        min-height: 5rem;
+        padding: 0 0 1.1rem 2.5rem;
+    }
+
+    .app-order-tracker-step::before {
+        top: 1.65rem;
+        right: auto;
+        bottom: -.825rem;
+        left: .8rem;
+        width: 2px;
+        height: auto;
+        background: var(--line);
+    }
+
+    .app-order-tracker-step.is-current::before {
+        background: var(--line);
+    }
+
+    .app-order-tracker-step:first-child::before {
+        display: block;
+    }
+
+    .app-order-tracker-step:last-child::before {
+        display: none;
     }
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getAccessToken, refreshAccessToken } from '../../src/authSession.js';
 import { calculateOrderTotals } from '../../src/orderMath.js';
+import { getOrderTrackingState } from '../../src/orderTracking.js';
 import { isFarmStaffRole } from '../../src/roles.js';
 import { filterAndSortProducts } from '../../src/shopFilters.js';
 import { getVegetablePhotoExtension } from '../../src/vegetablePhoto.js';
@@ -58,6 +59,16 @@ const buyerCopy = {
         onlineCheckFailed: 'Online payment could not be verified and is hidden for now. Cash on Delivery is still available.',
         ordersTitle: 'My orders', order: 'Order', total: 'Total', payment: 'Payment',
         deliveryStatus: 'Delivery status', paymentStatus: 'Payment status',
+        orderTracking: 'Order tracking', orderTrackingIntro: 'Follow your order from the farm to your door.',
+        trackingLiveNote: 'Progress updates automatically when the farm updates your order.',
+        trackingAwaitingConfirmation: 'Waiting for farm confirmation',
+        trackingAwaitingConfirmationNote: 'The farm will confirm your order before harvesting begins.',
+        trackingConfirmed: 'Order confirmed', trackingConfirmedNote: 'The farm has accepted your order.',
+        trackingPreparing: 'Harvesting in progress', trackingPreparingNote: 'Your fresh produce is being harvested.',
+        trackingReady: 'Packed & quality check', trackingReadyNote: 'Your order is packed and being checked for quality.',
+        trackingOut: 'Out for delivery', trackingOutNote: 'Your order is on its way to your address.',
+        trackingDelivered: 'Delivered', trackingDeliveredNote: 'Your order has arrived.',
+        trackingCancelled: 'Order cancelled', trackingCancelledNote: 'Contact the farm if you need help with this order.',
         noOrders: 'You have not placed an order yet.', paymentReturn: 'Payment return received',
         paymentReturnNote: 'Payment status changes only after the verified payment notification arrives.',
         checkoutCancelled: 'Checkout cancelled',
@@ -129,6 +140,16 @@ const buyerCopy = {
         onlineCheckFailed: 'Hindi makumpirma ang online payment kaya pansamantalang nakatago ito. Available pa rin ang COD.',
         ordersTitle: 'Mga order ko', order: 'Order', total: 'Kabuuan', payment: 'Bayad',
         deliveryStatus: 'Status ng delivery', paymentStatus: 'Status ng bayad',
+        orderTracking: 'Pagsubaybay sa order', orderTrackingIntro: 'Subaybayan ang order mula bukid hanggang sa iyo.',
+        trackingLiveNote: 'Awtomatikong naa-update ang progreso kapag binago ng bukid ang status ng order.',
+        trackingAwaitingConfirmation: 'Naghihintay ng kumpirmasyon ng bukid',
+        trackingAwaitingConfirmationNote: 'Kukumpirmahin muna ng bukid ang order bago simulan ang pag-aani.',
+        trackingConfirmed: 'Kumpirmado ang order', trackingConfirmedNote: 'Tinanggap na ng bukid ang iyong order.',
+        trackingPreparing: 'Isinasagawa ang pag-aani', trackingPreparingNote: 'Inaani na ang iyong sariwang gulay.',
+        trackingReady: 'Naka-pack at sinusuri ang kalidad', trackingReadyNote: 'Naka-pack na ang order at sinusuri ang kalidad nito.',
+        trackingOut: 'Nasa biyahe na para ihatid', trackingOutNote: 'Papunta na ang order sa iyong address.',
+        trackingDelivered: 'Naideliver na', trackingDeliveredNote: 'Nakarating na ang iyong order.',
+        trackingCancelled: 'Kinansela ang order', trackingCancelledNote: 'Makipag-ugnayan sa bukid kung kailangan mo ng tulong sa order na ito.',
         noOrders: 'Wala ka pang nailalagay na order.', paymentReturn: 'Natanggap ang pagbabalik mula sa bayad',
         paymentReturnNote: 'Magbabago lang ang status ng bayad kapag natanggap ang beripikadong abiso.',
         checkoutCancelled: 'Kinansela ang checkout',
@@ -473,6 +494,44 @@ function buyerPaymentStatusBadge(orderCode, value) {
     return `<span data-payment-status-for="${escapeHtml(orderCode)}">${buyerStatusBadge(value)}</span>`;
 }
 
+function buyerOrderTracker(order) {
+    const tracking = getOrderTrackingState(order.order_status);
+    const orderCode = escapeHtml(order.order_code);
+    if (tracking.cancelled) {
+        return `<section class="panel section app-order-tracker" data-order-tracker-for="${orderCode}">
+            <div class="app-order-tracker-heading"><div><h2>${buyerText('orderTracking')}</h2><p>${buyerText('orderTrackingIntro')}</p></div>
+                <span class="app-status cancelled">${buyerText('trackingCancelled')}</span></div>
+            <p class="app-order-tracker-cancelled" role="status">${buyerText('trackingCancelledNote')}</p>
+        </section>`;
+    }
+
+    const copyByStatus = {
+        confirmed: ['trackingConfirmed', 'trackingConfirmedNote'],
+        preparing: ['trackingPreparing', 'trackingPreparingNote'],
+        ready_for_delivery: ['trackingReady', 'trackingReadyNote'],
+        out_for_delivery: ['trackingOut', 'trackingOutNote'],
+        delivered: ['trackingDelivered', 'trackingDeliveredNote'],
+    };
+    const steps = tracking.steps.map((step, index) => {
+        const [titleKey, descriptionKey] = copyByStatus[step.status];
+        return `<li class="app-order-tracker-step is-${step.state}" ${step.state === 'current' ? 'aria-current="step"' : ''}>
+            <span class="app-order-tracker-marker" aria-hidden="true">${step.state === 'complete' ? '✓' : index + 1}</span>
+            <div><h3>${buyerText(titleKey)}</h3><p>${buyerText(descriptionKey)}</p></div>
+        </li>`;
+    }).join('');
+    const currentStatus = order.order_status === 'pending'
+        ? 'trackingAwaitingConfirmation'
+        : copyByStatus[order.order_status][0];
+
+    return `<section class="panel section app-order-tracker" data-order-tracker-for="${orderCode}">
+        <div class="app-order-tracker-heading"><div><h2>${buyerText('orderTracking')}</h2><p>${buyerText('orderTrackingIntro')}</p></div>
+            <span class="app-status ${escapeHtml(order.order_status)}">${buyerText(currentStatus)}</span></div>
+        ${order.order_status === 'pending' ? `<p class="app-order-tracker-pending" role="status">${buyerText('trackingAwaitingConfirmationNote')}</p>` : ''}
+        <ol class="app-order-tracker-list">${steps}</ol>
+        <p class="app-order-tracker-live">${buyerText('trackingLiveNote')}</p>
+    </section>`;
+}
+
 function quantityStepper(inputId, min, max, value, disabled = false) {
     const minimum = Number(min);
     const maximum = Number(max);
@@ -513,6 +572,11 @@ function updateVisibleBuyerOrderStatus(order) {
     app.querySelectorAll('[data-payment-status-for]').forEach((element) => {
         if (element.dataset.paymentStatusFor === orderCode) {
             element.innerHTML = buyerStatusBadge(order.payment_status);
+        }
+    });
+    app.querySelectorAll('[data-order-tracker-for]').forEach((element) => {
+        if (element.dataset.orderTrackerFor === orderCode) {
+            element.outerHTML = buyerOrderTracker(order);
         }
     });
 }
@@ -1535,6 +1599,7 @@ async function renderOrderDetails(orderCode) {
     app.innerHTML = `
         <div class="page-heading"><h1>${buyerText('order')} ${escapeHtml(order.order_code)}</h1><div class="app-actions">${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}<a class="button secondary" href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></div></div>
         <section class="stats"><article class="card"><span class="muted">${buyerText('deliveryStatus')}</span><strong class="stat-value">${buyerOrderStatusBadge(order.order_code, order.order_status)}</strong></article><article class="card"><span class="muted">${buyerText('paymentStatus')}</span><strong class="stat-value">${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</strong></article><article class="card"><span class="muted">${buyerText('total')}</span><strong class="stat-value">${money(order.final_total)}</strong></article></section>
+        ${buyerOrderTracker(order)}
         <section class="panel section"><h2>${buyerText('deliveryDetails')}</h2><p class="app-delivery-address">${escapeHtml(order.delivery_address)}</p><p><strong>${buyerText('payment')}:</strong> ${escapeHtml(buyerPaymentMethod(order.payment_method))}</p><p><strong>${buyerText('placed')}:</strong> ${dateLabel(order.created_at)}</p></section>
         <section class="panel section"><h2>${buyerText('items')}</h2>${table([buyerText('produce'), buyerText('quantity'), buyerText('unitPrice'), buyerText('lineTotal')], lineRows)}</section>
         <section class="panel section app-summary"><h2>${buyerText('orderTotal')}</h2>${summaryRows({ subtotal: order.subtotal, discountPercentage: order.discount_percentage, discountAmount: order.discount_amount, deliveryFee: order.delivery_fee, finalTotal: order.final_total })}</section>
