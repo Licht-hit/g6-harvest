@@ -1411,6 +1411,8 @@ body.operations-layout {
     flex-direction: column;
     justify-content: flex-start;
     gap: .25rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: .3rem 0;
 }
 
