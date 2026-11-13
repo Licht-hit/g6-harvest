@@ -1996,27 +1996,6 @@ async function renderSales() {
         const productNames = lines.map((line) => productMap.get(line.vegetable_id)?.name || '').join(' ');
         return `${order.order_code} ${buyer?.name || ''} ${buyer?.email || ''} ${productNames}`.toLowerCase().includes(search);
     });
-    const allocationRows = filteredOrders.length
-        ? await queryAllRows(() => state.supabase.from('inventory_lot_allocations')
-            .select('order_code, vegetable_id, inventory_lot_id, quantity, released_at')
-            .in('order_code', filteredOrders.map((order) => order.order_code))
-            .order('id'))
-        : [];
-    const lotIds = [...new Set(allocationRows.map((allocation) => allocation.inventory_lot_id))];
-    const lots = lotIds.length
-        ? await queryAllRows(() => state.supabase.from('inventory_lots')
-            .select('id, source_type, harvest_id, received_on')
-            .in('id', lotIds)
-            .order('id'))
-        : [];
-    const lotById = new Map(lots.map((lot) => [lot.id, lot]));
-    const allocationsByOrderProduct = new Map();
-    allocationRows.forEach((allocation) => {
-        const key = `${allocation.order_code}:${allocation.vegetable_id}`;
-        const allocations = allocationsByOrderProduct.get(key) || [];
-        allocations.push(allocation);
-        allocationsByOrderProduct.set(key, allocations);
-    });
     state.records = new Map(filteredOrders.map((order) => [String(order.order_code), order]));
     const rows = filteredOrders.map((order) => {
         const buyer = profileMap.get(order.buyer_id);
@@ -2025,30 +2004,6 @@ async function renderSales() {
             const product = productMap.get(line.vegetable_id);
             return `${product?.name || 'Produce'} × ${Number(line.quantity).toFixed(2)}`;
         }).join(', ');
-        const fifoLines = lines.map((line) => {
-            const product = productMap.get(line.vegetable_id);
-            const allocations = allocationsByOrderProduct.get(`${order.order_code}:${line.vegetable_id}`) || [];
-            if (!allocations.length) {
-                return `<li><strong>${escapeHtml(product?.name || 'Produce')}</strong>: No FIFO allocation recorded</li>`;
-            }
-            const lotRows = allocations.map((allocation) => {
-                const lot = lotById.get(allocation.inventory_lot_id);
-                const source = lot?.source_type === 'harvest'
-                    ? `Harvest #${lot.harvest_id}`
-                    : lot?.source_type === 'manual_addition'
-                        ? 'Manual stock addition'
-                        : lot?.source_type === 'opening_balance'
-                            ? 'Opening balance'
-                            : 'Unknown batch';
-                const received = lot?.source_type === 'opening_balance'
-                    ? 'Before FIFO tracking'
-                    : lot?.received_on ? dateLabel(lot.received_on) : '—';
-                const restored = allocation.released_at ? ' · Restored' : '';
-                return `<li>${escapeHtml(source)} — ${formatQuantity(allocation.quantity)} ${escapeHtml(product?.unit || '')} <span class="muted">(${escapeHtml(received)}${restored})</span></li>`;
-            }).join('');
-            return `<li><strong>${escapeHtml(product?.name || 'Produce')} × ${formatQuantity(line.quantity)}</strong><ul>${lotRows}</ul></li>`;
-        }).join('');
-        const fifoCell = `<details class="app-fifo-details"><summary>FIFO lots</summary>${fifoLines ? `<ul>${fifoLines}</ul>` : '<p>No order items to allocate.</p>'}</details>`;
         const canCollect = order.payment_method === 'cod'
             && order.payment_status === 'pending_payment'
             && ['out_for_delivery', 'delivered'].includes(order.order_status);
@@ -2063,7 +2018,7 @@ async function renderSales() {
         }[order.order_status] || [];
         return `<tr><td><strong>${escapeHtml(order.order_code)}</strong><span class="table-secondary">${dateLabel(order.created_at)}</span></td>
             <td>${escapeHtml(buyer?.name || 'Buyer')}<span class="table-secondary">${escapeHtml(buyer?.email || '')}</span></td>
-            <td>${escapeHtml(summary || '—')}</td><td>${money(order.final_total)}</td><td>${fifoCell}</td>
+            <td>${escapeHtml(summary || '—')}</td><td>${money(order.final_total)}</td>
             <td>${statusBadge(order.order_status)}<span class="table-secondary">${statusBadge(order.payment_status)}</span></td>
             <td><div class="app-table-actions">${allowed.length ? `<select aria-label="New delivery status" data-status-for="${escapeHtml(order.order_code)}"><option value="">Update status</option>${allowed.map((status) => `<option value="${status}">${status.replaceAll('_', ' ')}</option>`).join('')}</select>` : ''}
                 ${canCollect ? `<button type="button" data-action="collect-cod" data-id="${escapeHtml(order.order_code)}">Confirm cash</button>` : ''}
@@ -2071,13 +2026,13 @@ async function renderSales() {
             </div></td></tr>`;
     });
     app.innerHTML = `
-        <section class="module-heading"><div><p class="module-eyebrow">Order management</p><h1>Sales</h1><p>Review orders, delivery progress, payment status, and FIFO stock allocations.</p></div><a class="button secondary" href="?page=returns" data-page="returns">Return requests${state.pendingReturnCount ? ` (${state.pendingReturnCount})` : ''}</a></section>
+        <section class="module-heading"><div><p class="module-eyebrow">Order management</p><h1>Sales</h1><p>Review orders, delivery progress, and payment status.</p></div><a class="button secondary" href="?page=returns" data-page="returns">Return requests${state.pendingReturnCount ? ` (${state.pendingReturnCount})` : ''}</a></section>
         <section class="panel report-filters section"><form class="app-inline-form" data-form="sales-filter">
             <div class="field"><label for="sales-search">Search order / buyer / product</label><input id="sales-search" name="search" value="${escapeHtml(params.get('search') || '')}"></div>
             <div class="field"><label for="sales-status">Status</label><select id="sales-status" name="status"><option value="">All statuses</option>${['pending', 'confirmed', 'preparing', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled', 'pending_payment', 'paid', 'failed', 'refunded'].map((value) => `<option value="${value}" ${status === value ? 'selected' : ''}>${value.replaceAll('_', ' ')}</option>`).join('')}</select></div>
             <div class="field"><label for="sales-from">From</label><input id="sales-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="sales-to">To</label><input id="sales-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
         </form></section>
-        <section class="panel section"><h2>Orders</h2>${table(['Order', 'Buyer', 'Items', 'Total', 'FIFO allocation', 'Status', 'Actions'], rows, 'No orders match these filters.')}</section>`;
+        <section class="panel section"><h2>Orders</h2>${table(['Order', 'Buyer', 'Items', 'Total', 'Status', 'Actions'], rows, 'No orders match these filters.')}</section>`;
 }
 
 async function renderReturns() {

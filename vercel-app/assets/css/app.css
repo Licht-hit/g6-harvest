@@ -578,25 +578,6 @@
     font-size: .78rem;
 }
 
-.app-fifo-details {
-    min-width: 180px;
-}
-
-.app-fifo-details summary {
-    color: var(--green-dark);
-    cursor: pointer;
-    font-weight: 700;
-}
-
-.app-fifo-details ul {
-    margin: .45rem 0 0;
-    padding-left: 1.15rem;
-}
-
-.app-fifo-details li {
-    margin: .3rem 0;
-}
-
 .app-alert {
     padding: .8rem 1rem;
     color: var(--warning);
