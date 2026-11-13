@@ -243,8 +243,6 @@ const state = {
     orderDetails: null,
     orderStatusChannel: null,
     orderStatusBuyerId: null,
-    salesOrderChannel: null,
-    salesOrderUserId: null,
     returnRequestChannel: null,
     returnRequestUserId: null,
     pendingReturnCount: 0,
@@ -664,48 +662,6 @@ function syncBuyerOrderStatusSubscription() {
         .subscribe((status) => {
             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
                 console.error('Live order status updates could not connect.', status);
-            }
-        });
-}
-
-function syncSalesOrderSubscription() {
-    const userId = state.session && state.profile?.email_verified_at && isStaff() && state.page === 'sales'
-        ? state.profile.id
-        : null;
-    const sameUser = String(state.salesOrderUserId) === String(userId);
-
-    if ((!userId || !sameUser) && state.salesOrderChannel) {
-        void state.supabase.removeChannel(state.salesOrderChannel);
-        state.salesOrderChannel = null;
-        state.salesOrderUserId = null;
-    }
-    if (!userId || state.salesOrderChannel) return;
-
-    state.salesOrderUserId = userId;
-    state.salesOrderChannel = state.supabase
-        .channel(`sales-orders-${userId}`)
-        .on('postgres_changes', {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'orders',
-        }, (payload) => {
-            if (state.page !== 'sales') return;
-            const list = app.querySelector('.app-sales-orders-scroll');
-            const previousScrollTop = list?.scrollTop || 0;
-            const wasAtBottom = list
-                ? list.scrollHeight - list.scrollTop - list.clientHeight < 24
-                : false;
-            notify(`New order ${payload.new.order_code} was added to the FIFO list.`, 'success', false);
-            void renderPage().then(() => {
-                const updatedList = app.querySelector('.app-sales-orders-scroll');
-                if (!updatedList) return;
-                updatedList.scrollTop = wasAtBottom ? updatedList.scrollHeight : previousScrollTop;
-            }).catch(showError);
-        })
-        .subscribe((status) => {
-            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                console.error('Live Sales order updates could not connect.', status);
-                notify('Live Sales order updates could not connect. Refresh and try again.', 'error', false);
             }
         });
 }
@@ -2016,9 +1972,8 @@ async function renderSales() {
     const status = params.get('status') || '';
     const search = (params.get('search') || '').toLowerCase();
     const [orders, sales, profiles, products] = await Promise.all([
-        queryAllRows(() => state.supabase.from('orders').select('*')
-            .order('created_at', { ascending: true })
-            .order('order_code', { ascending: true })),
+        queryOrThrow(state.supabase.from('orders').select('*')
+            .order('created_at', { ascending: false }).limit(500)),
         queryOrThrow(state.supabase.from('sales').select('*').order('created_at', { ascending: false })),
         queryOrThrow(state.supabase.from('profiles').select('id, name, email')),
         getProducts(false),
@@ -2122,7 +2077,7 @@ async function renderSales() {
             <div class="field"><label for="sales-status">Status</label><select id="sales-status" name="status"><option value="">All statuses</option>${['pending', 'confirmed', 'preparing', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled', 'pending_payment', 'paid', 'failed', 'refunded'].map((value) => `<option value="${value}" ${status === value ? 'selected' : ''}>${value.replaceAll('_', ' ')}</option>`).join('')}</select></div>
             <div class="field"><label for="sales-from">From</label><input id="sales-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="sales-to">To</label><input id="sales-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
         </form></section>
-        <section class="panel section"><h2>Orders</h2><p class="app-muted">Orders are listed oldest first; new orders appear at the bottom.</p><div class="app-sales-orders-scroll">${table(['Order', 'Buyer', 'Items', 'Total', 'FIFO allocation', 'Status', 'Actions'], rows, 'No orders match these filters.')}</div></section>`;
+        <section class="panel section"><h2>Orders</h2>${table(['Order', 'Buyer', 'Items', 'Total', 'FIFO allocation', 'Status', 'Actions'], rows, 'No orders match these filters.')}</section>`;
 }
 
 async function renderReturns() {
@@ -2295,7 +2250,6 @@ async function renderActivity() {
 
 async function renderPage() {
     syncBuyerOrderStatusSubscription();
-    syncSalesOrderSubscription();
     syncReturnRequestSubscription();
     if (!state.supabase) {
         const page = guestPage(state.page);

@@ -287,12 +287,6 @@
     margin-left: auto;
 }
 
-.app-sales-orders-scroll {
-    max-height: 65vh;
-    overflow: auto;
-    overscroll-behavior: contain;
-}
-
 .app-summary-row {
     display: flex;
     justify-content: space-between;
