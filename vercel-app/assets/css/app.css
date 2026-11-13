@@ -287,13 +287,6 @@
     margin-left: auto;
 }
 
-.app-checkout-items {
-    max-height: min(45vh, 360px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding-right: .35rem;
-}
-
 .app-sales-orders-scroll {
     max-height: 65vh;
     overflow: auto;

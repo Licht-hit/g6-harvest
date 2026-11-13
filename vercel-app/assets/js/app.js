@@ -1733,7 +1733,7 @@ async function renderCheckout() {
                     <button type="submit">${buyerText('placeOrder')}</button>
                 </form>
             </section>
-            <section class="panel"><h2>${buyerText('orderSummary')}</h2><div class="app-checkout-items">${lines}</div>${summaryRows(totals)}</section>
+            <section class="panel"><h2>${buyerText('orderSummary')}</h2>${lines}${summaryRows(totals)}</section>
         </div>`;
 }
 
