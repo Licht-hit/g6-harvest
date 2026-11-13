@@ -12,6 +12,7 @@ Do not copy the parent project's local email/payment configuration files into th
 - Buyer, staff, farmer, and administrator roles. Farmers have the same farm-operation permissions as staff; existing staff roles are retained. New registrations are buyers; roles are never chosen in the browser.
 - Product catalog, product details, saved cart, checkout, order history, and receipts.
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
+- FIFO inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
 - Administrator dashboard with sales and harvest trends, inventory charts, stock alerts, top sellers, recent orders, inventory updates, and activity.
 - Transactional PostgreSQL functions for inventory changes, harvest adjustments, checkout, order status, COD collection, and payment events.
 - Xendit hosted checkout, COD, cancellation/stock restoration rules, and a verified webhook at `/api/xendit-webhook`. The PayMongo webhook remains available for orders created before the migration.
@@ -33,6 +34,7 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 8. Run `supabase/migrations/008_xendit_payments.sql` to enable Xendit for new orders while retaining PayMongo processing for existing orders.
 9. Run `supabase/migrations/009_vegetable_photos.sql` to add vegetable photo storage. This creates a public image bucket with staff-only upload, replace, and delete permissions and a 5 MB JPEG/PNG/WebP limit.
 10. Run `supabase/migrations/010_buyer_order_status_realtime.sql` to enable live order-status updates for buyers. Buyer dashboards, order lists, and order details receive changes only for the signed-in buyer's orders.
+11. Run `supabase/migrations/011_fifo_inventory.sql` once, after any optional MySQL import in section 4 and before deploying the FIFO-enabled frontend or accepting new orders. If you are not importing data, run it after migration 010. Existing available stock and active orders are preserved as an opening balance because their original batch dates are not available; new harvests and manual stock additions are tracked as separate FIFO batches.
     - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004, 005, and 007.
    - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
    - Do not rerun migrations that have already been applied.
@@ -56,6 +58,8 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 The schema does not insert user accounts. Migration 005 adds the ten sample products shown in the original MySQL schema, but does not add inventory; set stock quantities from the farm dashboard before accepting orders.
 
 ### 2. Install and deploy the converted folder
+
+Before deploying, apply migrations 001–010. If importing MySQL data, complete section 4 before running migration 011; then run 011 before deploying this FIFO-enabled frontend.
 
 1. Push the repository to GitHub without adding any local configuration files or secrets.
 2. In Vercel, choose **Add New → Project**, then import this GitHub repository.
@@ -133,7 +137,7 @@ npm run import:mysql
 
 The importer does **not** copy PHP password hashes or email-verification tokens into Supabase Auth. Imported account emails and roles are retained, but each existing user must use **Forgot password** to set a new Supabase password. Unverified accounts must complete Supabase email verification first. Do not delete the old database until the imported record counts and representative orders have been checked.
 
-The import script is safe to rerun for the same source data: records are upserted by their IDs and users by their email/auth identity. Do not run imports from two different source databases into the same Supabase project.
+The import script is safe to rerun for the same source data before FIFO is enabled: records are upserted by their IDs and users by their email/auth identity. Complete imports before running migration 011; do not rerun this importer after FIFO tracking has started because it does not recreate lot allocations. Do not run imports from two different source databases into the same Supabase project.
 
 ### 5. Configure Xendit
 

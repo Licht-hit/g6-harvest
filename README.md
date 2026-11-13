@@ -3,6 +3,10 @@ set role = 'staff'
 where lower(email) = lower('rjake611@gmail.com')
 returning email, role;
 
+select email, email_confirmed_at
+from auth.users
+where lower(email) = lower('user@example.com');
+
 # G6 Harvest
 
 A PHP and MySQL farm operations and produce shop project.

@@ -3,6 +3,7 @@ import { getAccessToken, refreshAccessToken } from '../../src/authSession.js';
 import { calculateOrderTotals } from '../../src/orderMath.js';
 import { getOrderTrackingState } from '../../src/orderTracking.js';
 import { isFarmStaffRole } from '../../src/roles.js';
+import { sortFifoLots } from '../../src/fifoInventory.js';
 import { filterAndSortProducts } from '../../src/shopFilters.js';
 import { getVegetablePhotoExtension } from '../../src/vegetablePhoto.js';
 
@@ -1630,15 +1631,40 @@ function renderVegetables(products) {
 
 async function renderInventory(products) {
     state.products = products;
+    const lots = await queryOrThrow(state.supabase.from('inventory_lots')
+        .select('id, vegetable_id, harvest_id, source_type, received_on, quantity_remaining')
+        .gt('quantity_remaining', 0));
+    const productById = new Map(products.map((item) => [item.id, item]));
+    const fifoLots = sortFifoLots(lots, (vegetableId) => (
+        productById.get(vegetableId)?.name || ''
+    ));
+    const fifoPositionByVegetable = new Map();
+    const lotRows = fifoLots.map((lot) => {
+        const product = productById.get(lot.vegetable_id);
+        const fifoPosition = (fifoPositionByVegetable.get(lot.vegetable_id) || 0) + 1;
+        fifoPositionByVegetable.set(lot.vegetable_id, fifoPosition);
+        const source = lot.source_type === 'opening_balance'
+            ? 'Opening balance'
+            : lot.source_type === 'harvest'
+                ? `Harvest #${lot.harvest_id}`
+                : 'Manual addition';
+        const received = lot.source_type === 'opening_balance'
+            ? 'Before FIFO tracking'
+            : dateLabel(lot.received_on);
+        return `<tr><td>${fifoPosition}</td><td>${escapeHtml(product?.name || 'Produce')}</td>
+            <td>${escapeHtml(source)}</td><td>${escapeHtml(received)}</td>
+            <td>${Number(lot.quantity_remaining).toFixed(2)} ${escapeHtml(product?.unit || '')}</td></tr>`;
+    });
     const rows = products.map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${Number(item.quantity).toFixed(2)} ${escapeHtml(item.unit)}</td><td>${item.quantity <= 5 ? '<span class="app-status pending_payment">Low stock</span>' : '<span class="app-status paid">In stock</span>'}</td></tr>`);
     app.innerHTML = `
-        <section class="module-heading"><div><p class="module-eyebrow">Farm operations</p><h1>Inventory</h1><p>Adjust available stock. Harvests and orders update quantities automatically.</p></div></section>
+        <section class="module-heading"><div><p class="module-eyebrow">Farm operations</p><h1>Inventory</h1><p>Adjust available stock. FIFO uses the oldest stock batch first when orders are placed.</p></div></section>
         <section class="panel section"><h2>Set stock quantity</h2><form class="app-inline-form" data-form="inventory">
             <div class="field"><label for="inventory-vegetable">Vegetable</label><select id="inventory-vegetable" name="vegetableId" required>${products.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}</select></div>
             <div class="field"><label for="inventory-quantity">Quantity</label><input id="inventory-quantity" name="quantity" type="number" min="0" step="0.01" required></div>
             <button type="submit">Save inventory</button>
         </form></section>
-        <section class="panel section"><h2>Current stock</h2>${table(['Vegetable', 'Available quantity', 'Status'], rows, 'No vegetables are available.')}</section>`;
+        <section class="panel section"><h2>Current stock</h2>${table(['Vegetable', 'Available quantity', 'Status'], rows, 'No vegetables are available.')}</section>
+        <section class="panel section"><h2>FIFO stock batches</h2><p class="app-muted">Each vegetable's batches are ordered oldest first; orders draw from position 1 first.</p>${table(['FIFO position', 'Vegetable', 'Batch source', 'Received', 'Remaining'], lotRows, 'No FIFO stock batches are available.')}</section>`;
 }
 
 async function renderPlantings() {
