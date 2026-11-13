@@ -1689,7 +1689,7 @@ async function renderCheckout() {
                     <button type="submit">${buyerText('placeOrder')}</button>
                 </form>
             </section>
-            <section class="panel"><h2>${buyerText('orderSummary')}</h2>${lines}${summaryRows(totals)}</section>
+            <section class="panel"><h2>${buyerText('orderSummary')}</h2><div class="app-checkout-items">${lines}</div>${summaryRows(totals)}</section>
         </div>`;
 }
 
@@ -1972,7 +1972,9 @@ async function renderSales() {
     const status = params.get('status') || '';
     const search = (params.get('search') || '').toLowerCase();
     const [orders, sales, profiles, products] = await Promise.all([
-        queryOrThrow(state.supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(500)),
+        queryAllRows(() => state.supabase.from('orders').select('*')
+            .order('created_at', { ascending: true })
+            .order('order_code', { ascending: true })),
         queryOrThrow(state.supabase.from('sales').select('*').order('created_at', { ascending: false })),
         queryOrThrow(state.supabase.from('profiles').select('id, name, email')),
         getProducts(false),
@@ -2076,7 +2078,7 @@ async function renderSales() {
             <div class="field"><label for="sales-status">Status</label><select id="sales-status" name="status"><option value="">All statuses</option>${['pending', 'confirmed', 'preparing', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled', 'pending_payment', 'paid', 'failed', 'refunded'].map((value) => `<option value="${value}" ${status === value ? 'selected' : ''}>${value.replaceAll('_', ' ')}</option>`).join('')}</select></div>
             <div class="field"><label for="sales-from">From</label><input id="sales-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="sales-to">To</label><input id="sales-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
         </form></section>
-        <section class="panel section"><h2>Orders</h2>${table(['Order', 'Buyer', 'Items', 'Total', 'FIFO allocation', 'Status', 'Actions'], rows, 'No orders match these filters.')}</section>`;
+        <section class="panel section"><h2>Orders</h2><p class="app-muted">Orders are listed oldest first; new orders appear at the bottom.</p><div class="app-sales-orders-scroll">${table(['Order', 'Buyer', 'Items', 'Total', 'FIFO allocation', 'Status', 'Actions'], rows, 'No orders match these filters.')}</div></section>`;
 }
 
 async function renderReturns() {
