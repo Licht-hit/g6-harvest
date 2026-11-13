@@ -37,6 +37,7 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 11. Run `supabase/migrations/011_fifo_inventory.sql` once, after any optional MySQL import in section 4 and before deploying the FIFO-enabled frontend or accepting new orders. If you are not importing data, run it after migration 010. Existing available stock and active orders are preserved as an opening balance because their original batch dates are not available; new harvests and manual stock additions are tracked as separate FIFO batches.
 12. Run `supabase/migrations/012_order_returns.sql` after migration 011 and before deploying the returns-enabled frontend. It adds delivery timestamps, buyer return requests for damaged/quality-issue items within 24 hours, and staff review actions. Previously delivered orders use `updated_at` as the best available delivery-time estimate. Approving or completing a request does not automatically refund payment or restock inventory; staff must handle those steps manually.
 13. Run `supabase/migrations/013_fifo_sales_visibility.sql` after migration 011 and before deploying the FIFO Sales view. It permits farm staff (including administrators and farmers) to view FIFO allocations in Sales; buyers cannot read these records.
+14. Run `supabase/migrations/014_fix_return_quantity_ambiguity.sql` after migration 012. It replaces the return-request function with qualified SQL aliases so the requested quantity is not ambiguous.
     - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004, 005, and 007.
    - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
    - Do not rerun migrations that have already been applied.
@@ -61,7 +62,7 @@ The schema does not insert user accounts. Migration 005 adds the ten sample prod
 
 ### 2. Install and deploy the converted folder
 
-Before deploying, apply all unapplied migrations through 013. If importing MySQL data, complete section 4 before running migrations 011–013; then run them before deploying this FIFO- and returns-enabled frontend.
+Before deploying, apply all unapplied migrations through 014. If importing MySQL data, complete section 4 before running migrations 011–014; then run them before deploying this FIFO- and returns-enabled frontend.
 
 1. Push the repository to GitHub without adding any local configuration files or secrets.
 2. In Vercel, choose **Add New → Project**, then import this GitHub repository.

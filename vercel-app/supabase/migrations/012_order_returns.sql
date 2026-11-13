@@ -94,7 +94,7 @@ declare
     normalized_items jsonb;
     item_row jsonb;
     sale_key bigint;
-    requested_quantity numeric;
+    line_requested_quantity numeric;
     sold_quantity numeric;
     already_requested numeric;
     return_request_key bigint;
@@ -124,14 +124,17 @@ begin
         raise exception 'A return item or quantity is invalid.';
     end if;
 
-    select jsonb_agg(jsonb_build_object('sales_id', sales_id, 'quantity', requested_quantity) order by sales_id)
+    select jsonb_agg(jsonb_build_object(
+        'sales_id', normalized.sales_id,
+        'quantity', normalized.total_requested_quantity
+    ) order by normalized.sales_id)
     into normalized_items
     from (
         select (entry.value ->> 'sales_id')::bigint as sales_id,
-            sum(round((entry.value ->> 'quantity')::numeric, 2)) as requested_quantity
+            sum(round((entry.value ->> 'quantity')::numeric, 2)) as total_requested_quantity
         from jsonb_array_elements(p_items) as entry(value)
         group by (entry.value ->> 'sales_id')::bigint
-    ) items;
+    ) as normalized;
 
     select * into current_order
     from public.orders
@@ -151,8 +154,8 @@ begin
         order by (value ->> 'sales_id')::bigint
     loop
         sale_key := (item_row ->> 'sales_id')::bigint;
-        requested_quantity := round((item_row ->> 'quantity')::numeric, 2);
-        if requested_quantity <= 0 or requested_quantity > 10000 then
+        line_requested_quantity := round((item_row ->> 'quantity')::numeric, 2);
+        if line_requested_quantity <= 0 or line_requested_quantity > 10000 then
             raise exception 'Return quantities must be positive and no more than 10,000.';
         end if;
 
@@ -170,7 +173,7 @@ begin
         join public.return_requests rr on rr.id = rri.return_request_id
         where rri.sales_id = sale_key
             and rr.status in ('pending', 'approved', 'completed');
-        if requested_quantity > sold_quantity - already_requested then
+        if line_requested_quantity > sold_quantity - already_requested then
             raise exception 'The requested return quantity exceeds the unreturned quantity.';
         end if;
     end loop;
