@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getAccessToken, refreshAccessToken } from '../../src/authSession.js';
 import { calculateOrderTotals } from '../../src/orderMath.js';
-import { getOrderTrackingState } from '../../src/orderTracking.js';
+import { getOrderTrackingState, shouldShowOrderTracking } from '../../src/orderTracking.js';
 import { isFarmStaffRole } from '../../src/roles.js';
 import { sortFifoLots } from '../../src/fifoInventory.js';
 import { isOrderReturnWindowOpen } from '../../src/orderReturns.js';
@@ -542,6 +542,7 @@ async function getLatestActiveBuyerOrder() {
 }
 
 function buyerOrderTracker(order) {
+    if (!shouldShowOrderTracking(order.order_status)) return '';
     const tracking = getOrderTrackingState(order.order_status);
     const orderCode = escapeHtml(order.order_code);
     if (tracking.cancelled) {
@@ -1625,7 +1626,7 @@ async function renderBuyerOrders() {
         .eq('buyer_id', state.profile.id)
         .order('created_at', { ascending: false }));
     const rows = orders.map((order) => `<tr><td><a href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${escapeHtml(order.order_code)}</a><span class="table-secondary">${dateLabel(order.created_at)}</span></td>
-        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerOrderStatusBadge(order.order_code, order.order_status)}</td><td>${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</td><td><div class="app-table-actions"><a class="button secondary" href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${buyerText('trackOrder')}</a>${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}</div></td></tr>`);
+        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerOrderStatusBadge(order.order_code, order.order_status)}</td><td>${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</td><td><div class="app-table-actions">${shouldShowOrderTracking(order.order_status) ? `<a class="button secondary" href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${buyerText('trackOrder')}</a>` : ''}${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}</div></td></tr>`);
     app.insertAdjacentHTML('beforeend', `<section class="panel section"><div class="page-heading"><h1>${buyerText('ordersTitle')}</h1></div>${table([buyerText('order'), buyerText('total'), buyerText('payment'), buyerText('deliveryStatus'), buyerText('paymentStatus'), buyerText('actions')], rows, buyerText('noOrders'))}</section>`);
 }
 

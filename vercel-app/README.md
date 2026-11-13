@@ -10,7 +10,7 @@ Do not copy the parent project's local email/payment configuration files into th
 
 - Buyer registration, email verification, login, password reset, and logout through Supabase Auth.
 - Buyer, staff, farmer, and administrator roles. Farmers have the same farm-operation permissions as staff; existing staff roles are retained. New registrations are buyers; roles are never chosen in the browser.
-- Product catalog, product details, saved cart, checkout, order history, and receipts. Buyers can reopen full tracking from order details, with a shortcut to active orders on the dashboard and shop.
+- Product catalog, product details, saved cart, checkout, order history, and receipts. Buyers can reopen tracking from order details while an order is undelivered; the tracking timeline is removed after delivery. Active orders also have shortcuts on the dashboard and shop.
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
 - FIFO inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
 - Administrator dashboard with sales and harvest trends, inventory charts, stock alerts, top sellers, recent orders, inventory updates, and activity.

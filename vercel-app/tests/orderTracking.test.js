@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getOrderTrackingState } from '../src/orderTracking.js';
+import { getOrderTrackingState, shouldShowOrderTracking } from '../src/orderTracking.js';
+
+test('tracking is hidden only after an order is delivered', () => {
+    assert.equal(shouldShowOrderTracking('delivered'), false);
+    assert.equal(shouldShowOrderTracking('preparing'), true);
+    assert.equal(shouldShowOrderTracking('cancelled'), true);
+});
 
 test('a pending order waits for confirmation before starting the tracker', () => {
     const tracking = getOrderTrackingState('pending');

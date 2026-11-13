@@ -6,6 +6,10 @@ const ORDER_TRACKING_STEPS = Object.freeze([
     'delivered',
 ]);
 
+export function shouldShowOrderTracking(orderStatus) {
+    return orderStatus !== 'delivered';
+}
+
 export function getOrderTrackingState(orderStatus) {
     if (orderStatus === 'cancelled') {
         return { cancelled: true, steps: [] };
