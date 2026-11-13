@@ -4,6 +4,7 @@ import { calculateOrderTotals } from '../../src/orderMath.js';
 import { getOrderTrackingState } from '../../src/orderTracking.js';
 import { isFarmStaffRole } from '../../src/roles.js';
 import { sortFifoLots } from '../../src/fifoInventory.js';
+import { isOrderReturnWindowOpen } from '../../src/orderReturns.js';
 import { filterAndSortProducts } from '../../src/shopFilters.js';
 import { getVegetablePhotoExtension } from '../../src/vegetablePhoto.js';
 
@@ -59,6 +60,7 @@ const buyerCopy = {
         onlineUnavailable: 'Online payment is unavailable until Xendit and the public HTTPS address are configured.',
         onlineCheckFailed: 'Online payment could not be verified and is hidden for now. Cash on Delivery is still available.',
         ordersTitle: 'My orders', order: 'Order', total: 'Total', payment: 'Payment',
+        trackOrder: 'Track order', latestActiveOrder: 'Your order in progress',
         deliveryStatus: 'Delivery status', paymentStatus: 'Payment status',
         orderTracking: 'Order tracking', orderTrackingIntro: 'Follow your order from the farm to your door.',
         trackingLiveNote: 'Progress updates automatically when the farm updates your order.',
@@ -78,6 +80,17 @@ const buyerCopy = {
         address: 'Address', placed: 'Placed', items: 'Items', unitPrice: 'Unit price',
         orderTotal: 'Order total', paymentHistory: 'Payment history',
         noPaymentEvents: 'No payment events recorded.', orderAgain: 'Order these items again',
+        returnRequest: 'Request a return', returnRequests: 'Return requests',
+        returnWindowOpen: 'You can request a return within 24 hours of delivery for damaged items or quality issues.',
+        returnWindowClosed: 'The 24-hour return-request window has ended.',
+        returnNotDelivered: 'Return requests are available after delivery.',
+        returnReason: 'Reason', damaged: 'Damaged item', qualityIssue: 'Quality issue',
+        availableQuantity: 'available',
+        returnNotes: 'Additional details (optional)', submitReturnRequest: 'Send return request',
+        returnRequestNotice: 'Farm staff will review your request. Refunds and restocking are handled manually.',
+        noReturnRequests: 'No return requests for this order.',
+        returnRequestSent: 'Return request sent for staff review.',
+        status: 'Status',
         addedToCart: 'added to your cart.', openCart: 'View cart',
         reorderAdded: 'Available items from this order were added to your cart.',
         reorderPartial: 'Some items were unavailable or had less stock than before.',
@@ -140,6 +153,7 @@ const buyerCopy = {
         onlineUnavailable: 'Hindi available ang online payment hangga’t hindi naka-configure ang Xendit at pampublikong HTTPS address.',
         onlineCheckFailed: 'Hindi makumpirma ang online payment kaya pansamantalang nakatago ito. Available pa rin ang COD.',
         ordersTitle: 'Mga order ko', order: 'Order', total: 'Kabuuan', payment: 'Bayad',
+        trackOrder: 'Subaybayan ang order', latestActiveOrder: 'Order mong pinoproseso',
         deliveryStatus: 'Status ng delivery', paymentStatus: 'Status ng bayad',
         orderTracking: 'Pagsubaybay sa order', orderTrackingIntro: 'Subaybayan ang order mula bukid hanggang sa iyo.',
         trackingLiveNote: 'Awtomatikong naa-update ang progreso kapag binago ng bukid ang status ng order.',
@@ -159,6 +173,17 @@ const buyerCopy = {
         address: 'Address', placed: 'Petsa ng order', items: 'Mga produkto', unitPrice: 'Presyo bawat yunit',
         orderTotal: 'Kabuuang bayarin', paymentHistory: 'Kasaysayan ng bayad',
         noPaymentEvents: 'Wala pang naitalang bayad.', orderAgain: 'Bilhin muli ang mga ito',
+        returnRequest: 'Humiling ng pagsasauli', returnRequests: 'Mga kahilingan sa pagsasauli',
+        returnWindowOpen: 'Maaari kang humiling ng pagsasauli sa loob ng 24 oras mula sa paghahatid kung may sira o problema sa kalidad ang produkto.',
+        returnWindowClosed: 'Tapos na ang 24-oras na panahon para humiling ng pagsasauli.',
+        returnNotDelivered: 'Pagkatapos maihatid lamang maaaring humiling ng pagsasauli.',
+        returnReason: 'Dahilan', damaged: 'Sirang produkto', qualityIssue: 'Problema sa kalidad',
+        availableQuantity: 'na natitira',
+        returnNotes: 'Karagdagang detalye (opsyonal)', submitReturnRequest: 'Ipadala ang kahilingan',
+        returnRequestNotice: 'Susuriin ng farm staff ang kahilingan. Mano-manong aasikasuhin ang refund at pagbalik sa stock.',
+        noReturnRequests: 'Wala pang kahilingan sa pagsasauli para sa order na ito.',
+        returnRequestSent: 'Naipadala na ang kahilingan para masuri ng staff.',
+        status: 'Status',
         addedToCart: 'naidagdag sa cart mo.', openCart: 'Tingnan ang cart',
         reorderAdded: 'Naidagdag sa cart ang mga produktong may stock mula sa order na ito.',
         reorderPartial: 'May produktong ubos na o mas kaunti na ang stock.',
@@ -495,6 +520,27 @@ function buyerPaymentStatusBadge(orderCode, value) {
     return `<span data-payment-status-for="${escapeHtml(orderCode)}">${buyerStatusBadge(value)}</span>`;
 }
 
+function buyerActiveOrderCard(order) {
+    if (!order) return '';
+    const encodedOrderCode = encodeURIComponent(order.order_code);
+    return `<section class="panel app-active-order" aria-label="${buyerText('orderTracking')}">
+        <div><h2>${buyerText('latestActiveOrder')}</h2><p>${buyerText('order')} ${escapeHtml(order.order_code)} · ${buyerText('trackingLiveNote')}</p></div>
+        <div class="app-active-order-actions">${buyerOrderStatusBadge(order.order_code, order.order_status)}
+            <a class="button secondary" href="?page=order&order=${encodedOrderCode}" data-page="order" data-order="${escapeHtml(order.order_code)}">${buyerText('trackOrder')}</a>
+        </div>
+    </section>`;
+}
+
+async function getLatestActiveBuyerOrder() {
+    const orders = await queryOrThrow(state.supabase.from('orders')
+        .select('order_code, order_status, buyer_id')
+        .eq('buyer_id', state.profile.id)
+        .not('order_status', 'in', '(delivered,cancelled)')
+        .order('created_at', { ascending: false })
+        .limit(1));
+    return orders[0] || null;
+}
+
 function buyerOrderTracker(order) {
     const tracking = getOrderTrackingState(order.order_status);
     const orderCode = escapeHtml(order.order_code);
@@ -561,8 +607,13 @@ function updateVisibleBuyerOrderStatus(order) {
     if (
         state.profile?.role !== 'buyer'
         || String(order.buyer_id) !== String(state.profile.id)
-        || !['dashboard', 'orders', 'order'].includes(state.page)
+        || !['dashboard', 'shop', 'orders', 'order'].includes(state.page)
     ) return;
+    if (['dashboard', 'shop'].includes(state.page)
+        && ['delivered', 'cancelled'].includes(order.order_status)) {
+        void renderPage();
+        return;
+    }
 
     const orderCode = String(order.order_code);
     app.querySelectorAll('[data-order-status-for]').forEach((element) => {
@@ -584,7 +635,7 @@ function updateVisibleBuyerOrderStatus(order) {
 
 function syncBuyerOrderStatusSubscription() {
     const buyerId = state.profile?.role === 'buyer' ? state.profile.id : null;
-    const shouldSubscribe = buyerId !== null && ['dashboard', 'orders', 'order'].includes(state.page);
+    const shouldSubscribe = buyerId !== null && ['dashboard', 'shop', 'orders', 'order'].includes(state.page);
     const sameBuyer = String(state.orderStatusBuyerId) === String(buyerId);
 
     if ((!shouldSubscribe || !sameBuyer) && state.orderStatusChannel) {
@@ -897,11 +948,12 @@ function renderAuth(page) {
 
 async function renderDashboard() {
     if (state.profile.role === 'buyer') {
-        const [orders, products] = await Promise.all([
+        const [orders, products, activeOrder] = await Promise.all([
             queryOrThrow(state.supabase.from('orders')
                 .select('order_code, final_total, order_status, payment_status, created_at')
                 .eq('buyer_id', state.profile.id).order('created_at', { ascending: false }).limit(5)),
             queryOrThrow(state.supabase.from('vegetables').select('id').eq('active', true)),
+            getLatestActiveBuyerOrder(),
         ]);
         const rows = orders.map((order) => `<tr>
             <td><a href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${escapeHtml(order.order_code)}</a></td>
@@ -909,6 +961,7 @@ async function renderDashboard() {
         </tr>`);
         app.innerHTML = `
             <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">${buyerText('buyerAccount')}</p><h1>${buyerText('welcome')}, ${escapeHtml(state.profile.name)}</h1><p>${buyerText('buyerIntro')}</p></div></section>
+            ${buyerActiveOrderCard(activeOrder)}
             <section class="dashboard-stat-grid">
                 <article class="dashboard-stat-card"><span class="dashboard-stat-label">${buyerText('activeProduce')}</span><strong>${products.length}</strong><small>${buyerText('availableInShop')}</small></article>
                 <article class="dashboard-stat-card"><span class="dashboard-stat-label">${buyerText('recentOrders')}</span><strong>${orders.length}</strong><small>${buyerText('latestOrders')}</small></article>
@@ -1194,7 +1247,7 @@ async function renderDashboard() {
     if (topSelling.length) drawDashboardChart('top-selling-chart', topSelling.map((item) => `${item.name} (${item.unit})`), topSelling.map((item) => item.quantity), '#76a85b');
 }
 
-function renderShop(products) {
+function renderShop(products, activeOrder = null) {
     state.products = products;
     const categories = [...new Set(products.map((product) => product.category).filter(Boolean))]
         .sort((left, right) => left.localeCompare(right));
@@ -1235,6 +1288,7 @@ function renderShop(products) {
         <p class="shop-results-count" data-shop-results aria-live="polite"></p>`;
     const subtotal = state.products.reduce((sum, product) => sum + product.price * Number(state.cart[product.id] || 0), 0);
     app.innerHTML = `
+        ${buyerActiveOrderCard(activeOrder)}
         <section class="shop-hero"><div class="shop-hero-copy"><p class="shop-eyebrow">${buyerText('shopEyebrow')}</p><h1>${buyerText('shopTitle')}</h1><p>${buyerText('shopIntro')}</p></div><a class="button shop-hero-button" href="?page=cart" data-page="cart">${buyerText('viewCart')} <span class="cart-count">${cartCount()}</span></a></section>
         <section class="shop-highlights"><div><span aria-hidden="true">🌱</span><strong>${buyerText('farmFresh')}</strong><small>${buyerText('harvestedCare')}</small></div><div><span aria-hidden="true">🥬</span><strong>${buyerText('seasonalProduce')}</strong><small>${buyerText('availableToday')}</small></div><div><span aria-hidden="true">🚚</span><strong>${buyerText('localDelivery')}</strong><small>${buyerText('flatDelivery')}</small></div></section>
         <p class="shop-delivery-note">${buyerText('deliveryNote')} ${buyerText('bulkNote')}</p>
@@ -1331,7 +1385,7 @@ function renderLanding(products, catalogUnavailable = false) {
             <section class="landing-trust" aria-label="Harvest at a glance">
                 <div><strong>Live catalog</strong><span>Explore produce listed by the farm.</span></div>
                 <div><strong>Clear details</strong><span>Know the price, variety, and unit.</span></div>
-                <div><strong>Your favorites</strong><span>Save regular picks to a buyer account.</span></div>
+                <div><strong>Order tracking</strong><span>Follow delivery progress from your buyer account.</span></div>
             </section>
             <section class="landing-section" id="featured" aria-labelledby="landing-featured-title">
                 <div class="landing-section-heading">
@@ -1347,7 +1401,7 @@ function renderLanding(products, catalogUnavailable = false) {
                     <p class="landing-eyebrow">A closer connection to the farm</p>
                     <h2 id="landing-story-title">Farm to <em>your table.</em></h2>
                     <p>Harvest brings farm operations and produce ordering together. Staff can record plantings and harvests, track inventory, and share current availability with shoppers.</p>
-                    <p>Customers can explore real catalog details, save favorite produce, and manage orders through their own account.</p>
+                    <p>Customers can explore real catalog details and manage orders through their own account.</p>
                     <a class="landing-secondary-link" href="#farming-process">See how Harvest works <span aria-hidden="true">→</span></a>
                 </div>
             </section>
@@ -1359,7 +1413,7 @@ function renderLanding(products, catalogUnavailable = false) {
                 <div class="landing-feature-grid">
                     <article class="landing-feature-card"><span aria-hidden="true">🌱</span><h3>Current catalog</h3><p>Explore active produce and see the prices and units listed by the farm.</p></article>
                     <article class="landing-feature-card"><span aria-hidden="true">📦</span><h3>Clear availability</h3><p>Check current inventory before choosing what to order.</p></article>
-                    <article class="landing-feature-card"><span aria-hidden="true">♡</span><h3>Favorites that stay yours</h3><p>Save produce to your buyer account and find your regular picks again.</p></article>
+                    <article class="landing-feature-card"><span aria-hidden="true">▤</span><h3>Orders in one place</h3><p>Review past orders and track delivery progress from your buyer account.</p></article>
                     <article class="landing-feature-card"><span aria-hidden="true">🧺</span><h3>Order management</h3><p>Place orders through your account and keep track of their status.</p></article>
                 </div>
             </section>
@@ -1571,7 +1625,7 @@ async function renderBuyerOrders() {
         .eq('buyer_id', state.profile.id)
         .order('created_at', { ascending: false }));
     const rows = orders.map((order) => `<tr><td><a href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${escapeHtml(order.order_code)}</a><span class="table-secondary">${dateLabel(order.created_at)}</span></td>
-        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerOrderStatusBadge(order.order_code, order.order_status)}</td><td>${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</td><td>${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : '—'}</td></tr>`);
+        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerOrderStatusBadge(order.order_code, order.order_status)}</td><td>${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</td><td><div class="app-table-actions"><a class="button secondary" href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${buyerText('trackOrder')}</a>${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}</div></td></tr>`);
     app.insertAdjacentHTML('beforeend', `<section class="panel section"><div class="page-heading"><h1>${buyerText('ordersTitle')}</h1></div>${table([buyerText('order'), buyerText('total'), buyerText('payment'), buyerText('deliveryStatus'), buyerText('paymentStatus'), buyerText('actions')], rows, buyerText('noOrders'))}</section>`);
 }
 
@@ -1583,26 +1637,78 @@ async function renderOrderDetails(orderCode) {
         app.innerHTML = `<section class="panel"><h1>${buyerText('orderNotFound')}</h1><a href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></section>`;
         return;
     }
-    const [sales, events] = await Promise.all([
+    const [sales, events, returnRequests] = await Promise.all([
         queryOrThrow(state.supabase.from('sales').select('*').eq('order_code', orderCode)),
         queryOrThrow(state.supabase.from('payment_history').select('*').eq('order_code', orderCode).order('created_at')),
+        queryOrThrow(state.supabase.from('return_requests').select('*').eq('order_code', orderCode).order('requested_at', { ascending: false })),
     ]);
+    const returnRequestIds = returnRequests.map((request) => request.id);
+    const returnRequestItems = returnRequestIds.length
+        ? await queryOrThrow(state.supabase.from('return_request_items').select('*').in('return_request_id', returnRequestIds))
+        : [];
     const productIds = [...new Set(sales.map((line) => line.vegetable_id))];
     const vegetables = productIds.length
         ? await queryOrThrow(state.supabase.from('vegetables').select('id, name, unit').in('id', productIds))
         : [];
     const nameById = new Map(vegetables.map((vegetable) => [vegetable.id, vegetable]));
+    const salesById = new Map(sales.map((line) => [line.id, line]));
+    const returnRequestById = new Map(returnRequests.map((request) => [request.id, request]));
+    const returnableQuantityBySale = new Map(sales.map((line) => [line.id, Number(line.quantity)]));
+    returnRequestItems.forEach((item) => {
+        const request = returnRequestById.get(item.return_request_id);
+        if (!request || request.status === 'rejected') return;
+        const remaining = returnableQuantityBySale.get(item.sales_id) || 0;
+        returnableQuantityBySale.set(item.sales_id, remaining - Number(item.quantity));
+    });
     const lineRows = sales.map((line) => {
         const product = nameById.get(line.vegetable_id);
         return `<tr><td>${escapeHtml(product?.name || buyerText('produce'))}</td><td>${formatQuantity(line.quantity)} ${escapeHtml(product?.unit || '')}</td><td>${money(line.unit_price)}</td><td>${money(line.total)}</td></tr>`;
     });
     const eventRows = events.map((event) => `<tr><td>${dateLabel(event.created_at)}</td><td>${escapeHtml(event.event_type.replaceAll('_', ' '))}</td><td>${buyerStatusBadge(event.payment_status)}</td><td>${money(event.amount)}</td><td>${escapeHtml(event.payment_reference || '—')}</td><td>${escapeHtml(event.details || '—')}</td></tr>`);
+    const returnRows = returnRequests.map((request) => {
+        const items = returnRequestItems
+            .filter((item) => item.return_request_id === request.id)
+            .map((item) => {
+                const sale = salesById.get(item.sales_id);
+                const product = sale ? nameById.get(sale.vegetable_id) : null;
+                return `${product?.name || buyerText('produce')} × ${formatQuantity(item.quantity)} ${product?.unit || ''}`;
+            })
+            .join(', ');
+        return `<tr><td>${dateTimeLabel(request.requested_at)}</td><td>${escapeHtml(items || '—')}</td><td>${escapeHtml(buyerText(request.reason === 'damaged' ? 'damaged' : 'qualityIssue'))}</td><td>${statusBadge(request.status)}</td><td>${escapeHtml(request.staff_notes || request.notes || '—')}</td></tr>`;
+    });
+    const returnableLines = isOrderReturnWindowOpen(order)
+        ? sales.filter((line) => (returnableQuantityBySale.get(line.id) || 0) > 0)
+        : [];
+    const returnWindowMessage = order.order_status !== 'delivered'
+        ? 'returnNotDelivered'
+        : isOrderReturnWindowOpen(order) ? 'returnWindowOpen' : 'returnWindowClosed';
+    const returnSection = `
+        <section class="panel section">
+            <h2>${buyerText('returnRequests')}</h2>
+            <p>${buyerText(returnWindowMessage)}</p>
+            ${returnableLines.length ? `
+                <form class="app-inline-form" data-form="return-request">
+                    <input type="hidden" name="orderCode" value="${escapeHtml(order.order_code)}">
+                    <div class="field"><label for="return-sales-id">${buyerText('items')}</label><select id="return-sales-id" name="salesId" data-return-sale-select required>${returnableLines.map((line) => {
+                        const product = nameById.get(line.vegetable_id);
+                        const remaining = returnableQuantityBySale.get(line.id);
+                        return `<option value="${line.id}" data-max="${remaining.toFixed(2)}">${escapeHtml(product?.name || buyerText('produce'))} — ${formatQuantity(remaining)} ${escapeHtml(product?.unit || '')} ${buyerText('availableQuantity')}</option>`;
+                    }).join('')}</select></div>
+                    <div class="field"><label for="return-quantity">${buyerText('quantity')}</label><input id="return-quantity" name="quantity" type="number" min="0.01" max="${returnableQuantityBySale.get(returnableLines[0].id).toFixed(2)}" step="0.01" value="0.01" required></div>
+                    <div class="field"><label for="return-reason">${buyerText('returnReason')}</label><select id="return-reason" name="reason" required><option value="damaged">${buyerText('damaged')}</option><option value="quality_issue">${buyerText('qualityIssue')}</option></select></div>
+                    <div class="field"><label for="return-notes">${buyerText('returnNotes')}</label><textarea id="return-notes" name="notes" maxlength="2000"></textarea></div>
+                    <p class="muted">${buyerText('returnRequestNotice')}</p>
+                    <button type="submit">${buyerText('submitReturnRequest')}</button>
+                </form>` : ''}
+            ${table([buyerText('date'), buyerText('items'), buyerText('returnReason'), buyerText('status'), buyerText('details')], returnRows, buyerText('noReturnRequests'))}
+        </section>`;
     app.innerHTML = `
         <div class="page-heading"><h1>${buyerText('order')} ${escapeHtml(order.order_code)}</h1><div class="app-actions">${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}<a class="button secondary" href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></div></div>
         <section class="stats"><article class="card"><span class="muted">${buyerText('deliveryStatus')}</span><strong class="stat-value">${buyerOrderStatusBadge(order.order_code, order.order_status)}</strong></article><article class="card"><span class="muted">${buyerText('paymentStatus')}</span><strong class="stat-value">${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</strong></article><article class="card"><span class="muted">${buyerText('total')}</span><strong class="stat-value">${money(order.final_total)}</strong></article></section>
         ${buyerOrderTracker(order)}
         <section class="panel section"><h2>${buyerText('deliveryDetails')}</h2><p class="app-delivery-address">${escapeHtml(order.delivery_address)}</p><p><strong>${buyerText('payment')}:</strong> ${escapeHtml(buyerPaymentMethod(order.payment_method))}</p><p><strong>${buyerText('placed')}:</strong> ${dateLabel(order.created_at)}</p></section>
         <section class="panel section"><h2>${buyerText('items')}</h2>${table([buyerText('produce'), buyerText('quantity'), buyerText('unitPrice'), buyerText('lineTotal')], lineRows)}</section>
+        ${returnSection}
         <section class="panel section app-summary"><h2>${buyerText('orderTotal')}</h2>${summaryRows({ subtotal: order.subtotal, discountPercentage: order.discount_percentage, discountAmount: order.discount_amount, deliveryFee: order.delivery_fee, finalTotal: order.final_total })}</section>
         <section class="panel section"><h2>${buyerText('paymentHistory')}</h2>${table([buyerText('date'), buyerText('event'), buyerText('paymentStatus'), buyerText('amount'), buyerText('reference'), buyerText('details')], eventRows, buyerText('noPaymentEvents'))}</section>`;
 }
@@ -1617,11 +1723,11 @@ function renderVegetables(products) {
         <section class="panel section"><h2 id="vegetable-form-title">Add a vegetable</h2>
             <form class="app-form" data-form="vegetable">
                 <input type="hidden" name="id">
-                <div class="field"><label>Name</label><input name="name" maxlength="120" required></div>
-                <div class="field"><label>Variety</label><input name="variety" maxlength="120"></div>
-                <div class="field"><label>Unit</label><input name="unit" maxlength="30" value="kg" required></div>
-                <div class="field"><label>Price (₱)</label><input name="price" type="number" min="0" step="0.01" required></div>
-                <div class="field field-wide"><label>Description</label><textarea name="description"></textarea></div>
+                <div class="field"><label for="vegetable-name">Name</label><input id="vegetable-name" name="name" maxlength="120" required></div>
+                <div class="field"><label for="vegetable-variety">Variety</label><input id="vegetable-variety" name="variety" maxlength="120"></div>
+                <div class="field"><label for="vegetable-unit">Unit</label><input id="vegetable-unit" name="unit" maxlength="30" value="kg" required></div>
+                <div class="field"><label for="vegetable-price">Price (₱)</label><input id="vegetable-price" name="price" type="number" min="0" step="0.01" required></div>
+                <div class="field field-wide"><label for="vegetable-description">Description</label><textarea id="vegetable-description" name="description"></textarea></div>
                 <div class="field field-wide"><label for="vegetable-photo">Vegetable photo</label><input id="vegetable-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required><small>Required for new vegetables. JPEG, PNG, or WebP; maximum 5 MB. When editing, leave empty to keep the current photo.</small><div class="vegetable-photo-preview" data-vegetable-photo-preview aria-live="polite"></div></div>
                 <div class="app-actions"><button type="submit">Save vegetable</button><button type="button" class="button secondary" data-action="clear-vegetable">Clear</button></div>
             </form>
@@ -1678,10 +1784,10 @@ async function renderPlantings() {
     app.innerHTML = `
         <section class="module-heading"><div><p class="module-eyebrow">Growing cycle</p><h1>Plantings</h1><p>Track what is planted and when it is expected to be ready.</p></div></section>
         <section class="panel section"><h2 id="planting-form-title">Add a planting</h2><form class="app-form" data-form="planting"><input type="hidden" name="id">
-            <div class="field"><label>Vegetable</label><select name="vegetableId" required>${state.products.filter((item) => item.active).map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}</select></div>
-            <div class="field"><label>Quantity planted</label><input name="quantity" type="number" min="0.01" step="0.01" required></div>
-            <div class="field"><label>Planted on</label><input name="plantedOn" type="date" value="${dateInputValue()}" required></div>
-            <div class="field"><label>Expected harvest date</label><input name="expectedHarvestOn" type="date"></div>
+            <div class="field"><label for="planting-vegetable">Vegetable</label><select id="planting-vegetable" name="vegetableId" required>${state.products.filter((item) => item.active).map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}</select></div>
+            <div class="field"><label for="planting-quantity">Quantity planted</label><input id="planting-quantity" name="quantity" type="number" min="0.01" step="0.01" required></div>
+            <div class="field"><label for="planting-date">Planted on</label><input id="planting-date" name="plantedOn" type="date" value="${dateInputValue()}" required></div>
+            <div class="field"><label for="planting-expected-date">Expected harvest date</label><input id="planting-expected-date" name="expectedHarvestOn" type="date"></div>
             <div class="app-actions"><button type="submit">Save planting</button><button type="button" class="button secondary" data-action="clear-planting">Clear</button></div>
         </form></section>
         <section class="panel section"><h2>Planting records</h2>${table(['Vegetable', 'Quantity', 'Planted', 'Expected harvest', 'Status', 'Actions'], rows.map((row) => `<tr><td>${escapeHtml(names.get(row.vegetable_id) || 'Produce')}</td><td>${Number(row.quantity_planted).toFixed(2)}</td><td>${dateLabel(row.planted_on)}</td><td>${dateLabel(row.expected_harvest_on)}</td><td>${statusBadge(row.status)}</td><td>${row.status === 'growing' ? `<div class="app-table-actions"><button type="button" class="button secondary" data-action="edit-planting" data-id="${row.id}">Edit</button><button type="button" class="button danger" data-action="archive-planting" data-id="${row.id}">Archive</button></div>` : '—'}</td></tr>`), 'No planting records.')}</section>`;
@@ -1709,10 +1815,10 @@ async function renderHarvests() {
     app.innerHTML = `
         <section class="module-heading"><div><p class="module-eyebrow">Farm operations</p><h1>Harvests</h1><p>Record harvest quantities; stock is updated automatically.</p></div></section>
         <section class="panel section"><h2 id="harvest-form-title">Record a harvest</h2><form class="app-form" data-form="harvest"><input type="hidden" name="id">
-            <div class="field"><label>Growing planting</label><select name="plantingId" required>${growing.map((row) => `<option value="${row.id}">${escapeHtml(growingNameById.get(row.vegetable_id) || 'Produce')} · #${row.id}</option>`).join('')}</select></div>
-            <div class="field"><label>Harvest quantity</label><input name="quantity" type="number" min="0.01" step="0.01" required></div>
-            <div class="field"><label>Harvested on</label><input name="harvestedOn" type="date" value="${dateInputValue()}" required></div>
-            <div class="field field-wide"><label>Quality notes</label><textarea name="qualityNotes" maxlength="4000"></textarea></div>
+            <div class="field"><label for="harvest-planting">Growing planting</label><select id="harvest-planting" name="plantingId" required>${growing.map((row) => `<option value="${row.id}">${escapeHtml(growingNameById.get(row.vegetable_id) || 'Produce')} · #${row.id}</option>`).join('')}</select></div>
+            <div class="field"><label for="harvest-quantity">Harvest quantity</label><input id="harvest-quantity" name="quantity" type="number" min="0.01" step="0.01" required></div>
+            <div class="field"><label for="harvest-date">Harvested on</label><input id="harvest-date" name="harvestedOn" type="date" value="${dateInputValue()}" required></div>
+            <div class="field field-wide"><label for="harvest-notes">Quality notes</label><textarea id="harvest-notes" name="qualityNotes" maxlength="4000"></textarea></div>
             <div class="app-actions"><button type="submit">Save harvest</button><button type="button" class="button secondary" data-action="clear-harvest">Clear</button></div>
         </form></section>
         <section class="panel section"><h2>Harvest records</h2>${table(['Vegetable', 'Quantity', 'Harvested', 'Notes', 'Status', 'Actions'], rows.map((row) => {
@@ -1759,16 +1865,16 @@ async function renderQuality() {
     app.innerHTML = `
         <section class="module-heading"><div><p class="module-eyebrow">Farm operations</p><h1>Quality inspections</h1><p>Record a grade for an active harvest and review inspection history.</p></div></section>
         <section class="panel section"><h2>Record inspection</h2><form class="app-form" data-form="quality">
-            <div class="field"><label>Active harvest</label><select name="harvestId" required>${harvests.map((row) => `<option value="${row.id}">${escapeHtml(harvestName.get(row.id))}</option>`).join('')}</select></div>
-            <div class="field"><label>Grade</label><select name="grade" required><option>A</option><option>B</option><option>C</option><option>Rejected</option></select></div>
-            <div class="field"><label>Inspection date</label><input name="inspectedOn" type="date" value="${dateInputValue()}" required></div>
-            <div class="field field-wide"><label>Notes</label><textarea name="notes" maxlength="4000"></textarea></div>
+            <div class="field"><label for="quality-harvest">Active harvest</label><select id="quality-harvest" name="harvestId" required>${harvests.map((row) => `<option value="${row.id}">${escapeHtml(harvestName.get(row.id))}</option>`).join('')}</select></div>
+            <div class="field"><label for="quality-grade">Grade</label><select id="quality-grade" name="grade" required><option>A</option><option>B</option><option>C</option><option>Rejected</option></select></div>
+            <div class="field"><label for="quality-date">Inspection date</label><input id="quality-date" name="inspectedOn" type="date" value="${dateInputValue()}" required></div>
+            <div class="field field-wide"><label for="quality-notes">Notes</label><textarea id="quality-notes" name="notes" maxlength="4000"></textarea></div>
             <button type="submit">Save inspection</button>
         </form></section>
         <section class="panel section"><h2>Filter inspections</h2><form class="app-inline-form" data-form="quality-filter">
-            <div class="field"><label>Search</label><input name="search" value="${escapeHtml(params.get('search') || '')}" placeholder="Produce, inspector, notes"></div>
-            <div class="field"><label>Grade</label><select name="grade"><option value="">All grades</option>${['A', 'B', 'C', 'Rejected'].map((value) => `<option value="${value}" ${grade === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div>
-            <div class="field"><label>From</label><input name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label>To</label><input name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
+            <div class="field"><label for="quality-search">Search</label><input id="quality-search" name="search" value="${escapeHtml(params.get('search') || '')}" placeholder="Produce, inspector, notes"></div>
+            <div class="field"><label for="quality-filter-grade">Grade</label><select id="quality-filter-grade" name="grade"><option value="">All grades</option>${['A', 'B', 'C', 'Rejected'].map((value) => `<option value="${value}" ${grade === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div>
+            <div class="field"><label for="quality-from">From</label><input id="quality-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="quality-to">To</label><input id="quality-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
         </form></section>
         <section class="panel section"><h2>Inspection records</h2>${table(['Produce / harvest', 'Grade', 'Inspected', 'Inspector', 'Notes'], matchingInspections.map((row) => `<tr><td>${escapeHtml(harvestName.get(row.harvest_id) || `Harvest #${row.harvest_id}`)}</td><td>${statusBadge(row.grade.toLowerCase())}</td><td>${dateLabel(row.inspected_on)}</td><td>${escapeHtml(profileName.get(row.inspector_id) || 'Staff')}</td><td>${escapeHtml(row.notes || '—')}</td></tr>`), 'No quality inspections match these filters.')}</section>`;
 }
@@ -1779,28 +1885,55 @@ async function renderSales() {
     const to = params.get('to') || '';
     const status = params.get('status') || '';
     const search = (params.get('search') || '').toLowerCase();
-    const [orders, sales, profiles, products] = await Promise.all([
+    const [orders, sales, profiles, products, returnRequests] = await Promise.all([
         queryOrThrow(state.supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(500)),
         queryOrThrow(state.supabase.from('sales').select('*').order('created_at', { ascending: false })),
         queryOrThrow(state.supabase.from('profiles').select('id, name, email')),
         getProducts(false),
+        queryOrThrow(state.supabase.from('return_requests').select('*').order('requested_at', { ascending: false }).limit(500)),
     ]);
+    const returnRequestItems = returnRequests.length
+        ? await queryOrThrow(state.supabase.from('return_request_items').select('*').in('return_request_id', returnRequests.map((request) => request.id)))
+        : [];
     const profileMap = new Map(profiles.map((row) => [row.id, row]));
     const productMap = new Map(products.map((row) => [row.id, row]));
+    const salesMap = new Map(sales.map((line) => [line.id, line]));
     const linesByOrder = new Map();
     sales.forEach((line) => {
         if (!linesByOrder.has(line.order_code)) linesByOrder.set(line.order_code, []);
         linesByOrder.get(line.order_code).push(line);
     });
     const filteredOrders = orders.filter((order) => {
-        if (from && order.created_at.slice(0, 10) < from) return false;
-        if (to && order.created_at.slice(0, 10) > to) return false;
+        const orderDay = dateInputValue(new Date(order.created_at));
+        if (from && orderDay < from) return false;
+        if (to && orderDay > to) return false;
         if (status && order.order_status !== status && order.payment_status !== status) return false;
         if (!search) return true;
         const buyer = profileMap.get(order.buyer_id);
         const lines = linesByOrder.get(order.order_code) || [];
         const productNames = lines.map((line) => productMap.get(line.vegetable_id)?.name || '').join(' ');
         return `${order.order_code} ${buyer?.name || ''} ${buyer?.email || ''} ${productNames}`.toLowerCase().includes(search);
+    });
+    const allocationRows = filteredOrders.length
+        ? await queryAllRows(() => state.supabase.from('inventory_lot_allocations')
+            .select('order_code, vegetable_id, inventory_lot_id, quantity, released_at')
+            .in('order_code', filteredOrders.map((order) => order.order_code))
+            .order('id'))
+        : [];
+    const lotIds = [...new Set(allocationRows.map((allocation) => allocation.inventory_lot_id))];
+    const lots = lotIds.length
+        ? await queryAllRows(() => state.supabase.from('inventory_lots')
+            .select('id, source_type, harvest_id, received_on')
+            .in('id', lotIds)
+            .order('id'))
+        : [];
+    const lotById = new Map(lots.map((lot) => [lot.id, lot]));
+    const allocationsByOrderProduct = new Map();
+    allocationRows.forEach((allocation) => {
+        const key = `${allocation.order_code}:${allocation.vegetable_id}`;
+        const allocations = allocationsByOrderProduct.get(key) || [];
+        allocations.push(allocation);
+        allocationsByOrderProduct.set(key, allocations);
     });
     state.records = new Map(filteredOrders.map((order) => [String(order.order_code), order]));
     const rows = filteredOrders.map((order) => {
@@ -1810,6 +1943,30 @@ async function renderSales() {
             const product = productMap.get(line.vegetable_id);
             return `${product?.name || 'Produce'} × ${Number(line.quantity).toFixed(2)}`;
         }).join(', ');
+        const fifoLines = lines.map((line) => {
+            const product = productMap.get(line.vegetable_id);
+            const allocations = allocationsByOrderProduct.get(`${order.order_code}:${line.vegetable_id}`) || [];
+            if (!allocations.length) {
+                return `<li><strong>${escapeHtml(product?.name || 'Produce')}</strong>: No FIFO allocation recorded</li>`;
+            }
+            const lotRows = allocations.map((allocation) => {
+                const lot = lotById.get(allocation.inventory_lot_id);
+                const source = lot?.source_type === 'harvest'
+                    ? `Harvest #${lot.harvest_id}`
+                    : lot?.source_type === 'manual_addition'
+                        ? 'Manual stock addition'
+                        : lot?.source_type === 'opening_balance'
+                            ? 'Opening balance'
+                            : 'Unknown batch';
+                const received = lot?.source_type === 'opening_balance'
+                    ? 'Before FIFO tracking'
+                    : lot?.received_on ? dateLabel(lot.received_on) : '—';
+                const restored = allocation.released_at ? ' · Restored' : '';
+                return `<li>${escapeHtml(source)} — ${formatQuantity(allocation.quantity)} ${escapeHtml(product?.unit || '')} <span class="muted">(${escapeHtml(received)}${restored})</span></li>`;
+            }).join('');
+            return `<li><strong>${escapeHtml(product?.name || 'Produce')} × ${formatQuantity(line.quantity)}</strong><ul>${lotRows}</ul></li>`;
+        }).join('');
+        const fifoCell = `<details class="app-fifo-details"><summary>FIFO lots</summary>${fifoLines ? `<ul>${fifoLines}</ul>` : '<p>No order items to allocate.</p>'}</details>`;
         const canCollect = order.payment_method === 'cod'
             && order.payment_status === 'pending_payment'
             && ['out_for_delivery', 'delivered'].includes(order.order_status);
@@ -1824,21 +1981,43 @@ async function renderSales() {
         }[order.order_status] || [];
         return `<tr><td><strong>${escapeHtml(order.order_code)}</strong><span class="table-secondary">${dateLabel(order.created_at)}</span></td>
             <td>${escapeHtml(buyer?.name || 'Buyer')}<span class="table-secondary">${escapeHtml(buyer?.email || '')}</span></td>
-            <td>${escapeHtml(summary || '—')}</td><td>${money(order.final_total)}</td>
+            <td>${escapeHtml(summary || '—')}</td><td>${money(order.final_total)}</td><td>${fifoCell}</td>
             <td>${statusBadge(order.order_status)}<span class="table-secondary">${statusBadge(order.payment_status)}</span></td>
             <td><div class="app-table-actions">${allowed.length ? `<select aria-label="New delivery status" data-status-for="${escapeHtml(order.order_code)}"><option value="">Update status</option>${allowed.map((status) => `<option value="${status}">${status.replaceAll('_', ' ')}</option>`).join('')}</select>` : ''}
                 ${canCollect ? `<button type="button" data-action="collect-cod" data-id="${escapeHtml(order.order_code)}">Confirm cash</button>` : ''}
                 ${canCancel ? `<button type="button" class="button danger" data-action="cancel-order" data-id="${escapeHtml(order.order_code)}">Cancel</button>` : ''}
             </div></td></tr>`;
     });
+    const returnRows = returnRequests.map((request) => {
+        const buyer = profileMap.get(request.buyer_id);
+        const itemSummary = returnRequestItems
+            .filter((item) => item.return_request_id === request.id)
+            .map((item) => {
+                const sale = salesMap.get(item.sales_id);
+                const product = sale ? productMap.get(sale.vegetable_id) : null;
+                return `${product?.name || 'Produce'} × ${Number(item.quantity).toFixed(2)} ${product?.unit || ''}`;
+            })
+            .join(', ');
+        const actions = request.status === 'pending'
+            ? `<button type="button" data-action="update-return-request" data-id="${request.id}" data-status="approved">Approve</button><button type="button" class="button danger" data-action="update-return-request" data-id="${request.id}" data-status="rejected">Reject</button>`
+            : request.status === 'approved'
+                ? `<button type="button" data-action="update-return-request" data-id="${request.id}" data-status="completed">Mark complete</button>`
+                : '—';
+        return `<tr><td><strong>${escapeHtml(request.order_code)}</strong><span class="table-secondary">${dateTimeLabel(request.requested_at)}</span></td>
+            <td>${escapeHtml(buyer?.name || 'Buyer')}<span class="table-secondary">${escapeHtml(buyer?.email || '')}</span></td>
+            <td>${escapeHtml(itemSummary || '—')}</td><td>${escapeHtml(request.reason === 'damaged' ? 'Damaged item' : 'Quality issue')}<span class="table-secondary">${escapeHtml(request.notes || '')}</span></td>
+            <td>${statusBadge(request.status)}${request.staff_notes ? `<span class="table-secondary">${escapeHtml(request.staff_notes)}</span>` : ''}</td>
+            <td><div class="app-table-actions">${actions}</div></td></tr>`;
+    });
     app.innerHTML = `
-        <section class="module-heading"><div><p class="module-eyebrow">Order management</p><h1>Sales</h1><p>Review orders, delivery progress, and payment status.</p></div></section>
+        <section class="module-heading"><div><p class="module-eyebrow">Order management</p><h1>Sales</h1><p>Review orders, delivery progress, payment status, and FIFO stock allocations.</p></div></section>
         <section class="panel report-filters section"><form class="app-inline-form" data-form="sales-filter">
-            <div class="field"><label>Search order / buyer / product</label><input name="search" value="${escapeHtml(params.get('search') || '')}"></div>
-            <div class="field"><label>Status</label><select name="status"><option value="">All statuses</option>${['pending', 'confirmed', 'preparing', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled', 'pending_payment', 'paid', 'failed', 'refunded'].map((value) => `<option value="${value}" ${status === value ? 'selected' : ''}>${value.replaceAll('_', ' ')}</option>`).join('')}</select></div>
-            <div class="field"><label>From</label><input name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label>To</label><input name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
+            <div class="field"><label for="sales-search">Search order / buyer / product</label><input id="sales-search" name="search" value="${escapeHtml(params.get('search') || '')}"></div>
+            <div class="field"><label for="sales-status">Status</label><select id="sales-status" name="status"><option value="">All statuses</option>${['pending', 'confirmed', 'preparing', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled', 'pending_payment', 'paid', 'failed', 'refunded'].map((value) => `<option value="${value}" ${status === value ? 'selected' : ''}>${value.replaceAll('_', ' ')}</option>`).join('')}</select></div>
+            <div class="field"><label for="sales-from">From</label><input id="sales-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="sales-to">To</label><input id="sales-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
         </form></section>
-        <section class="panel section"><h2>Orders</h2>${table(['Order', 'Buyer', 'Items', 'Total', 'Status', 'Actions'], rows, 'No orders match these filters.')}</section>`;
+        <section class="panel section"><h2>Orders</h2>${table(['Order', 'Buyer', 'Items', 'Total', 'FIFO allocation', 'Status', 'Actions'], rows, 'No orders match these filters.')}</section>
+        <section class="panel section"><h2>Return requests</h2><p>Approving a request does not issue a refund or restock inventory. Complete those steps manually before marking it complete.</p>${table(['Order / requested', 'Buyer', 'Items', 'Reason', 'Status / staff notes', 'Actions'], returnRows, 'No return requests.')}</section>`;
 }
 
 async function renderReports() {
@@ -1847,8 +2026,8 @@ async function renderReports() {
     const to = params.get('to') || '';
     const search = (params.get('search') || '').toLowerCase();
     let query = state.supabase.from('orders').select('*').order('created_at', { ascending: false });
-    if (from) query = query.gte('created_at', `${from}T00:00:00`);
-    if (to) query = query.lte('created_at', `${to}T23:59:59.999`);
+    if (from) query = query.gte('created_at', dateTimeBoundary(from));
+    if (to) query = query.lte('created_at', dateTimeBoundary(to, true));
     let harvestQuery = state.supabase.from('harvests')
         .select('id, planting_id, quantity, harvested_on')
         .is('archived_at', null);
@@ -1913,7 +2092,7 @@ async function renderReports() {
     const stockRows = stock.map((row) => `<tr><td>${escapeHtml(productById.get(row.vegetable_id)?.name || 'Produce')}</td><td>${Number(row.quantity).toFixed(2)} ${escapeHtml(productById.get(row.vegetable_id)?.unit || '')}</td></tr>`);
     app.innerHTML = `
         <section class="module-heading"><div><p class="module-eyebrow">Business overview</p><h1>Reports</h1><p>Review paid sales, discounts, payment mix, harvests, and current stock.</p></div><button class="button secondary" type="button" data-action="print">Print report</button></section>
-        <section class="panel report-filters section"><form class="app-inline-form" data-form="report-filter"><div class="field"><label>Search order / buyer / product</label><input name="search" value="${escapeHtml(params.get('search') || '')}"></div><div class="field"><label>From</label><input name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label>To</label><input name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button><a class="button secondary" href="?page=reports" data-page="reports">Clear</a></form></section>
+        <section class="panel report-filters section"><form class="app-inline-form" data-form="report-filter"><div class="field"><label for="report-search">Search order / buyer / product</label><input id="report-search" name="search" value="${escapeHtml(params.get('search') || '')}"></div><div class="field"><label for="report-from">From</label><input id="report-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="report-to">To</label><input id="report-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button><a class="button secondary" href="?page=reports" data-page="reports">Clear</a></form></section>
         <section class="module-stat-grid">
             <article class="module-stat-card"><span>Paid revenue</span><strong>${money(revenue)}</strong><small>From ${paidOrders.length} paid orders</small></article>
             <article class="module-stat-card"><span>Orders</span><strong>${filteredOrders.length}</strong><small>Matching the selected filters</small></article>
@@ -1936,8 +2115,8 @@ async function renderActivity() {
     const to = params.get('to') || '';
     const page = Math.max(1, Number(params.get('p') || 1));
     let query = state.supabase.from('activity_logs').select('*', { count: 'exact' }).order('created_at', { ascending: false });
-    if (from) query = query.gte('created_at', `${from}T00:00:00`);
-    if (to) query = query.lte('created_at', `${to}T23:59:59.999`);
+    if (from) query = query.gte('created_at', dateTimeBoundary(from));
+    if (to) query = query.lte('created_at', dateTimeBoundary(to, true));
     if (search) query = query.ilike('details', `%${search.replace(/[(),.]/g, '')}%`);
     const start = (page - 1) * 25;
     const { data: logs, error, count } = await query.range(start, start + 24);
@@ -1953,8 +2132,8 @@ async function renderActivity() {
     app.innerHTML = `
         <section class="module-heading"><div><p class="module-eyebrow">Administrator</p><h1>Activity log</h1><p>Review account and farm operations activity.</p></div></section>
         <section class="panel report-filters section"><form class="app-inline-form" data-form="activity-filter">
-            <div class="field"><label>Search</label><input name="search" value="${escapeHtml(search)}" placeholder="Action, record, details"></div>
-            <div class="field"><label>From</label><input name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label>To</label><input name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
+            <div class="field"><label for="activity-search">Search</label><input id="activity-search" name="search" value="${escapeHtml(search)}" placeholder="Action, record, details"></div>
+            <div class="field"><label for="activity-from">From</label><input id="activity-from" name="from" type="date" value="${escapeHtml(from)}"></div><div class="field"><label for="activity-to">To</label><input id="activity-to" name="to" type="date" value="${escapeHtml(to)}"></div><button type="submit">Filter</button>
         </form></section>
         <section class="panel section"><h2>Activity records</h2>${table(['Date', 'User', 'Action', 'Record', 'Details'], rows, 'No matching activity records.')}
             <div class="app-pagination"><span class="muted">Showing ${count ? start + 1 : 0}–${Math.min(start + 25, count || 0)} of ${count || 0}</span><div class="app-actions">
@@ -2026,7 +2205,13 @@ async function renderPage() {
 
     try {
         if (page === 'dashboard') return await renderDashboard();
-        if (page === 'shop') return renderShop(await getProducts(true));
+        if (page === 'shop') {
+            const [products, activeOrder] = await Promise.all([
+                getProducts(true),
+                getLatestActiveBuyerOrder(),
+            ]);
+            return renderShop(products, activeOrder);
+        }
         if (page === 'product') {
             const id = new URLSearchParams(location.search).get('id');
             const product = (await getProducts(true)).find((item) => String(item.id) === id);
@@ -2279,6 +2464,22 @@ async function handleSubmit(form) {
         await renderPage();
         return;
     }
+    if (formName === 'return-request') {
+        const salesId = Number(values.salesId);
+        const quantity = Number(values.quantity);
+        if (!Number.isSafeInteger(salesId) || !Number.isFinite(quantity) || quantity <= 0) {
+            throw new Error('Choose a valid order item and return quantity.');
+        }
+        const { error } = await state.supabase.rpc('create_return_request', {
+            p_order_code: values.orderCode,
+            p_items: [{ sales_id: salesId, quantity }],
+            p_reason: values.reason,
+            p_notes: values.notes.trim() || null,
+        });
+        if (error) throw error;
+        notify(buyerText('returnRequestSent'));
+        return await renderPage();
+    }
     if (formName === 'vegetable') {
         const id = values.id;
         const selectedPhoto = form.elements.photo.files[0] || null;
@@ -2497,6 +2698,7 @@ async function handleClick(target) {
         const row = state.records.get(action.dataset.id);
         const form = app.querySelector('[data-form="vegetable"]');
         if (!row || !form) return;
+        form.reset();
         form.elements.id.value = row.id;
         form.elements.name.value = row.name;
         form.elements.variety.value = row.variety || '';
@@ -2505,6 +2707,7 @@ async function handleClick(target) {
         form.elements.description.value = row.description || '';
         form.elements.photo.required = false;
         const photoPreview = app.querySelector('[data-vegetable-photo-preview]');
+        photoPreview.textContent = '';
         if (row.image_path && photoPreview) {
             photoPreview.innerHTML = `<img src="${escapeHtml(vegetablePhotoUrl(row.image_path))}" alt="Current photo of ${escapeHtml(row.name)}">`;
         }
@@ -2513,7 +2716,9 @@ async function handleClick(target) {
         return;
     }
     if (action.dataset.action === 'clear-vegetable') {
-        app.querySelector('[data-form="vegetable"]').reset();
+        const form = app.querySelector('[data-form="vegetable"]');
+        form.reset();
+        form.elements.photo.required = true;
         app.querySelector('[data-vegetable-photo-preview]').textContent = '';
         app.querySelector('#vegetable-form-title').textContent = 'Add a vegetable';
         return;
@@ -2580,6 +2785,30 @@ async function handleClick(target) {
         notify('Order cancelled and stock restored.');
         return await renderPage();
     }
+    if (action.dataset.action === 'update-return-request') {
+        const status = action.dataset.status;
+        let staffNotes = null;
+        if (status === 'rejected') {
+            const reason = window.prompt('Add a reason for rejecting this return request:');
+            if (reason === null) return;
+            staffNotes = reason.trim();
+            if (!staffNotes) throw new Error('A rejection reason is required.');
+        } else if (status === 'approved'
+            && !window.confirm('Approve this request for manual handling? No refund or inventory changes will happen automatically.')) {
+            return;
+        } else if (status === 'completed'
+            && !window.confirm('Confirm that any refund or payment adjustment and appropriate inventory update were handled manually.')) {
+            return;
+        }
+        const { error } = await state.supabase.rpc('update_return_request', {
+            p_request_id: Number(action.dataset.id),
+            p_status: status,
+            p_staff_notes: staffNotes,
+        });
+        if (error) throw error;
+        notify(`Return request ${status}.`);
+        return await renderPage();
+    }
     if (action.dataset.action === 'print') return window.print();
     if (action.dataset.action === 'retry') return await renderPage();
     if (action.dataset.action === 'activity-page') {
@@ -2632,6 +2861,9 @@ document.addEventListener('submit', async (event) => {
 document.addEventListener('click', async (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const pageLink = target.closest('a[data-page]');
+    if (pageLink && (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return;
+    if (pageLink) event.preventDefault();
     const accountMenu = document.querySelector('#account-menu');
     if (!accountMenu.contains(target)) accountMenu.open = false;
     try {
@@ -2662,20 +2894,6 @@ document.addEventListener('change', (event) => {
     }
 });
 
-document.addEventListener('input', (event) => {
-    if (event.target instanceof HTMLInputElement && event.target.matches('[data-shop-search]')) {
-        applyShopFilters();
-    }
-});
-
-document.addEventListener('change', (event) => {
-    const target = event.target;
-    if ((target instanceof HTMLInputElement || target instanceof HTMLSelectElement)
-        && target.matches('[data-shop-category], [data-shop-in-stock], [data-shop-sort]')) {
-        applyShopFilters();
-    }
-});
-
 document.addEventListener('error', (event) => {
     const image = event.target;
     if (!(image instanceof HTMLImageElement)
@@ -2689,6 +2907,15 @@ document.addEventListener('error', (event) => {
 
 document.addEventListener('change', async (event) => {
     const target = event.target;
+    if (target instanceof HTMLSelectElement && target.matches('[data-return-sale-select]')) {
+        const quantityInput = app.querySelector('#return-quantity');
+        const maximum = Number(target.selectedOptions[0]?.dataset.max);
+        if (quantityInput instanceof HTMLInputElement && Number.isFinite(maximum) && maximum > 0) {
+            quantityInput.max = String(maximum);
+            if (Number(quantityInput.value) > maximum) quantityInput.value = String(maximum);
+        }
+        return;
+    }
     if (target instanceof HTMLInputElement && target.matches('[data-form="vegetable"] input[name="photo"]')) {
         const preview = app.querySelector('[data-vegetable-photo-preview]');
         const file = target.files[0];

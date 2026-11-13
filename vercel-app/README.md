@@ -10,7 +10,7 @@ Do not copy the parent project's local email/payment configuration files into th
 
 - Buyer registration, email verification, login, password reset, and logout through Supabase Auth.
 - Buyer, staff, farmer, and administrator roles. Farmers have the same farm-operation permissions as staff; existing staff roles are retained. New registrations are buyers; roles are never chosen in the browser.
-- Product catalog, product details, saved cart, checkout, order history, and receipts.
+- Product catalog, product details, saved cart, checkout, order history, and receipts. Buyers can reopen full tracking from order details, with a shortcut to active orders on the dashboard and shop.
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
 - FIFO inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
 - Administrator dashboard with sales and harvest trends, inventory charts, stock alerts, top sellers, recent orders, inventory updates, and activity.
@@ -35,6 +35,8 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 9. Run `supabase/migrations/009_vegetable_photos.sql` to add vegetable photo storage. This creates a public image bucket with staff-only upload, replace, and delete permissions and a 5 MB JPEG/PNG/WebP limit.
 10. Run `supabase/migrations/010_buyer_order_status_realtime.sql` to enable live order-status updates for buyers. Buyer dashboards, order lists, and order details receive changes only for the signed-in buyer's orders.
 11. Run `supabase/migrations/011_fifo_inventory.sql` once, after any optional MySQL import in section 4 and before deploying the FIFO-enabled frontend or accepting new orders. If you are not importing data, run it after migration 010. Existing available stock and active orders are preserved as an opening balance because their original batch dates are not available; new harvests and manual stock additions are tracked as separate FIFO batches.
+12. Run `supabase/migrations/012_order_returns.sql` after migration 011 and before deploying the returns-enabled frontend. It adds delivery timestamps, buyer return requests for damaged/quality-issue items within 24 hours, and staff review actions. Previously delivered orders use `updated_at` as the best available delivery-time estimate. Approving or completing a request does not automatically refund payment or restock inventory; staff must handle those steps manually.
+13. Run `supabase/migrations/013_fifo_sales_visibility.sql` after migration 011 and before deploying the FIFO Sales view. It permits farm staff (including administrators and farmers) to view FIFO allocations in Sales; buyers cannot read these records.
     - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004, 005, and 007.
    - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
    - Do not rerun migrations that have already been applied.
@@ -59,7 +61,7 @@ The schema does not insert user accounts. Migration 005 adds the ten sample prod
 
 ### 2. Install and deploy the converted folder
 
-Before deploying, apply migrations 001–010. If importing MySQL data, complete section 4 before running migration 011; then run 011 before deploying this FIFO-enabled frontend.
+Before deploying, apply all unapplied migrations through 013. If importing MySQL data, complete section 4 before running migrations 011–013; then run them before deploying this FIFO- and returns-enabled frontend.
 
 1. Push the repository to GitHub without adding any local configuration files or secrets.
 2. In Vercel, choose **Add New → Project**, then import this GitHub repository.
@@ -151,7 +153,7 @@ COD collection remains a farm-staff action and is allowed only for an out-for-de
 
 ## Local checks
 
-- `npm test` checks checkout calculations, Xendit and legacy PayMongo webhook parsing, and role permissions.
+- `npm test` checks checkout calculations, order-return window rules, Xendit and legacy PayMongo webhook parsing, and role permissions.
 - `npm run build` builds the static site.
 - For a local end-to-end run of Vercel Functions, install the Vercel CLI and use `vercel dev` with the environment variables set. A plain Vite dev server only serves the browser UI; it does not run `/api` functions.
 - Live Auth, database, email, checkout, and webhook tests require your own Supabase and Xendit test-project credentials. No credentials are included here.

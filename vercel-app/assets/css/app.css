@@ -342,6 +342,33 @@
     background: var(--warning-light);
 }
 
+.app-active-order {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 1rem;
+    padding: 1rem 1.25rem;
+    border-color: var(--green);
+}
+
+.app-active-order h2,
+.app-active-order p {
+    margin: 0;
+}
+
+.app-active-order p {
+    margin-top: .3rem;
+    color: var(--muted);
+    font-size: .88rem;
+}
+
+.app-active-order-actions {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+
 .app-order-tracker {
     margin-top: 1rem;
 }
@@ -549,6 +576,25 @@
 .app-table-actions button {
     padding: .45rem .65rem;
     font-size: .78rem;
+}
+
+.app-fifo-details {
+    min-width: 180px;
+}
+
+.app-fifo-details summary {
+    color: var(--green-dark);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.app-fifo-details ul {
+    margin: .45rem 0 0;
+    padding-left: 1.15rem;
+}
+
+.app-fifo-details li {
+    margin: .3rem 0;
 }
 
 .app-alert {
@@ -1698,6 +1744,12 @@ body.operations-layout.sidebar-collapsed > .site-footer {
 
 @media (max-width: 720px) {
     .app-inline-form {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .app-active-order,
+    .app-active-order-actions {
         align-items: stretch;
         flex-direction: column;
     }
