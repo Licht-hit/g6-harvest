@@ -67,8 +67,6 @@ MySQL database, payment provider, and web server must be configured together.
   payment, and signed webhook delivery before opening the site to customers.
 - Keep PHP error display disabled in production and monitor web-server and PHP
   error logs. Restrict access to configuration and backup files.
-AHAHHAHA 
-    ahdjqweasdad
 ## Create a database backup
 
 Use a protected MySQL option file outside the web root and repository, for example:

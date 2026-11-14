@@ -1874,7 +1874,7 @@ async function renderInventory(products) {
                 ? `Harvest #${lot.harvest_id}`
                 : 'Manual addition';
         const received = lot.source_type === 'opening_balance'
-            ? 'Before FIFO tracking'
+            ? 'Opening balance'
             : dateLabel(lot.received_on);
         return `<tr><td>${fifoPosition}</td><td>${escapeHtml(product?.name || 'Produce')}</td>
             <td>${escapeHtml(source)}</td><td>${escapeHtml(received)}</td>
@@ -1882,14 +1882,14 @@ async function renderInventory(products) {
     });
     const rows = products.map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${Number(item.quantity).toFixed(2)} ${escapeHtml(item.unit)}</td><td>${item.quantity <= 5 ? '<span class="app-status pending_payment">Low stock</span>' : '<span class="app-status paid">In stock</span>'}</td></tr>`);
     app.innerHTML = `
-        <section class="module-heading"><div><p class="module-eyebrow">Farm operations</p><h1>Inventory</h1><p>Adjust available stock. FIFO uses the oldest stock batch first when orders are placed.</p></div></section>
+        <section class="module-heading"><div><p class="module-eyebrow">Farm operations</p><h1>Inventory</h1><p>Adjust available stock. Orders use the oldest available stock batch first.</p></div></section>
         <section class="panel section"><h2>Set stock quantity</h2><form class="app-inline-form" data-form="inventory">
             <div class="field"><label for="inventory-vegetable">Vegetable</label><select id="inventory-vegetable" name="vegetableId" required>${products.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}</select></div>
             <div class="field"><label for="inventory-quantity">Quantity</label><input id="inventory-quantity" name="quantity" type="number" min="0" step="0.01" required></div>
             <button type="submit">Save inventory</button>
         </form></section>
         <section class="panel section"><h2>Current stock</h2>${table(['Vegetable', 'Available quantity', 'Status'], rows, 'No vegetables are available.')}</section>
-        <section class="panel section"><h2>FIFO stock batches</h2><p class="app-muted">Each vegetable's batches are ordered oldest first; orders draw from position 1 first.</p>${table(['FIFO position', 'Vegetable', 'Batch source', 'Received', 'Remaining'], lotRows, 'No FIFO stock batches are available.')}</section>`;
+        <section class="panel section"><h2>Stock batches</h2><p class="app-muted">Each vegetable's batches are ordered oldest first; orders draw from position 1 first.</p>${table(['Batch position', 'Vegetable', 'Batch source', 'Received', 'Remaining'], lotRows, 'No stock batches are available.')}</section>`;
 }
 
 async function renderPlantings() {

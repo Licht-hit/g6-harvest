@@ -1,12 +1,3 @@
-update public.profiles
-set role = 'staff'
-where lower(email) = lower('rjake611@gmail.com')
-returning email, role;
-
-select email, email_confirmed_at
-from auth.users
-where lower(email) = lower('user@example.com');
-
 # G6 Harvest
 
 A PHP and MySQL farm operations and produce shop project.
@@ -50,7 +41,7 @@ When showing database or user-provided text in HTML, use `h($value)` to escape i
 - After editing PHP, check its syntax with `php -l path\\to\\file.php`.
 - Run the application on a PHP web server with the required MySQLi and MySQL extensions. A syntax check alone does not test database behavior.
 - Run the isolated role and checkout checks with `php tests\\authorization_test.php` and `php tests\\checkout_calculation_test.php`. Cart, payment, and session checks are available as `php tests\\cart_quantity_test.php`, `php tests\\payment_flow_test.php`, `php tests\\xendit_payment_test.php`, and `php tests\\security_session_test.php`.
-- Run the database-free FIFO, delivery-tracking, and return-policy checks with `php tests\\fifo_test.php`, `php tests\\order_tracking_test.php`, and `php tests\\order_returns_test.php`.
+- Run the database-free inventory-batch allocation, delivery-tracking, and return-policy checks with `php tests\\fifo_test.php`, `php tests\\order_tracking_test.php`, and `php tests\\order_returns_test.php`.
 - Run `tests\\order_flow_integration_test.php` only with `HARVEST_TEST_DB` set to a dedicated database ending in `_test`.
 - To rebuild the public homepage UI libraries after changing `assets/js/ui-entry.js`, run `npm install` and `npm run build:ui` from the project root. Node/npm are only needed to rebuild these assets; the generated local bundle is served by PHP without a CDN.
 
@@ -151,7 +142,7 @@ rolls back its data. Never use a production database for tests. See
 
 For an existing installation, run `database-upgrade.sql` after taking a backup
 to add farmer roles, vegetable photo paths, produce categories, buyer
-favorites, delivery timestamps, FIFO stock batches, return requests, notifications,
+favorites, delivery timestamps, inventory batch tracking, return requests, notifications,
 and payment-provider tracking. The migration assigns sensible categories to the included
 sample vegetables and leaves other produce in “Other.” It estimates historical
 delivery times from each delivered order's last update and creates an opening

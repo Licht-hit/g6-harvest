@@ -148,7 +148,7 @@ foreach ($fifoLots as $lot) {
             ? 'Harvest #' . (int) $lot['harvest_id']
             : 'Manual addition');
     $received = $lot['source_type'] === 'opening_balance'
-        ? 'Before FIFO tracking'
+        ? 'Opening balance'
         : date('M j, Y', strtotime($lot['received_on']));
     $fifoBatchRows[] = [
         'position' => $fifoPositionByVegetable[$vegetableId],
@@ -276,7 +276,7 @@ require __DIR__ . '/../includes/header.php';
     <div>
         <p class="module-eyebrow">Farm operations</p>
         <h1>Inventory</h1>
-        <p>Adjust available stock. FIFO uses the oldest stock batch first when orders are placed.</p>
+        <p>Adjust available stock. Orders use the oldest available stock batch first.</p>
     </div>
 </section>
 
@@ -380,16 +380,16 @@ require __DIR__ . '/../includes/header.php';
 </section>
 
 <section class="panel section">
-    <h2>FIFO stock batches</h2>
+    <h2>Stock batches</h2>
     <p class="muted">Each vegetable's batches are ordered oldest first; orders draw from position 1 first.</p>
     <?php if (!$fifoBatchRows): ?>
-        <p class="empty">No FIFO stock batches are available.</p>
+        <p class="empty">No stock batches are available.</p>
     <?php else: ?>
         <div class="table-wrap module-table-wrap">
             <table class="module-table">
                 <thead>
                     <tr>
-                        <th>FIFO position</th>
+                        <th>Batch position</th>
                         <th>Vegetable</th>
                         <th>Batch source</th>
                         <th>Received</th>

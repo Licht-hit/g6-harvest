@@ -12,7 +12,7 @@ Do not copy the parent project's local email/payment configuration files into th
 - Buyer, staff, farmer, and administrator roles. Farmers have the same farm-operation permissions as staff; existing staff roles are retained. New registrations are buyers; roles are never chosen in the browser.
 - Product catalog, product details, saved cart, checkout, order history, and receipts. Buyers can reopen tracking from order details while an order is undelivered; the tracking timeline is removed after delivery. Active orders also have shortcuts on the dashboard and shop.
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
-- FIFO inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
+- Inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
 - Administrator dashboard with sales and harvest trends, inventory charts, stock alerts, top sellers, recent orders, inventory updates, and activity.
 - Transactional PostgreSQL functions for inventory changes, harvest adjustments, checkout, order status, COD collection, and payment events.
 - Xendit hosted checkout, COD, cancellation/stock restoration rules, and a verified webhook at `/api/xendit-webhook`. The PayMongo webhook remains available for orders created before the migration.
@@ -34,9 +34,9 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 8. Run `supabase/migrations/008_xendit_payments.sql` to enable Xendit for new orders while retaining PayMongo processing for existing orders.
 9. Run `supabase/migrations/009_vegetable_photos.sql` to add vegetable photo storage. This creates a public image bucket with staff-only upload, replace, and delete permissions and a 5 MB JPEG/PNG/WebP limit.
 10. Run `supabase/migrations/010_buyer_order_status_realtime.sql` to publish orders for live updates. Buyers receive status updates only for their own orders, while farm staff receive an in-app notification when a new order is placed.
-11. Run `supabase/migrations/011_fifo_inventory.sql` once, after any optional MySQL import in section 4 and before deploying the FIFO-enabled frontend or accepting new orders. If you are not importing data, run it after migration 010. Existing available stock and active orders are preserved as an opening balance because their original batch dates are not available; new harvests and manual stock additions are tracked as separate FIFO batches.
+11. Run `supabase/migrations/011_fifo_inventory.sql` once, after any optional MySQL import in section 4 and before deploying the batch-tracking frontend or accepting new orders. If you are not importing data, run it after migration 010. Existing available stock and active orders are preserved as an opening balance because their original batch dates are not available; new harvests and manual stock additions are tracked as separate batches.
 12. Run `supabase/migrations/012_order_returns.sql` after migration 011 and before deploying the returns-enabled frontend. It adds delivery timestamps, buyer return requests for damaged/quality-issue items within 24 hours, and staff review actions. Previously delivered orders use `updated_at` as the best available delivery-time estimate. Approving or completing a request does not automatically refund payment or restock inventory; staff must handle those steps manually.
-13. `supabase/migrations/013_fifo_sales_visibility.sql` is optional after migration 011. It grants farm staff (including administrators and farmers) read access to FIFO allocation records; the current Sales page does not display those records.
+13. `supabase/migrations/013_fifo_sales_visibility.sql` is optional after migration 011. It grants farm staff (including administrators and farmers) read access to inventory allocation records; the current Sales page does not display those records.
 14. Run `supabase/migrations/014_fix_return_quantity_ambiguity.sql` after migration 012. It replaces the return-request function with qualified SQL aliases so the requested quantity is not ambiguous.
 15. Run `supabase/migrations/015_return_request_realtime.sql` after migration 012 to publish return requests for live updates. Staff see new-request notifications and a pending-count badge on the Returns page; buyers see updates when staff change their request status.
     - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004, 005, and 007.
@@ -63,7 +63,7 @@ The schema does not insert user accounts. Migration 005 adds the ten sample prod
 
 ### 2. Install and deploy the converted folder
 
-Before deploying, apply all unapplied migrations through 014. If importing MySQL data, complete section 4 before running migrations 011–014; then run them before deploying this FIFO- and returns-enabled frontend.
+Before deploying, apply all unapplied migrations through 014. If importing MySQL data, complete section 4 before running migrations 011–014; then run them before deploying this batch-tracking and returns-enabled frontend.
 
 1. Push the repository to GitHub without adding any local configuration files or secrets.
 2. In Vercel, choose **Add New → Project**, then import this GitHub repository.
@@ -141,7 +141,7 @@ npm run import:mysql
 
 The importer does **not** copy PHP password hashes or email-verification tokens into Supabase Auth. Imported account emails and roles are retained, but each existing user must use **Forgot password** to set a new Supabase password. Unverified accounts must complete Supabase email verification first. Do not delete the old database until the imported record counts and representative orders have been checked.
 
-The import script is safe to rerun for the same source data before FIFO is enabled: records are upserted by their IDs and users by their email/auth identity. Complete imports before running migration 011; do not rerun this importer after FIFO tracking has started because it does not recreate lot allocations. Do not run imports from two different source databases into the same Supabase project.
+The import script is safe to rerun for the same source data before batch tracking is enabled: records are upserted by their IDs and users by their email/auth identity. Complete imports before running migration 011; do not rerun this importer after batch tracking has started because it does not recreate lot allocations. Do not run imports from two different source databases into the same Supabase project.
 
 ### 5. Configure Xendit
 
