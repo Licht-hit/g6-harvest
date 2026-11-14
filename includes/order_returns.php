@@ -2,8 +2,6 @@
 
 require_once __DIR__ . '/notifications.php';
 
-const ORDER_RETURN_WINDOW_SECONDS = 86400;
-
 function pending_order_return_count(MySQLiDatabase $db): int
 {
     $statement = $db->query(
@@ -13,17 +11,9 @@ function pending_order_return_count(MySQLiDatabase $db): int
     return (int) $statement->fetchColumn();
 }
 
-function order_return_window_is_open(array $order, ?int $now = null): bool
+function order_return_is_available(array $order): bool
 {
-    if (($order['order_status'] ?? null) !== 'delivered') {
-        return false;
-    }
-    $deliveredAt = strtotime((string) ($order['delivered_at'] ?? ''));
-    $now = $now ?? time();
-
-    return $deliveredAt !== false
-        && $deliveredAt <= $now
-        && $now - $deliveredAt <= ORDER_RETURN_WINDOW_SECONDS;
+    return ($order['order_status'] ?? null) === 'delivered';
 }
 
 function order_returnable_quantity(float $soldQuantity, float $requestedQuantity): float
@@ -59,16 +49,16 @@ function create_order_return_request(
     $db->beginTransaction();
     try {
         $orderStatement = $db->prepare(
-            'SELECT order_code, buyer_id, order_status, delivered_at
+            'SELECT order_code, buyer_id, order_status
              FROM orders
              WHERE order_code = ? AND buyer_id = ?
              FOR UPDATE'
         );
         $orderStatement->execute([$orderCode, $buyerId]);
         $order = $orderStatement->fetch();
-        if (!$order || !order_return_window_is_open($order)) {
+        if (!$order || !order_return_is_available($order)) {
             throw new RuntimeException(
-                'Return requests are available only for delivered orders within 24 hours of delivery.'
+                'Return requests are available only for delivered orders.'
             );
         }
 

@@ -208,8 +208,8 @@ require __DIR__ . '/../includes/header.php';
 
     <section class="section">
         <h2>Return requests</h2>
-        <?php if (order_return_window_is_open($order)): ?>
-            <p class="muted">Report damaged or quality-issue items within 24 hours after delivery. Staff will review your request.</p>
+        <?php if (order_return_is_available($order)): ?>
+            <p class="muted">Report damaged or quality-issue items after delivery. Staff will review your request.</p>
             <form method="post" class="return-request-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="request_return">

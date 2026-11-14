@@ -589,11 +589,14 @@ a {
     height: 42px;
     padding: .65rem;
     background: #f0f6f1;
+    border: 1px solid #d8e6db;
     border-radius: 10px;
+    cursor: pointer;
 }
 
 .nav-toggle span {
     display: block;
+    width: 18px;
     height: 2px;
     margin: 3px 0;
     background: var(--green-dark);
@@ -4464,15 +4467,21 @@ textarea:disabled {
         position: absolute;
         top: 1.15rem;
         right: .8rem;
+        z-index: 2;
         display: grid;
         place-content: center;
         margin: 0;
-        background: transparent;
-        border: 1px solid transparent;
+        background: var(--green-light);
+        border-color: #d8e6db;
     }
 
     .operations-sidebar .nav-toggle:hover {
-        background: var(--green-light);
+        background: #dcece1;
+    }
+
+    .operations-sidebar .nav-toggle:focus-visible {
+        outline: 3px solid #83b69a;
+        outline-offset: 2px;
     }
 
     .operations-sidebar .main-nav {

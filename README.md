@@ -149,11 +149,10 @@ delivery times from each delivered order's last update and creates an opening
 inventory batch from current stock and active orders.
 
 Order tracking appears on buyer order details until delivery. Return requests
-are available only for damaged or quality-issue items within 24 hours of
-delivery and require staff review; approval does not automatically refund or
-restock produce. New checkout orders and order/return status changes create
-in-app notifications. Existing databases must run the full upgrade file before
-using these features.
+for damaged or quality-issue items are available after delivery and require
+staff review; approval does not automatically refund or restock produce. New
+checkout orders and order/return status changes create in-app notifications.
+Existing databases must run the full upgrade file before using these features.
 
 ## Shop product pictures
 
