@@ -21,5 +21,7 @@ $getSetting = static function (string $environmentName, string $settingName) use
 return [
     'paymongo_secret_key' => $getSetting('PAYMONGO_SECRET_KEY', 'paymongo_secret_key'),
     'paymongo_webhook_secret' => $getSetting('PAYMONGO_WEBHOOK_SECRET', 'paymongo_webhook_secret'),
+    'xendit_secret_key' => $getSetting('XENDIT_SECRET_KEY', 'xendit_secret_key'),
+    'xendit_webhook_token' => $getSetting('XENDIT_WEBHOOK_TOKEN', 'xendit_webhook_token'),
     'app_url' => rtrim($getSetting('APP_URL', 'app_url'), '/'),
 ];

@@ -6,7 +6,8 @@ require_role('admin', 'staff', 'farmer');
 
 $from = is_string($_GET['from'] ?? null) ? trim($_GET['from']) : '';
 $to = is_string($_GET['to'] ?? null) ? trim($_GET['to']) : '';
-$search = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+$searchValue = $_GET['search'] ?? $_GET['q'] ?? '';
+$search = is_string($searchValue) ? trim($searchValue) : '';
 $filterError = '';
 
 if (($from !== '' && !is_valid_date($from)) || ($to !== '' && !is_valid_date($to))) {
@@ -26,14 +27,14 @@ if ($to !== '') {
     $salesParameters[] = $to;
 }
 if ($search !== '') {
-    $salesConditions[] = '(o.order_code LIKE ? OR u.name LIKE ? OR EXISTS (
+    $salesConditions[] = '(o.order_code LIKE ? OR u.name LIKE ? OR u.email LIKE ? OR EXISTS (
         SELECT 1
         FROM sales AS sx
         JOIN vegetables AS vx ON vx.id = sx.vegetable_id
         WHERE sx.order_code = o.order_code AND vx.name LIKE ?
     ))';
     $searchTerm = '%' . $search . '%';
-    array_push($salesParameters, $searchTerm, $searchTerm, $searchTerm);
+    array_push($salesParameters, $searchTerm, $searchTerm, $searchTerm, $searchTerm);
 }
 
 $harvestConditions = ['h.archived_at IS NULL'];
@@ -81,10 +82,8 @@ if ($from !== '' && $to !== '') {
 }
 
 if ($filterError === '') {
-    $orderFilters = $salesConditions
-        ? '(' . implode(' AND ', $salesConditions) . ') AND '
-        : '';
-    $salesWhere = $orderFilters . "o.payment_status = 'paid'";
+    $salesFilterSql = $salesConditions ? implode(' AND ', $salesConditions) : '1 = 1';
+    $salesWhere = '(' . $salesFilterSql . ") AND o.payment_status = 'paid'";
     $salesSummaryStatement = $db->prepare(
         'SELECT
             COALESCE(SUM(o.final_total), 0) AS revenue,
@@ -129,7 +128,7 @@ if ($filterError === '') {
          JOIN orders AS o ON o.order_code = s.order_code
          JOIN vegetables AS v ON v.id = s.vegetable_id
          JOIN users AS u ON u.id = s.buyer_id
-         WHERE ' . $salesWhere . '
+         WHERE ' . $salesFilterSql . '
          ORDER BY s.created_at DESC, s.id DESC
          LIMIT 500'
     );
@@ -369,13 +368,13 @@ require __DIR__ . '/../includes/header.php';
             <input id="to" type="date" name="to" value="<?= h($to) ?>">
         </div>
         <div class="field module-search-field">
-            <label for="q">Search reports</label>
+            <label for="search">Search reports</label>
             <input
-                id="q"
-                name="q"
+                id="search"
+                name="search"
                 value="<?= h($search) ?>"
                 maxlength="100"
-                placeholder="Order, buyer, or vegetable"
+                placeholder="Order, buyer, email, or vegetable"
             >
         </div>
         <div class="module-filter-actions">
@@ -612,6 +611,7 @@ require __DIR__ . '/../includes/header.php';
                     <?= number_format(count($salesRecords)) ?> displayed
                     <?= count($salesRecords) === 1 ? 'sale item' : 'sale items' ?>
                     <?php if (count($salesRecords) === 500): ?> · latest 500 matching records<?php endif; ?>
+                    · all payment statuses; summary revenue counts paid orders only
                 </p>
             </div>
         </div>
@@ -619,7 +619,7 @@ require __DIR__ . '/../includes/header.php';
             <div class="module-empty-state module-empty-state--compact">
                 <span class="module-empty-icon" aria-hidden="true">▤</span>
                 <h3>No sales records found</h3>
-                <p>Paid sales will appear here after a buyer completes checkout.</p>
+                <p>Order items will appear here after a buyer places an order.</p>
             </div>
         <?php else: ?>
             <div class="table-wrap module-table-wrap">
@@ -629,6 +629,7 @@ require __DIR__ . '/../includes/header.php';
                             <th>Order</th>
                             <th>Date</th>
                             <th>Buyer</th>
+                            <th>Payment status</th>
                             <th>Vegetable</th>
                             <th>Quantity</th>
                             <th>Unit price</th>
@@ -641,6 +642,7 @@ require __DIR__ . '/../includes/header.php';
                                 <td><?= h($sale['order_code']) ?></td>
                                 <td><?= h(date('M j, Y', strtotime($sale['created_at']))) ?></td>
                                 <td><?= h($sale['buyer']) ?></td>
+                                <td><?= h(ucwords(str_replace('_', ' ', $sale['payment_status']))) ?></td>
                                 <td><?= h($sale['vegetable']) ?></td>
                                 <td><?= number_format((float) $sale['quantity'], 2) ?> <?= h($sale['unit']) ?></td>
                                 <td><?= money($sale['unit_price']) ?></td>

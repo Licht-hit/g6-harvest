@@ -141,6 +141,69 @@ if (!$invalidTokenRejected) {
     throw new RuntimeException('Invalid checkout tokens must be rejected.');
 }
 
+$deliveryDetails = [
+    'recipient_name' => 'Maria Santos',
+    'contact_number' => '+63 (917) 123-4567',
+    'street_address' => '12 Farm Road',
+    'barangay' => 'San Isidro',
+    'city_municipality' => 'Quezon City',
+    'delivery_instructions' => 'Leave the order at the front gate.',
+];
+$expectedDeliveryAddress = implode("\n", [
+    'Recipient name: Maria Santos',
+    'Contact number: +63 (917) 123-4567',
+    'Address: 12 Farm Road, San Isidro, Quezon City',
+    'Delivery instructions: Leave the order at the front gate.',
+]);
+if (checkout_delivery_address($deliveryDetails) !== $expectedDeliveryAddress) {
+    throw new RuntimeException('Checkout should preserve structured delivery details in the order address.');
+}
+
+$deliveryDetails['delivery_instructions'] = '';
+if (str_contains(checkout_delivery_address($deliveryDetails), 'Delivery instructions:')) {
+    throw new RuntimeException('Empty delivery instructions should be omitted from the order address.');
+}
+
+$invalidDeliveryDetails = $deliveryDetails;
+$invalidDeliveryDetails['contact_number'] = 'not-a-phone';
+$invalidContactRejected = false;
+try {
+    checkout_delivery_address($invalidDeliveryDetails);
+} catch (RuntimeException $exception) {
+    $invalidContactRejected = $exception->getMessage() === 'Enter a valid contact number.';
+}
+if (!$invalidContactRejected) {
+    throw new RuntimeException('Checkout must reject invalid contact numbers.');
+}
+
+$expectDeliveryAddressError = static function (
+    array $details,
+    string $expectedMessage
+): void {
+    try {
+        checkout_delivery_address($details);
+    } catch (RuntimeException $exception) {
+        if ($exception->getMessage() === $expectedMessage) {
+            return;
+        }
+        throw new RuntimeException('Checkout returned an unexpected delivery validation error.');
+    }
+
+    throw new RuntimeException('Checkout accepted invalid delivery details.');
+};
+$missingRecipient = $deliveryDetails;
+$missingRecipient['recipient_name'] = '';
+$expectDeliveryAddressError(
+    $missingRecipient,
+    'Enter the recipient, contact number, and complete delivery address.'
+);
+$longInstructions = $deliveryDetails;
+$longInstructions['delivery_instructions'] = str_repeat('a', 301);
+$expectDeliveryAddressError(
+    $longInstructions,
+    'Delivery instructions must be 300 characters or fewer.'
+);
+
 $stockIssues = checkout_stock_issues(
     [1 => 2.0, 2 => 4.0, 3 => 1.0, 4 => 3.0, 5 => 1.0],
     [

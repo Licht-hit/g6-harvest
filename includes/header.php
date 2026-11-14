@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/notifications.php';
+require_once __DIR__ . '/order_returns.php';
+
 $pageTitle = $pageTitle ?? 'Vegetable System';
 $pageClass = $pageClass ?? '';
 $user = current_user();
@@ -16,6 +19,9 @@ $uiVersion = is_file($uiCssPath) && is_file($uiScriptPath)
 $pageClassNames = preg_split('/\s+/', trim($pageClass)) ?: [];
 $isPublicHome = in_array('public-home-page', $pageClassNames, true);
 $isOperationsUser = $user && in_array($user['role'], ['admin', 'staff', 'farmer'], true);
+$unreadNotifications = $user ? unread_notification_count($db, (int) $user['id']) : 0;
+$latestNotificationId = $user ? latest_notification_id($db, (int) $user['id']) : 0;
+$pendingReturnCount = $isOperationsUser ? pending_order_return_count($db) : 0;
 $notice = take_flash();
 
 // Send guests, buyers, and farm staff to the appropriate starting page.
@@ -31,6 +37,7 @@ $managementLinks = [
     ['label' => 'Harvests', 'path' => 'modules/harvests.php', 'icon' => '<path d="M12 22V8"/><path d="M12 13 7 9"/><path d="m12 17 6-5"/><path d="M7 9c-2-2-2-4-1-6 3 1 4 3 4 6"/><path d="M18 12c2-2 2-4 1-6-3 1-4 3-4 6"/>'],
     ['label' => 'Inventory', 'path' => 'modules/inventory.php', 'icon' => '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 8 9 5 9-5"/><path d="M3 8v9l9 5 9-5V8"/><path d="M12 13v9"/>'],
     ['label' => 'Sales', 'path' => 'modules/sales.php', 'icon' => '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 7H6"/>'],
+    ['label' => 'Returns', 'path' => 'modules/returns.php', 'icon' => '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>', 'badge_count' => $pendingReturnCount],
     ['label' => 'Quality', 'path' => 'modules/quality_inspection.php', 'icon' => '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>'],
     ['label' => 'Reports', 'path' => 'modules/reports.php', 'icon' => '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>'],
 ];
@@ -61,6 +68,9 @@ if ($user && $user['role'] === 'admin') {
     class="<?= h(trim($pageClass . ($isOperationsUser ? ' operations-layout' : ''))) ?>"
     <?= $user && $user['role'] === 'buyer'
         ? 'data-order-status-url="' . h(app_url('buyer/order_status_updates.php')) . '"'
+        : '' ?>
+    <?= $user
+        ? 'data-notifications-url="' . h(app_url('notifications.php?format=json')) . '" data-notifications-latest="' . $latestNotificationId . '" data-pending-return-count="' . $pendingReturnCount . '"'
         : '' ?>
 >
 <header class="site-header<?= $isOperationsUser ? ' operations-sidebar' : '' ?><?= $isPublicHome ? ' public-site-header' : '' ?>">
@@ -95,6 +105,9 @@ if ($user && $user['role'] === 'admin') {
         <div class="public-header-actions">
             <?php if ($user): ?>
                 <a class="public-header-login" href="<?= h(app_url($user['role'] === 'buyer' ? 'buyer/dashboard.php' : 'dashboard.php')) ?>">My dashboard</a>
+                <a class="public-header-login" href="<?= h(app_url('notifications.php')) ?>">
+                    Notifications <span class="nav-count" data-notification-badge data-unread-count="<?= $unreadNotifications ?>" <?= $unreadNotifications === 0 ? 'hidden' : '' ?>><?= $unreadNotifications ?></span>
+                </a>
                 <?php if ($user['role'] === 'buyer'): ?>
                     <a class="public-header-register" href="<?= h(app_url('buyer/favorites.php')) ?>">My favorites</a>
                 <?php endif; ?>
@@ -139,18 +152,30 @@ if ($user && $user['role'] === 'admin') {
                 >Filipino</button>
             <?php else: ?>
                 <?php foreach ($managementLinks as $link): ?>
-                    <?php $isActive = $currentPage === basename($link['path']); ?>
+                    <?php
+                    $isActive = $currentPage === basename($link['path']);
+                    $badgeCount = (int) ($link['badge_count'] ?? 0);
+                    ?>
                     <a
                         class="<?= $isActive ? 'active' : '' ?>"
                         href="<?= h(app_url($link['path'])) ?>"
                         title="<?= h($link['label']) ?>"
+                        <?= $badgeCount > 0 ? 'aria-label="' . h($link['label'] . ', ' . $badgeCount . ' pending') . '"' : '' ?>
                         <?= $isActive ? 'aria-current="page"' : '' ?>
                     >
                         <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><?= $link['icon'] ?></svg></span>
                         <span class="nav-link-label"><?= h($link['label']) ?></span>
+                        <?php if ($link['path'] === 'modules/returns.php'): ?>
+                            <span class="nav-return-count" data-pending-return-badge <?= $badgeCount === 0 ? 'hidden' : '' ?>><?= $badgeCount ?></span>
+                        <?php endif; ?>
                     </a>
                 <?php endforeach; ?>
             <?php endif; ?>
+            <a class="<?= $currentPage === 'notifications.php' ? 'active' : '' ?>" href="<?= h(app_url('notifications.php')) ?>" <?= $currentPage === 'notifications.php' ? 'aria-current="page"' : '' ?>>
+                <span class="nav-icon" aria-hidden="true">♧</span>
+                <span class="nav-link-label">Notifications</span>
+                <span class="nav-count" data-notification-badge data-unread-count="<?= $unreadNotifications ?>" <?= $unreadNotifications === 0 ? 'hidden' : '' ?>><?= $unreadNotifications ?></span>
+            </a>
         </nav>
         <details class="account-menu">
             <summary aria-label="Account menu for <?= h($user['name']) ?>">

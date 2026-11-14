@@ -42,30 +42,45 @@ require __DIR__ . '/../includes/header.php';
                         <th>Quantity</th>
                         <th>Total</th>
                         <th>Payment</th>
+                        <th>Payment status</th>
                         <th>Delivery</th>
-                        <th></th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($orders as $order): ?>
                         <tr>
-                            <td><?= h($order['order_code']) ?></td>
-                            <td><?= h($order['created_at']) ?></td>
+                            <td>
+                                <a href="<?= h(app_url(
+                                    'buyer/order_details.php?order=' . rawurlencode($order['order_code'])
+                                )) ?>"><?= h($order['order_code']) ?></a>
+                            </td>
+                            <td><?= h(date('M j, Y', strtotime($order['created_at']))) ?></td>
                             <td><?= number_format((float) $order['eligible_quantity'], 2) ?></td>
                             <td><?= money($order['final_total']) ?></td>
-                            <td>
-                                <?= h(strtoupper($order['payment_method'])) ?> ·
-                                <span data-payment-status-for="<?= h($order['order_code']) ?>">
-                                    <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
-                                </span>
+                            <td><?= h(strtoupper($order['payment_method'])) ?></td>
+                            <td data-payment-status-for="<?= h($order['order_code']) ?>">
+                                <?= h(ucwords(str_replace('_', ' ', $order['payment_status']))) ?>
                             </td>
                             <td data-order-status-for="<?= h($order['order_code']) ?>">
                                 <?= h(ucwords(str_replace('_', ' ', $order['order_status']))) ?>
                             </td>
-                            <td>
-                                <a href="<?= h(app_url(
+                            <td class="buyer-order-actions">
+                                <a class="button secondary" href="<?= h(app_url(
                                     'buyer/order_details.php?order=' . rawurlencode($order['order_code'])
-                                )) ?>">View details</a>
+                                )) ?>">
+                                    <?= in_array($order['order_status'], ['delivered', 'cancelled'], true)
+                                        ? 'View details'
+                                        : 'Track order' ?>
+                                </a>
+                                <?php if (in_array($order['order_status'], ['delivered', 'cancelled'], true)): ?>
+                                    <form method="post" action="<?= h(app_url('buyer/dashboard.php')) ?>">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="reorder">
+                                        <input type="hidden" name="order_code" value="<?= h($order['order_code']) ?>">
+                                        <button class="button secondary" type="submit">Order again</button>
+                                    </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

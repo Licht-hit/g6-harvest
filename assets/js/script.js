@@ -13,13 +13,35 @@ document.addEventListener('submit', (event) => {
         }
     }
 
-    // Some forms can ask for confirmation before submitting.
-    if (
-        form instanceof HTMLFormElement
-        && form.dataset.confirm
-        && !window.confirm(form.dataset.confirm)
-    ) {
-        event.preventDefault();
+    if (form instanceof HTMLFormElement) {
+        if (form.dataset.returnReviewPrompt === 'reject') {
+            const staffNotes = form.querySelector('[name="staff_notes"]');
+            const reason = window.prompt('Add a reason for rejecting this return request:');
+            if (reason === null) {
+                event.preventDefault();
+                return;
+            }
+            if (!reason.trim()) {
+                window.alert('A rejection reason is required.');
+                event.preventDefault();
+                return;
+            }
+            if (!(staffNotes instanceof HTMLInputElement)) {
+                console.error('The return rejection form is missing its staff-notes field.');
+                event.preventDefault();
+                return;
+            }
+            staffNotes.value = reason.trim();
+        }
+
+        const orderStatus = form.querySelector('[name="order_status"]');
+        const confirmMessage = form.dataset.confirm
+            || (form.hasAttribute('data-confirm-cancel') && orderStatus?.value === 'cancelled'
+                ? 'Cancel this order? Reserved inventory will be returned only when cancellation is safe.'
+                : '');
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            event.preventDefault();
+        }
     }
 });
 
@@ -276,6 +298,10 @@ if (shopProducts.length) {
             }
             if (sortBy === 'price-high') {
                 return Number(second.dataset.price) - Number(first.dataset.price);
+            }
+            if (sortBy === 'stock-high') {
+                return Number(second.dataset.stock) - Number(first.dataset.stock)
+                    || first.dataset.name.localeCompare(second.dataset.name);
             }
             return Number(first.dataset.originalOrder) - Number(second.dataset.originalOrder);
         });
@@ -668,8 +694,119 @@ const liveOrderStatuses = new Set([
     'failed',
     'refunded',
 ]);
+const filipinoOrderStatusLabels = {
+    pending: 'nakabinbin',
+    confirmed: 'kumpirmado',
+    preparing: 'inihahanda',
+    ready_for_delivery: 'handa na para ihatid',
+    out_for_delivery: 'nasa biyahe',
+    delivered: 'naideliver',
+    cancelled: 'kinansela',
+    pending_payment: 'naghihintay ng bayad',
+    paid: 'bayad na',
+    failed: 'hindi nagtagumpay',
+    refunded: 'na-refund',
+};
 
 if (orderStatusUrl && orderStatusElements.length > 0) {
+    const trackingStatusIndices = new Map([
+        ['confirmed', 0],
+        ['preparing', 1],
+        ['ready_for_delivery', 2],
+        ['out_for_delivery', 3],
+    ]);
+
+    function updateOrderTracker(orderCode, status) {
+        document.querySelectorAll('[data-order-tracker-for]').forEach((tracker) => {
+            if (tracker.dataset.orderTrackerFor !== orderCode) {
+                return;
+            }
+            if (status === 'delivered') {
+                tracker.remove();
+                return;
+            }
+            if (status === 'cancelled') {
+                tracker.classList.add('is-cancelled');
+                tracker.dataset.orderTrackerStatus = status;
+                const statusBadge = tracker.querySelector('.app-order-tracker-heading .status-badge');
+                if (statusBadge) {
+                    statusBadge.className = 'status-badge status-cancelled';
+                    statusBadge.textContent = document.documentElement.lang === 'fil'
+                        ? 'Kinansela ang order'
+                        : 'Order cancelled';
+                }
+                tracker.querySelector('.app-order-tracker-list')?.remove();
+                tracker.querySelector('.app-order-tracker-live')?.remove();
+                tracker.querySelector('.app-order-tracker-pending')?.remove();
+                if (!tracker.querySelector('.app-order-tracker-cancelled')) {
+                    const message = document.createElement('p');
+                    message.className = 'app-order-tracker-cancelled';
+                    message.setAttribute('role', 'status');
+                    message.textContent = document.documentElement.lang === 'fil'
+                        ? 'Makipag-ugnayan sa bukid kung kailangan mo ng tulong sa order na ito.'
+                        : 'Contact the farm if you need help with this order.';
+                    tracker.appendChild(message);
+                }
+                return;
+            }
+            const activeIndex = status === 'pending' ? -1 : trackingStatusIndices.get(status);
+            if (activeIndex === undefined) {
+                return;
+            }
+            tracker.classList.remove('is-cancelled');
+            tracker.dataset.orderTrackerStatus = status;
+            tracker.querySelectorAll('.app-order-tracker-step').forEach((step, index) => {
+                step.className = index < activeIndex
+                    ? 'is-complete'
+                    : index === activeIndex
+                        ? 'is-current'
+                        : 'is-upcoming';
+                step.classList.add('app-order-tracker-step');
+                const marker = step.querySelector('.app-order-tracker-marker');
+                if (marker) {
+                    marker.textContent = index < activeIndex ? '✓' : String(index + 1);
+                }
+                if (index === activeIndex) {
+                    step.setAttribute('aria-current', 'step');
+                } else {
+                    step.removeAttribute('aria-current');
+                }
+            });
+            const statusLabels = document.documentElement.lang === 'fil'
+                ? {
+                    pending: 'Naghihintay ng kumpirmasyon ng bukid',
+                    confirmed: 'Kumpirmado ang order',
+                    preparing: 'Isinasagawa ang pag-aani',
+                    ready_for_delivery: 'Naka-pack at sinusuri ang kalidad',
+                    out_for_delivery: 'Nasa biyahe na para ihatid',
+                }
+                : {
+                    pending: 'Waiting for farm confirmation',
+                    confirmed: 'Order confirmed',
+                    preparing: 'Harvesting in progress',
+                    ready_for_delivery: 'Packed & quality check',
+                    out_for_delivery: 'Out for delivery',
+                };
+            const statusBadge = tracker.querySelector('.app-order-tracker-heading .status-badge');
+            if (statusBadge) {
+                statusBadge.className = `status-badge status-${status}`;
+                statusBadge.textContent = statusLabels[status] || status;
+            }
+            let pendingNotice = tracker.querySelector('.app-order-tracker-pending');
+            if (status === 'pending' && !pendingNotice) {
+                pendingNotice = document.createElement('p');
+                pendingNotice.className = 'app-order-tracker-pending';
+                pendingNotice.setAttribute('role', 'status');
+                pendingNotice.textContent = document.documentElement.lang === 'fil'
+                    ? 'Kukumpirmahin muna ng bukid ang order bago simulan ang pag-aani.'
+                    : 'The farm will confirm your order before harvesting begins.';
+                tracker.querySelector('.app-order-tracker-heading')?.after(pendingNotice);
+            } else if (status !== 'pending') {
+                pendingNotice?.remove();
+            }
+        });
+    }
+
     async function refreshBuyerOrderStatuses() {
         if (document.visibilityState !== 'visible') {
             return;
@@ -694,6 +831,16 @@ if (orderStatusUrl && orderStatusElements.length > 0) {
                 if (typeof order.order_code !== 'string') {
                     return;
                 }
+                if (liveOrderStatuses.has(order.order_status)) {
+                    updateOrderTracker(order.order_code, order.order_status);
+                    if (['delivered', 'cancelled'].includes(order.order_status)) {
+                        document.querySelectorAll('[data-active-order-for]').forEach((element) => {
+                            if (element.dataset.activeOrderFor === order.order_code) {
+                                element.remove();
+                            }
+                        });
+                    }
+                }
 
                 [
                     ['order_status', '[data-order-status-for]'],
@@ -712,7 +859,9 @@ if (orderStatusUrl && orderStatusElements.length > 0) {
                             return;
                         }
 
-                        element.textContent = value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+                        element.textContent = document.documentElement.lang === 'fil'
+                            ? (filipinoOrderStatusLabels[value] || value)
+                            : value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
                         if (element.classList.contains('status-badge')) {
                             element.className = `status-badge status-${value}`;
                         }
@@ -729,6 +878,111 @@ if (orderStatusUrl && orderStatusElements.length > 0) {
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             void refreshBuyerOrderStatuses();
+        }
+    });
+}
+
+const notificationsUrl = document.body.dataset.notificationsUrl;
+const notificationBadge = document.querySelector('[data-notification-badge]');
+if (notificationsUrl && notificationBadge) {
+    let latestNotificationId = Number(document.body.dataset.notificationsLatest || 0);
+    const pendingReturnBadge = document.querySelector('[data-pending-return-badge]');
+    const notificationStack = document.createElement('div');
+    notificationStack.className = 'live-notification-stack';
+    notificationStack.setAttribute('aria-live', 'polite');
+    notificationStack.setAttribute('aria-relevant', 'additions');
+    const notificationHost = document.querySelector('main.container') || document.body;
+    notificationHost.prepend(notificationStack);
+
+    function showLiveNotification(notification) {
+        if (
+            !notification
+            || typeof notification.message !== 'string'
+            || typeof notification.url !== 'string'
+        ) {
+            return;
+        }
+
+        let target;
+        try {
+            target = new URL(notification.url, window.location.href);
+        } catch (error) {
+            console.error('Notification link is invalid.', error);
+            return;
+        }
+        if (target.origin !== window.location.origin) {
+            return;
+        }
+
+        notificationStack.replaceChildren();
+        const toast = document.createElement('div');
+        toast.className = 'live-notification-toast notice success';
+        toast.setAttribute('role', 'status');
+        const link = document.createElement('a');
+        link.href = target.href;
+        link.textContent = notification.message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'live-notification-close';
+        close.setAttribute('aria-label', 'Dismiss notification');
+        close.textContent = '×';
+        toast.append(link, close);
+        notificationStack.appendChild(toast);
+
+        close.addEventListener('click', () => {
+            toast.remove();
+        });
+    }
+
+    async function refreshNotifications() {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+        try {
+            const url = new URL(notificationsUrl, window.location.href);
+            url.searchParams.set('after_id', String(latestNotificationId));
+            const response = await fetch(url, {
+                headers: { Accept: 'application/json' },
+                cache: 'no-store',
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error(`Notification refresh failed with HTTP ${response.status}.`);
+            }
+            const result = await response.json();
+            if (
+                !result
+                || !Array.isArray(result.notifications)
+                || !Number.isInteger(result.unread_count)
+                || !Number.isInteger(result.latest_id)
+            ) {
+                throw new Error('Notification response has an invalid shape.');
+            }
+            result.notifications.slice(-3).forEach(showLiveNotification);
+            latestNotificationId = Math.max(latestNotificationId, result.latest_id);
+            notificationBadge.textContent = String(result.unread_count);
+            notificationBadge.dataset.unreadCount = String(result.unread_count);
+            notificationBadge.hidden = result.unread_count === 0;
+            if (pendingReturnBadge && Number.isInteger(result.pending_return_count)) {
+                pendingReturnBadge.textContent = String(result.pending_return_count);
+                pendingReturnBadge.hidden = result.pending_return_count === 0;
+                pendingReturnBadge.closest('a')?.setAttribute(
+                    'aria-label',
+                    `Returns, ${result.pending_return_count} pending`
+                );
+            }
+        } catch (error) {
+            console.error('Unable to refresh notifications.', error);
+        }
+    }
+    if (Number(notificationBadge.dataset.unreadCount) === 0) {
+        notificationBadge.hidden = true;
+    }
+    void refreshNotifications();
+    window.setInterval(() => void refreshNotifications(), 30000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            void refreshNotifications();
         }
     });
 }

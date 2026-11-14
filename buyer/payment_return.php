@@ -11,7 +11,7 @@ if (!preg_match('/^VS-[A-F0-9]{10}$/', $orderCode)) {
 }
 
 $statement = $db->prepare(
-    'SELECT order_code, payment_status
+    'SELECT order_code, payment_status, gateway_provider
      FROM orders
      WHERE order_code = ? AND buyer_id = ? AND payment_method = \'online\''
 );
@@ -22,6 +22,11 @@ if (!$order) {
     exit('Order not found.');
 }
 
+$paymentProvider = match ($order['gateway_provider'] ?? null) {
+    'xendit' => 'Xendit',
+    'paymongo' => 'PayMongo',
+    default => 'payment provider',
+};
 $result = $_GET['result'] ?? '';
 $pageTitle = 'Online payment';
 require __DIR__ . '/../includes/header.php';
@@ -33,11 +38,11 @@ require __DIR__ . '/../includes/header.php';
     <?php elseif ($result === 'cancel'): ?>
         <p class="notice">
             Checkout was cancelled or not completed. Your payment remains pending until
-            PayMongo confirms its status.
+            <?= h($paymentProvider) ?> confirms its status.
         </p>
     <?php else: ?>
         <p class="notice">
-            Your payment is awaiting confirmation from PayMongo. This page does not mark
+            Your payment is awaiting confirmation from <?= h($paymentProvider) ?>. This page does not mark
             an order as paid; a verified provider webhook does that.
         </p>
     <?php endif; ?>

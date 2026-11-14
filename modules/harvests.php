@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/inventory.php';
+require_once __DIR__ . '/../includes/fifo.php';
 require_role('admin', 'staff', 'farmer');
 
 $error = '';
@@ -11,14 +12,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $plantingId = (int) ($_POST['planting_id'] ?? 0);
     $quantity = filter_var($_POST['quantity'] ?? null, FILTER_VALIDATE_FLOAT);
     $harvestedOn = $_POST['harvested_on'] ?? '';
-    $notes = trim($_POST['quality_notes'] ?? '');
+    $notesInput = $_POST['quality_notes'] ?? '';
+    $notes = is_string($notesInput) ? trim($notesInput) : null;
+    $notesLength = $notes === null
+        ? null
+        : (function_exists('mb_strlen') ? mb_strlen($notes, 'UTF-8') : strlen($notes));
 
     if ($action === 'create'
-        && ($plantingId < 1 || $quantity === false || $quantity <= 0 || !is_valid_date($harvestedOn))) {
-        $error = 'Choose a planting and enter a positive quantity and valid harvest date.';
+        && ($plantingId < 1 || $quantity === false || $quantity <= 0 || !is_valid_date($harvestedOn)
+            || $notes === null || $notesLength > 4000)) {
+        $error = 'Choose a planting, enter a positive quantity and valid harvest date, and keep notes to 4,000 characters or fewer.';
     } elseif ($action === 'update'
-        && ($harvestId < 1 || $quantity === false || $quantity <= 0 || !is_valid_date($harvestedOn))) {
-        $error = 'Enter a positive quantity and valid harvest date.';
+        && ($harvestId < 1 || $quantity === false || $quantity <= 0 || !is_valid_date($harvestedOn)
+            || $notes === null || $notesLength > 4000)) {
+        $error = 'Enter a positive quantity and valid harvest date, and keep notes to 4,000 characters or fewer.';
     } elseif (in_array($action, ['create', 'update', 'archive'], true)) {
         try {
             $db->beginTransaction();
@@ -62,6 +69,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     );
                     $stock->execute([$quantity, $stockId]);
                 }
+                fifo_add_inventory_lot(
+                    $db,
+                    $stockId,
+                    (float) $quantity,
+                    'harvest',
+                    $harvestedOn,
+                    $harvestId
+                );
                 record_inventory_movement(
                     $db,
                     $stockId,
@@ -95,6 +110,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($action === 'update') {
                     $difference = round((float) $quantity - (float) $harvest['quantity'], 2);
+                    fifo_adjust_harvest_lot(
+                        $db,
+                        $stockId,
+                        $harvestId,
+                        $difference,
+                        $harvestedOn
+                    );
                     if ($difference > 0) {
                         $changeStock = $db->prepare(
                             'INSERT INTO inventory (vegetable_id, quantity)
@@ -139,6 +161,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'Cannot archive this harvest because some of its stock has already been sold or removed.'
                         );
                     }
+                    fifo_remove_available_stock(
+                        $db,
+                        $stockId,
+                        (float) $harvest['quantity'],
+                        $harvestId,
+                        true
+                    );
 
                     $removeStock = $db->prepare(
                         'UPDATE inventory
@@ -212,7 +241,7 @@ $plantings = $db->query(
      ORDER BY p.planted_on"
 )->fetchAll();
 $harvests = $db->query(
-    'SELECT h.*, v.name AS vegetable, p.id AS planting_number
+    'SELECT h.*, v.name AS vegetable, v.unit, p.id AS planting_number
      FROM harvests AS h
      JOIN plantings AS p ON p.id = h.planting_id
      JOIN vegetables AS v ON v.id = p.vegetable_id
@@ -222,10 +251,16 @@ $harvests = $db->query(
 $pageTitle = 'Harvests';
 require __DIR__ . '/../includes/header.php';
 ?>
-<div class="page-heading"><h1>Harvests</h1></div>
+<section class="module-heading">
+    <div>
+        <p class="module-eyebrow">Farm operations</p>
+        <h1>Harvests</h1>
+        <p>Record harvest quantities; stock is updated automatically.</p>
+    </div>
+</section>
 
 <section class="panel section">
-    <h2><?= $editingHarvest ? 'Edit harvest' : 'Record harvest' ?></h2>
+    <h2><?= $editingHarvest ? 'Edit harvest #' . (int) $editingHarvest['id'] : 'Record a harvest' ?></h2>
 
     <?php if ($error): ?>
         <div class="notice error"><?= h($error) ?></div>
@@ -256,8 +291,7 @@ require __DIR__ . '/../includes/header.php';
                             <option value="">Choose planting</option>
                             <?php foreach ($plantings as $planting): ?>
                                 <option value="<?= (int) $planting['id'] ?>">
-                                    #<?= (int) $planting['id'] ?> ·
-                                    <?= h($planting['name']) ?> (<?= h($planting['planted_on']) ?>)
+                                    <?= h($planting['name']) ?> · #<?= (int) $planting['id'] ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -288,26 +322,29 @@ require __DIR__ . '/../includes/header.php';
             </div>
 
             <div class="field">
-                <label for="quality_notes">Notes</label>
-                <textarea id="quality_notes" name="quality_notes"><?= h($editingHarvest['quality_notes'] ?? '') ?></textarea>
+                <label for="quality_notes">Quality notes</label>
+                <textarea id="quality_notes" name="quality_notes" maxlength="4000"><?= h($editingHarvest['quality_notes'] ?? '') ?></textarea>
             </div>
 
             <button type="submit"><?= $editingHarvest ? 'Save changes' : 'Save harvest' ?></button>
+            <?php if (!$editingHarvest): ?>
+                <button class="button secondary" type="reset">Clear</button>
+            <?php endif; ?>
         </form>
     <?php endif; ?>
 </section>
 
 <section class="panel section">
-    <h2>Harvest history</h2>
+    <h2>Harvest records</h2>
 
     <?php if (!$harvests): ?>
         <p class="empty">No harvests recorded.</p>
     <?php else: ?>
-        <div class="table-wrap">
-            <table>
+        <div class="table-wrap module-table-wrap">
+            <table class="module-table">
                 <thead>
                     <tr>
-                        <th>Date</th>
+                        <th>Harvested</th>
                         <th>Vegetable</th>
                         <th>Planting</th>
                         <th>Quantity</th>
@@ -319,10 +356,10 @@ require __DIR__ . '/../includes/header.php';
                 <tbody>
                     <?php foreach ($harvests as $harvest): ?>
                         <tr>
-                            <td><?= h($harvest['harvested_on']) ?></td>
+                            <td><?= h(date('M j, Y', strtotime($harvest['harvested_on']))) ?></td>
                             <td><?= h($harvest['vegetable']) ?></td>
                             <td>#<?= (int) $harvest['planting_number'] ?></td>
-                            <td><?= number_format((float) $harvest['quantity'], 2) ?></td>
+                            <td><?= number_format((float) $harvest['quantity'], 2) ?> <?= h($harvest['unit']) ?></td>
                             <td><?= h($harvest['quality_notes'] ?? '—') ?></td>
                             <td>
                                 <span class="status-badge <?= $harvest['archived_at'] ? 'status-archived' : 'status-active' ?>">
@@ -331,13 +368,15 @@ require __DIR__ . '/../includes/header.php';
                             </td>
                             <td>
                                 <?php if (!$harvest['archived_at']): ?>
-                                    <a href="<?= h(app_url('modules/harvests.php?edit=' . (int) $harvest['id'])) ?>">Edit</a>
-                                    <form method="post">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="action" value="archive">
-                                        <input type="hidden" name="harvest_id" value="<?= (int) $harvest['id'] ?>">
-                                        <button class="button secondary" type="submit">Archive</button>
-                                    </form>
+                                    <div class="farm-record-actions">
+                                        <a class="button secondary" href="<?= h(app_url('modules/harvests.php?edit=' . (int) $harvest['id'])) ?>">Edit</a>
+                                        <form method="post" data-confirm="Archive this harvest? Inventory will be reduced by its quantity.">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="action" value="archive">
+                                            <input type="hidden" name="harvest_id" value="<?= (int) $harvest['id'] ?>">
+                                            <button class="button danger" type="submit">Archive</button>
+                                        </form>
+                                    </div>
                                 <?php else: ?>
                                     <span class="muted">History retained</span>
                                 <?php endif; ?>

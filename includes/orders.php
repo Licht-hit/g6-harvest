@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/inventory.php';
+require_once __DIR__ . '/fifo.php';
 
 const BULK_DISCOUNT_MINIMUM_QUANTITY = 20.0;
 const BULK_DISCOUNT_PERCENTAGE = 10.0;
@@ -13,6 +14,54 @@ function checkout_token_hash(string $token): string
     }
 
     return hash('sha256', $token);
+}
+
+function checkout_delivery_address(array $details): string
+{
+    $recipientName = is_string($details['recipient_name'] ?? null)
+        ? trim($details['recipient_name'])
+        : '';
+    $contactNumber = is_string($details['contact_number'] ?? null)
+        ? trim($details['contact_number'])
+        : '';
+    $streetAddress = is_string($details['street_address'] ?? null)
+        ? trim($details['street_address'])
+        : '';
+    $barangay = is_string($details['barangay'] ?? null)
+        ? trim($details['barangay'])
+        : '';
+    $cityMunicipality = is_string($details['city_municipality'] ?? null)
+        ? trim($details['city_municipality'])
+        : '';
+    $deliveryInstructions = is_string($details['delivery_instructions'] ?? null)
+        ? trim($details['delivery_instructions'])
+        : '';
+
+    if (
+        preg_match('/\A.{2,100}\z/u', $recipientName) !== 1
+        || preg_match('/\A.{3,200}\z/u', $streetAddress) !== 1
+        || preg_match('/\A.{2,100}\z/u', $barangay) !== 1
+        || preg_match('/\A.{2,100}\z/u', $cityMunicipality) !== 1
+    ) {
+        throw new RuntimeException('Enter the recipient, contact number, and complete delivery address.');
+    }
+    if (!preg_match('/\A(?=.*[0-9])[+0-9() .-]{7,20}\z/', $contactNumber)) {
+        throw new RuntimeException('Enter a valid contact number.');
+    }
+    if (preg_match('/\A.{0,300}\z/us', $deliveryInstructions) !== 1) {
+        throw new RuntimeException('Delivery instructions must be 300 characters or fewer.');
+    }
+
+    $addressLines = [
+        'Recipient name: ' . $recipientName,
+        'Contact number: ' . $contactNumber,
+        'Address: ' . implode(', ', [$streetAddress, $barangay, $cityMunicipality]),
+    ];
+    if ($deliveryInstructions !== '') {
+        $addressLines[] = 'Delivery instructions: ' . $deliveryInstructions;
+    }
+
+    return implode("\n", $addressLines);
 }
 
 function checkout_request_fingerprint(
@@ -120,6 +169,9 @@ function reserve_inventory_stock(
             : 'Stock reserved for a customer order.',
         $orderCode
     );
+    if ($orderCode !== null) {
+        fifo_reserve_order_stock($db, $vegetableId, $quantity, $orderCode);
+    }
 }
 
 function merge_reorder_cart(array $orderItems, array $cart): array
@@ -194,6 +246,8 @@ function merge_reorder_cart(array $orderItems, array $cart): array
     ];
 }
 
+require_once __DIR__ . '/payments.php';
+
 function redirect_to_existing_checkout(array $order, ?string $requestFingerprint = null): void
 {
     if (
@@ -208,13 +262,11 @@ function redirect_to_existing_checkout(array $order, ?string $requestFingerprint
     }
 
     $checkoutUrl = $order['gateway_checkout_url'] ?? '';
-    $checkoutHost = is_string($checkoutUrl) ? parse_url($checkoutUrl, PHP_URL_HOST) : false;
-    $checkoutScheme = is_string($checkoutUrl) ? parse_url($checkoutUrl, PHP_URL_SCHEME) : false;
     if (
         $order['payment_method'] === 'online'
         && $order['payment_status'] === 'pending_payment'
-        && $checkoutScheme === 'https'
-        && $checkoutHost === 'checkout.paymongo.com'
+        && is_string($checkoutUrl)
+        && payment_checkout_url_is_valid($order['gateway_provider'] ?? null, $checkoutUrl)
     ) {
         redirect($checkoutUrl);
     }

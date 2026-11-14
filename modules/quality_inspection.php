@@ -25,14 +25,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInspectionDate = $_POST['inspected_on'] ?? '';
     $inspectionDate = is_string($rawInspectionDate) ? trim($rawInspectionDate) : '';
     $rawNotes = $_POST['notes'] ?? '';
-    $notes = is_string($rawNotes) ? trim($rawNotes) : '';
+    $notesAreValid = is_string($rawNotes);
+    $notes = $notesAreValid ? trim($rawNotes) : '';
+    $notesLength = function_exists('mb_strlen') ? mb_strlen($notes, 'UTF-8') : strlen($notes);
     $harvestId = filter_var($selectedHarvest, FILTER_VALIDATE_INT);
 
     if (!$harvestId || $harvestId < 1
         || !in_array($selectedGrade, ['A', 'B', 'C', 'Rejected'], true)
         || !is_valid_date($inspectionDate)
-        || strlen($notes) > 4000) {
-        $error = 'Choose a harvest and quality grade, enter a valid inspection date, and keep notes under 4,000 characters.';
+        || !$notesAreValid
+        || $notesLength > 4000) {
+        $error = 'Choose a harvest and quality grade, enter a valid inspection date, and keep notes to 4,000 characters or fewer.';
     } else {
         $harvestCheck = $db->prepare(
             'SELECT id
@@ -75,7 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $from = is_string($_GET['from'] ?? null) ? trim($_GET['from']) : '';
 $to = is_string($_GET['to'] ?? null) ? trim($_GET['to']) : '';
-$search = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+$rawSearch = $_GET['search'] ?? $_GET['q'] ?? '';
+$search = is_string($rawSearch) ? trim($rawSearch) : '';
 $gradeFilter = is_string($_GET['grade'] ?? null) ? trim($_GET['grade']) : '';
 $filterError = '';
 
@@ -102,9 +106,9 @@ if ($gradeFilter !== '') {
     $parameters[] = $gradeFilter;
 }
 if ($search !== '') {
-    $conditions[] = '(v.name LIKE ? OR u.name LIKE ? OR q.notes LIKE ? OR CAST(q.harvest_id AS CHAR) LIKE ?)';
+    $conditions[] = '(v.name LIKE ? OR u.name LIKE ? OR q.notes LIKE ? OR CAST(q.harvest_id AS CHAR) LIKE ? OR h.harvested_on LIKE ?)';
     $searchTerm = '%' . $search . '%';
-    array_push($parameters, $searchTerm, $searchTerm, $searchTerm, $searchTerm);
+    array_push($parameters, $searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm);
 }
 $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 $summary = ['total' => 0, 'excellent' => 0, 'good' => 0, 'attention' => 0];
@@ -168,14 +172,14 @@ $harvests = $db->query(
      ORDER BY h.harvested_on DESC, h.id DESC'
 )->fetchAll();
 
-$pageTitle = 'Quality inspection';
+$pageTitle = 'Quality inspections';
 require __DIR__ . '/../includes/header.php';
 ?>
 <section class="module-heading">
     <div>
-        <p class="module-eyebrow">Produce standards</p>
-        <h1>Quality inspection</h1>
-        <p>Record and review quality checks for active harvest records.</p>
+        <p class="module-eyebrow">Farm operations</p>
+        <h1>Quality inspections</h1>
+        <p>Record a grade for an active harvest and review inspection history.</p>
     </div>
 </section>
 
@@ -238,8 +242,9 @@ require __DIR__ . '/../includes/header.php';
                                 value="<?= (int) $harvest['id'] ?>"
                                 <?= (string) $harvest['id'] === $selectedHarvest ? 'selected' : '' ?>
                             >
-                                #<?= (int) $harvest['id'] ?> · <?= h($harvest['vegetable']) ?> ·
-                                <?= h($harvest['harvested_on']) ?> ·
+                                <?= h($harvest['vegetable']) ?> ·
+                                <?= h(date('M j, Y', strtotime($harvest['harvested_on']))) ?> ·
+                                #<?= (int) $harvest['id'] ?> ·
                                 <?= number_format((float) $harvest['quantity'], 2) ?> <?= h($harvest['unit']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -287,6 +292,11 @@ require __DIR__ . '/../includes/header.php';
 </section>
 
 <section class="panel section module-filter-panel">
+    <div class="module-table-heading">
+        <div>
+            <h2>Filter inspections</h2>
+        </div>
+    </div>
     <form method="get" class="module-filter-form">
         <div class="field">
             <label for="from">Start date</label>
@@ -297,13 +307,13 @@ require __DIR__ . '/../includes/header.php';
             <input id="to" type="date" name="to" value="<?= h($to) ?>">
         </div>
         <div class="field module-search-field">
-            <label for="q">Search inspections</label>
+            <label for="search">Search inspections</label>
             <input
-                id="q"
-                name="q"
+                id="search"
+                name="search"
                 value="<?= h($search) ?>"
                 maxlength="100"
-                placeholder="Vegetable, inspector, note, or harvest ID"
+                placeholder="Produce, inspector, notes, or harvest ID"
             >
         </div>
         <div class="field">

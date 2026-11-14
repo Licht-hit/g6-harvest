@@ -4,7 +4,8 @@ require_role('admin');
 
 $from = is_string($_GET['from'] ?? null) ? trim($_GET['from']) : '';
 $to = is_string($_GET['to'] ?? null) ? trim($_GET['to']) : '';
-$search = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+$searchValue = $_GET['search'] ?? $_GET['q'] ?? '';
+$search = is_string($searchValue) ? trim($searchValue) : '';
 $requestedPage = filter_var($_GET['page'] ?? 1, FILTER_VALIDATE_INT);
 $page = $requestedPage && $requestedPage > 0 ? $requestedPage : 1;
 $pageSize = 25;
@@ -42,9 +43,10 @@ if ($search !== '') {
         OR CAST(l.entity_id AS CHAR) LIKE ?
         OR l.details LIKE ?
         OR u.name LIKE ?
+        OR u.email LIKE ?
     )';
     $searchTerm = '%' . $search . '%';
-    array_push($parameters, $searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm);
+    array_push($parameters, $searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm);
 }
 
 $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
@@ -74,6 +76,7 @@ if ($filterError === '') {
             l.details,
             l.created_at,
             u.name AS actor,
+            u.email AS actor_email,
             u.role
          FROM activity_logs AS l
          LEFT JOIN users AS u ON u.id = l.user_id
@@ -138,10 +141,10 @@ require __DIR__ . '/../includes/header.php';
             <input id="to" type="date" name="to" value="<?= h($to) ?>">
         </div>
         <div class="field module-search-field">
-            <label for="q">Search activity</label>
+            <label for="search">Search activity</label>
             <input
-                id="q"
-                name="q"
+                id="search"
+                name="search"
                 value="<?= h($search) ?>"
                 maxlength="100"
                 placeholder="User, action, or related record"
@@ -243,6 +246,9 @@ require __DIR__ . '/../includes/header.php';
                                     <span class="activity-avatar" aria-hidden="true"><?= h($initial) ?></span>
                                     <strong><?= h($actorName) ?></strong>
                                 </span>
+                                <?php if ($log['actor_email']): ?>
+                                    <small class="table-secondary"><?= h($log['actor_email']) ?></small>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <?= $log['role']
@@ -265,7 +271,7 @@ require __DIR__ . '/../includes/header.php';
             <nav class="module-pagination" aria-label="Activity log pages">
                 <?php
                 $filterParameters = array_filter(
-                    ['from' => $from, 'to' => $to, 'q' => $search],
+                    ['from' => $from, 'to' => $to, 'search' => $search],
                     static fn (string $value): bool => $value !== ''
                 );
                 ?>

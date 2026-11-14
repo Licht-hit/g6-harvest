@@ -29,9 +29,36 @@ $vegetables = $db->query(
      ORDER BY v.name'
 )->fetchAll();
 
+$activeOrderStatement = $db->prepare(
+    "SELECT order_code, order_status
+     FROM orders
+     WHERE buyer_id = ? AND order_status NOT IN ('delivered', 'cancelled')
+     ORDER BY created_at DESC
+     LIMIT 1"
+);
+$activeOrderStatement->execute([(int) current_user()['id']]);
+$activeOrder = $activeOrderStatement->fetch() ?: null;
+
 $pageTitle = 'Farm shop';
 require __DIR__ . '/../includes/header.php';
 ?>
+<?php if ($activeOrder): ?>
+    <section class="panel buyer-active-order" data-active-order-for="<?= h($activeOrder['order_code']) ?>">
+        <div>
+            <h2>Your order in progress</h2>
+            <p>Order <?= h($activeOrder['order_code']) ?> · Progress updates automatically.</p>
+        </div>
+        <div class="buyer-active-order-actions">
+            <span class="status-badge status-<?= h($activeOrder['order_status']) ?>"
+                  data-order-status-for="<?= h($activeOrder['order_code']) ?>">
+                <?= h(ucwords(str_replace('_', ' ', $activeOrder['order_status']))) ?>
+            </span>
+            <a class="button secondary" href="<?= h(app_url(
+                'buyer/order_details.php?order=' . rawurlencode($activeOrder['order_code'])
+            )) ?>">Track order</a>
+        </div>
+    </section>
+<?php endif; ?>
 <section class="shop-hero">
     <div class="shop-hero-copy">
         <p class="shop-eyebrow">Good food, grown close to home</p>
@@ -98,6 +125,7 @@ require __DIR__ . '/../includes/header.php';
                 <option value="name">Name: A to Z</option>
                 <option value="price-low">Price: Low to high</option>
                 <option value="price-high">Price: High to low</option>
+                <option value="stock-high">Stock: high to low</option>
             </select>
         </label>
         <button class="button secondary shop-reset" type="button" data-shop-reset>Reset filters</button>

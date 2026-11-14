@@ -6,7 +6,7 @@ MySQL database, payment provider, and web server must be configured together.
 ## Beginner-friendly PHP hosting setup
 
 1. Choose hosting that runs PHP 8.0 or newer with `mysqli`, `mysqlnd`, `openssl`,
-   `fileinfo`, and MySQL or MariaDB. Enable `allow_url_fopen` only if you plan to use PayMongo.
+   `fileinfo`, and MySQL or MariaDB. Enable `allow_url_fopen` for hosted online payments.
    The PHP app is not the separate Vercel/Supabase app in `vercel-app/`.
 2. Create an empty database and a dedicated database user in your hosting panel.
    Grant that user access only to this database. Do not use MySQL `root`.
@@ -36,11 +36,14 @@ MySQL database, payment provider, and web server must be configured together.
    STARTTLS; port 465 uses implicit TLS. The sender must match the Gmail SMTP
    username. Use `EMAIL_MODE=development` only on a private local development
    site; it displays verification links instead of sending email.
-8. For online payments only, set `PAYMONGO_SECRET_KEY` and
-   `PAYMONGO_WEBHOOK_SECRET`, enable OpenSSL and `allow_url_fopen`, then register
-   `https://your-site/webhooks/paymongo.php` in PayMongo. Start with test
-   credentials and confirm a signed test webhook before switching to live keys.
-   Cash on Delivery does not require PayMongo.
+8. For new online payments, set `XENDIT_SECRET_KEY`, `XENDIT_WEBHOOK_TOKEN`, and
+   `APP_URL`; enable OpenSSL and `allow_url_fopen`, then register
+   `https://your-site/webhooks/xendit.php` in Xendit with the same callback token.
+   Enable payment-session completed/expired and refund succeeded/failed events.
+   Start with test credentials and confirm a test webhook before switching to live
+   keys. Keep `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`, and
+   `https://your-site/webhooks/paymongo.php` configured until all old PayMongo
+   orders are reconciled. Cash on Delivery does not require either provider.
 9. Create a verified admin account, sign in, and test registration, verification,
    login/logout, role restrictions, produce/inventory updates, a COD order and
    collection, and reports. Test online payment and webhook handling separately
@@ -55,8 +58,9 @@ MySQL database, payment provider, and web server must be configured together.
 - Set `DB_HOST`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in the server environment.
   Keep payment and email credentials in protected server configuration, not in Git.
 - Serve the app over HTTPS, redirect HTTP to HTTPS, and verify secure session cookies.
-- Set the public HTTPS `app_url` and configure the PayMongo webhook secret. Test
-  with provider test credentials before enabling live payments.
+- Set the public HTTPS `app_url` and configure Xendit's callback token. Keep
+  PayMongo credentials available only while old PayMongo orders remain. Test with
+  provider test credentials before enabling live payments.
 - Back up the database before applying `database-upgrade.sql`. Apply the upgrade
   once per environment, then confirm vegetable categories and existing orders.
 - Run the PHP checks and perform a test-buyer order, COD status update, test

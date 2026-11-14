@@ -38,7 +38,7 @@ $featuredVegetables = $db->query(
      FROM vegetables AS v
      LEFT JOIN inventory AS i ON i.vegetable_id = v.id
      WHERE v.active = 1
-     ORDER BY (i.quantity > 0) DESC, v.name
+     ORDER BY v.name
      LIMIT 6'
 )->fetchAll();
 

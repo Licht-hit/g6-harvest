@@ -146,7 +146,7 @@ $recentHarvests = $db->query(
 )->fetchAll();
 $recentActivities = $isAdmin
     ? $db->query(
-        'SELECT a.action, a.entity_type, a.details, a.created_at, u.name AS actor
+        'SELECT a.user_id, a.action, a.entity_type, a.details, a.created_at, u.name AS actor
          FROM activity_logs AS a
          LEFT JOIN users AS u ON u.id = a.user_id
          ORDER BY a.created_at DESC, a.id DESC
@@ -634,10 +634,10 @@ require __DIR__ . '/includes/header.php';
                     <li>
                         <span class="dashboard-activity-mark" aria-hidden="true">•</span>
                         <span class="dashboard-activity-copy">
-                            <strong><?= h(ucwords(str_replace('_', ' ', $activity['action']))) ?></strong>
+                            <strong><?= h(str_replace('_', ' ', $activity['action'])) ?></strong>
                             <small>
-                                <?= h($activity['details'] ?: ucwords(str_replace('_', ' ', $activity['entity_type']))) ?>
-                                · <?= h($activity['actor'] ?? 'Former user') ?>
+                                <?= h($activity['details'] ?: str_replace('_', ' ', $activity['entity_type'])) ?>
+                                · <?= h($activity['actor'] ?? ($activity['user_id'] !== null ? 'Former user' : 'System')) ?>
                             </small>
                         </span>
                         <time datetime="<?= h(date(DATE_ATOM, strtotime($activity['created_at']))) ?>">

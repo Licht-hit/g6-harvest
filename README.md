@@ -19,8 +19,9 @@ This project uses PHP to build pages and handle form submissions. MySQL stores a
 
 - `index.php` is the public Harvest homepage, with live featured produce and database-backed farm statistics.
 - `auth/` contains login, registration, logout, email verification, and password recovery pages.
-- `buyer/` contains the buyer dashboard, produce shop, cart, checkout, and order pages.
-- `modules/` contains farm staff pages for vegetables, plantings, harvests, inventory, quality checks, sales, reports, and activity.
+- `buyer/` contains the buyer dashboard, produce shop, cart, checkout, order tracking, and return-request history.
+- `modules/` contains farm staff pages for vegetables, plantings, harvests, inventory, quality checks, sales, return reviews, reports, and activity.
+- Signed-in buyers and farm staff can use Notifications to see order and return updates.
 - Admins can review filtered, paginated inventory movement history from the Inventory page, including who changed stock and before/after quantities.
 - Vegetable categories are managed in the staff catalog and can be filtered in the buyer shop.
 - `includes/auth.php` starts the session and loads shared code.
@@ -48,7 +49,8 @@ When showing database or user-provided text in HTML, use `h($value)` to escape i
 - Keep indentation at four spaces in PHP, HTML, CSS, JavaScript, and SQL. `.editorconfig` describes these shared formatting rules for compatible editors.
 - After editing PHP, check its syntax with `php -l path\\to\\file.php`.
 - Run the application on a PHP web server with the required MySQLi and MySQL extensions. A syntax check alone does not test database behavior.
-- Run the isolated role and checkout checks with `php tests\\authorization_test.php` and `php tests\\checkout_calculation_test.php`. Cart, payment, and session checks are available as `php tests\\cart_quantity_test.php`, `php tests\\payment_flow_test.php`, and `php tests\\security_session_test.php`.
+- Run the isolated role and checkout checks with `php tests\\authorization_test.php` and `php tests\\checkout_calculation_test.php`. Cart, payment, and session checks are available as `php tests\\cart_quantity_test.php`, `php tests\\payment_flow_test.php`, `php tests\\xendit_payment_test.php`, and `php tests\\security_session_test.php`.
+- Run the database-free FIFO, delivery-tracking, and return-policy checks with `php tests\\fifo_test.php`, `php tests\\order_tracking_test.php`, and `php tests\\order_returns_test.php`.
 - Run `tests\\order_flow_integration_test.php` only with `HARVEST_TEST_DB` set to a dedicated database ending in `_test`.
 - To rebuild the public homepage UI libraries after changing `assets/js/ui-entry.js`, run `npm install` and `npm run build:ui` from the project root. Node/npm are only needed to rebuild these assets; the generated local bundle is served by PHP without a CDN.
 
@@ -65,7 +67,8 @@ When showing database or user-provided text in HTML, use `h($value)` to escape i
    `assets/uploads/vegetables/` writable by PHP to use catalog photos.
 2. Import `database.sql` into MySQL for a new installation. This creates the tables
    and sample farm data, but no login accounts. For an existing installation, back
-   up the database and run `database-upgrade.sql` to add farmer roles and vegetable photo paths.
+   up the database and run `database-upgrade.sql` to add farmer roles, vegetable photo
+   paths, and payment-provider tracking for existing PayMongo orders.
 3. Configure `DB_HOST`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in the server environment. The local defaults in `config/database.php` are for a typical XAMPP setup only.
 4. To show a public contact email on the homepage, configure `CONTACT_EMAIL` with a monitored address. Phone, location, and testimonials are not shown unless real details are added to the application.
 5. For local development only, optionally use `database-demo-users.sql`. It is a template with no usable default accounts:
@@ -101,28 +104,28 @@ Each checkout form also carries a one-time request token. The database uniquely 
 The checkout saves the delivery address with the order and supports:
 
 - **Cash on Delivery:** starts as `Pending Payment`. Admins and staff move the order through the delivery statuses in Sales. Cash collection can be confirmed only for an out-for-delivery or delivered COD order.
-- **Online Payment:** uses PayMongo's hosted checkout. GCash and card are requested; the merchant account must have the chosen methods enabled. The site never receives card numbers, security codes, PINs, or banking passwords. Only a signed PayMongo webhook can mark an online order paid.
+- **Online Payment:** new orders use Xendit's hosted checkout. The site never receives card numbers, security codes, PINs, or banking passwords. Only a verified provider webhook can mark an online order paid.
 
 A failed online payment keeps its inventory reserved until staff cancels the order. Returning from or cancelling the hosted checkout does not release stock.
 
-Online checkout is hidden unless the secret key, webhook secret, public HTTPS application URL, and PHP OpenSSL support are available. For local setup, create `config/payment.local.php` (this file is ignored by Git) with:
+Online checkout is hidden unless Xendit credentials, a callback token, a public HTTPS application URL, and PHP OpenSSL support are available. For local setup, create `config/payment.local.php` (this file is ignored by Git) with:
 
 ```php
 <?php
 return [
-    'paymongo_secret_key' => 'sk_test_...',
-    'paymongo_webhook_secret' => 'whsk_...',
+    'xendit_secret_key' => 'xnd_development_...',
+    'xendit_webhook_token' => 'your-callback-token',
     'app_url' => 'https://your-public-https-url',
 ];
 ```
 
-Use your PayMongo test keys first. The `app_url` is the public base URL of the application, including any project subfolder. In the PayMongo dashboard, register this webhook endpoint:
+Use your Xendit test key first. The `app_url` is the public base URL of the application, including any project subfolder. In Xendit, register this webhook endpoint and use the same callback token:
 
 ```text
-https://your-public-https-url/webhooks/paymongo.php
+https://your-public-https-url/webhooks/xendit.php
 ```
 
-Subscribe to `checkout_session.payment.paid` and, if your dashboard offers them, `checkout_session.payment.failed` and `payment.refunded`. Configure the secret generated for that webhook as `paymongo_webhook_secret`. Enable the PHP OpenSSL extension and `allow_url_fopen`; do not commit real credentials. For production, use HTTPS and live credentials. If the gateway cannot create a checkout session, the order transaction is rolled back and checkout reports the failure instead of claiming payment succeeded. A buyer's cancel redirect alone never changes payment status; it remains pending unless a verified provider event reports failure or payment.
+Enable `payment_session.completed`, `payment_session.expired`, `refund.succeeded`, and `refund.failed`. Keep the old PayMongo credentials and `/webhooks/paymongo.php` configured until all existing PayMongo orders are completed, cancelled, or reconciled; add `paymongo_secret_key` and `paymongo_webhook_secret` to the local settings only while those legacy orders remain. Enable PHP OpenSSL and `allow_url_fopen`; do not commit real credentials. For production, use HTTPS and live credentials. If Xendit cannot create a checkout session, the order transaction is rolled back. A buyer's return or cancel redirect never marks an order paid; only a verified webhook can do that.
 
 ### Test the ordering flow
 
@@ -130,13 +133,14 @@ Subscribe to `checkout_session.payment.paid` and, if your dashboard offers them,
 2. Sign in as a buyer, add produce, and open checkout. Confirm the subtotal, automatic discount, ₱20 fee, delivery address, and payment choices.
 3. Place an order with a combined quantity below 20; verify the discount is ₱0. Try exactly 20 units across products; verify the 10% discount is based only on the vegetable subtotal.
 4. Choose COD. As admin/staff, progress the order to Out for Delivery, confirm cash collection, then check that payment becomes Paid and the collection staff/date appear in order details.
-5. Configure PayMongo test credentials and a publicly reachable HTTPS webhook. Choose Online Payment and complete a test GCash/card checkout. Confirm that the buyer return page remains pending until the signed webhook arrives, then verify the order becomes Paid. Cancel a test checkout and confirm it is not shown as paid.
+5. Configure Xendit test credentials and a publicly reachable HTTPS webhook. Choose Online Payment and complete a test checkout. Confirm that the buyer return page remains pending until the verified webhook arrives, then verify the order becomes Paid. Cancel a test checkout and confirm it is not shown as paid.
 6. Review Sales and Reports for original subtotal, discounts, final totals, payment method/status, discount history, and discounted vegetables.
 7. On the buyer dashboard, test quick add, saving/removing favorites, reordering a
    past order with reduced stock, and reviewing an overstocked cart. Confirm
    checkout explains the combined-quantity discount threshold.
 8. Run `php tests\\cart_quantity_test.php`, `php tests\\checkout_calculation_test.php`,
-   `php tests\\payment_flow_test.php`, and `php -l` on the changed PHP files.
+   `php tests\\payment_flow_test.php`, `php tests\\xendit_payment_test.php`,
+   and `php -l` on the changed PHP files.
 
 The database-backed order flow check requires a separate test database with the
 project schema imported. Set `HARVEST_TEST_DB` to its name ending in `_test` before
@@ -146,13 +150,23 @@ rolls back its data. Never use a production database for tests. See
 [`DEPLOYMENT.md`](./DEPLOYMENT.md) for test setup and backup/restore guidance.
 
 For an existing installation, run `database-upgrade.sql` after taking a backup
-to add farmer roles, vegetable photo paths, produce categories, and the buyer
-favorites table. The migration assigns sensible categories to the included
-sample vegetables and leaves other produce in “Other.”
+to add farmer roles, vegetable photo paths, produce categories, buyer
+favorites, delivery timestamps, FIFO stock batches, return requests, notifications,
+and payment-provider tracking. The migration assigns sensible categories to the included
+sample vegetables and leaves other produce in “Other.” It estimates historical
+delivery times from each delivered order's last update and creates an opening
+inventory batch from current stock and active orders.
 
 Buyer favorites are saved per account. New installations create the
 `buyer_favorites` table through `database.sql`; existing installations must run
 `database-upgrade.sql` before using favorites or the updated buyer dashboard.
+
+Order tracking appears on buyer order details until delivery. Return requests
+are available only for damaged or quality-issue items within 24 hours of
+delivery and require staff review; approval does not automatically refund or
+restock produce. New checkout orders and order/return status changes create
+in-app notifications. Existing databases must run the full upgrade file before
+using these features.
 
 ## Shop product pictures
 
@@ -203,4 +217,4 @@ Email verification and password recovery support configured SMTP delivery and ex
 
 ## Vercel version
 
-The separate `vercel-app/` folder contains a static HTML/CSS/JavaScript version for Vercel, using Supabase for authentication and PostgreSQL. The PHP project above remains the original local application. See `vercel-app/README.md` for deployment, environment variables, PayMongo setup, and the optional MySQL data import. Existing account passwords must be reset after import.
+The separate `vercel-app/` folder contains a static HTML/CSS/JavaScript version for Vercel, using Supabase for authentication and PostgreSQL. The PHP project above remains the original local application. See `vercel-app/README.md` for deployment, environment variables, Xendit setup, and the optional MySQL data import. Existing account passwords must be reset after import.

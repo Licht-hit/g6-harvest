@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/inventory.php';
+require_once __DIR__ . '/../includes/fifo.php';
 require_role('admin', 'staff', 'farmer');
 
 $isAdmin = user_has_role(current_user(), 'admin');
@@ -63,6 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ? [$vegetableId, $quantity]
                     : [$quantity, $vegetableId]
             );
+            fifo_reconcile_manual_adjustment(
+                    $db,
+                    $vegetableId,
+                    $previousQuantity,
+                    (float) $quantity
+            );
 
             record_inventory_movement(
                 $db,
@@ -112,6 +119,46 @@ $inventory = $db->query(
      LEFT JOIN inventory AS i ON i.vegetable_id = v.id
      ORDER BY v.name'
 )->fetchAll();
+$fifoLots = $db->query(
+    "SELECT
+        l.id,
+        l.vegetable_id,
+        l.harvest_id,
+        l.source_type,
+        l.received_on,
+        l.quantity_remaining,
+        v.name AS vegetable,
+        v.unit
+     FROM inventory_lots AS l
+     JOIN vegetables AS v ON v.id = l.vegetable_id
+     WHERE l.quantity_remaining > 0
+     ORDER BY v.name,
+        CASE WHEN l.source_type = 'opening_balance' THEN 0 ELSE 1 END,
+        l.received_on,
+        l.id"
+)->fetchAll();
+$fifoPositionByVegetable = [];
+$fifoBatchRows = [];
+foreach ($fifoLots as $lot) {
+    $vegetableId = (int) $lot['vegetable_id'];
+    $fifoPositionByVegetable[$vegetableId] = ($fifoPositionByVegetable[$vegetableId] ?? 0) + 1;
+    $source = $lot['source_type'] === 'opening_balance'
+        ? 'Opening balance'
+        : ($lot['source_type'] === 'harvest'
+            ? 'Harvest #' . (int) $lot['harvest_id']
+            : 'Manual addition');
+    $received = $lot['source_type'] === 'opening_balance'
+        ? 'Before FIFO tracking'
+        : date('M j, Y', strtotime($lot['received_on']));
+    $fifoBatchRows[] = [
+        'position' => $fifoPositionByVegetable[$vegetableId],
+        'vegetable' => $lot['vegetable'],
+        'source' => $source,
+        'received' => $received,
+        'quantity' => (float) $lot['quantity_remaining'],
+        'unit' => $lot['unit'],
+    ];
+}
 
 $movementTypes = [
     'manual_adjustment' => 'Manual adjustment',
@@ -225,7 +272,13 @@ if ($isAdmin) {
 $pageTitle = 'Inventory';
 require __DIR__ . '/../includes/header.php';
 ?>
-<div class="page-heading"><h1>Inventory</h1></div>
+<section class="module-heading">
+    <div>
+        <p class="module-eyebrow">Farm operations</p>
+        <h1>Inventory</h1>
+        <p>Adjust available stock. FIFO uses the oldest stock batch first when orders are placed.</p>
+    </div>
+</section>
 
 <section class="panel section">
     <h2>Set stock quantity</h2>
@@ -282,7 +335,7 @@ require __DIR__ . '/../includes/header.php';
                 >
             </div>
 
-            <button type="submit">Update stock</button>
+            <button type="submit">Save inventory</button>
         </form>
     <?php endif; ?>
 </section>
@@ -298,18 +351,59 @@ require __DIR__ . '/../includes/header.php';
                 <thead>
                     <tr>
                         <th>Vegetable</th>
-                        <th>Quantity</th>
-                        <th>Unit</th>
-                        <th>Last updated</th>
+                        <th>Available quantity</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($inventory as $item): ?>
                         <tr>
                             <td><?= h($item['name']) ?></td>
-                            <td><?= number_format((float) $item['quantity'], 2) ?></td>
-                            <td><?= h($item['unit']) ?></td>
-                            <td><?= h($item['updated_at'] ?? '—') ?></td>
+                            <td>
+                                <?= number_format((float) $item['quantity'], 2) ?> <?= h($item['unit']) ?>
+                                <small class="table-secondary">
+                                    Updated <?= h($item['updated_at'] ? date('M j, g:i A', strtotime($item['updated_at'])) : '—') ?>
+                                </small>
+                            </td>
+                            <td>
+                                <?php $inStock = (float) $item['quantity'] > 5; ?>
+                                <span class="status-badge status-<?= $inStock ? 'paid' : 'pending_payment' ?>">
+                                    <?= $inStock ? 'In stock' : 'Low stock' ?>
+                                </span>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+</section>
+
+<section class="panel section">
+    <h2>FIFO stock batches</h2>
+    <p class="muted">Each vegetable's batches are ordered oldest first; orders draw from position 1 first.</p>
+    <?php if (!$fifoBatchRows): ?>
+        <p class="empty">No FIFO stock batches are available.</p>
+    <?php else: ?>
+        <div class="table-wrap module-table-wrap">
+            <table class="module-table">
+                <thead>
+                    <tr>
+                        <th>FIFO position</th>
+                        <th>Vegetable</th>
+                        <th>Batch source</th>
+                        <th>Received</th>
+                        <th>Remaining</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($fifoBatchRows as $batch): ?>
+                        <tr>
+                            <td><?= (int) $batch['position'] ?></td>
+                            <td><?= h($batch['vegetable']) ?></td>
+                            <td><?= h($batch['source']) ?></td>
+                            <td><?= h($batch['received']) ?></td>
+                            <td><?= number_format($batch['quantity'], 2) ?> <?= h($batch['unit']) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

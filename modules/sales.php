@@ -2,9 +2,11 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/inventory.php';
 require_once __DIR__ . '/../includes/payments.php';
+require_once __DIR__ . '/../includes/fifo.php';
+require_once __DIR__ . '/../includes/notifications.php';
+require_once __DIR__ . '/../includes/order_returns.php';
 require_role('admin', 'staff', 'farmer');
 
-$validPaymentStatuses = ['', 'pending_payment', 'paid', 'failed', 'refunded'];
 $orderStatusLabels = [
     'pending' => 'Pending',
     'confirmed' => 'Confirmed',
@@ -14,6 +16,11 @@ $orderStatusLabels = [
     'delivered' => 'Delivered',
     'cancelled' => 'Cancelled',
 ];
+$validStatusFilters = array_merge(
+    [''],
+    array_keys($orderStatusLabels),
+    ['pending_payment', 'paid', 'failed', 'refunded']
+);
 $nextOrderStatuses = [
     'pending' => ['confirmed'],
     'confirmed' => ['preparing'],
@@ -54,7 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $order['payment_method'] !== 'online'
                     || (
                         !empty($order['gateway_session_id'])
-                        && paymongo_is_configured()
+                        && (
+                            !empty($order['gateway_expired_at'])
+                            || online_payment_provider_is_configured($order['gateway_provider'] ?? null)
+                        )
                     )
                 );
 
@@ -66,40 +76,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($nextStatus === 'cancelled' && $order['payment_method'] === 'online') {
-                paymongo_expire_checkout_session($order['gateway_session_id']);
-                $expireHistory = $db->prepare(
-                    "INSERT INTO payment_history (
-                        order_code,
-                        payment_method,
-                        event_type,
-                        payment_status,
-                        amount,
-                        payment_reference,
-                        actor_id,
-                        details
-                    ) VALUES (?, 'online', 'checkout_session_expired', 'failed', ?, ?, ?, ?)"
-                );
-                $expireHistory->execute([
-                    $orderCode,
-                    $order['final_total'],
-                    $order['gateway_session_id'],
-                    (int) current_user()['id'],
-                    'PayMongo confirmed the pending checkout session was expired before cancellation.',
-                ]);
+                if (empty($order['gateway_expired_at'])) {
+                    $providerName = cancel_online_payment_session($order);
+                    $checkoutEvent = $providerName === 'PayMongo'
+                        ? 'checkout_session_expired'
+                        : 'checkout_session_cancelled';
+                    $expireHistory = $db->prepare(
+                        "INSERT INTO payment_history (
+                            order_code,
+                            payment_method,
+                            event_type,
+                            payment_status,
+                            amount,
+                            payment_reference,
+                            actor_id,
+                            details
+                        ) VALUES (?, 'online', ?, 'failed', ?, ?, ?, ?)"
+                    );
+                    $expireHistory->execute([
+                        $orderCode,
+                        $checkoutEvent,
+                        $order['final_total'],
+                        $order['gateway_session_id'],
+                        (int) current_user()['id'],
+                        $providerName . ' confirmed the pending checkout session was cancelled before order cancellation.',
+                    ]);
+                }
                 $db->prepare(
                     "UPDATE orders
-                     SET payment_status = 'failed'
-                     WHERE order_code = ? AND payment_status = 'pending_payment'"
+                     SET payment_status = CASE
+                             WHEN payment_status = 'pending_payment' THEN 'failed'
+                             ELSE payment_status
+                         END,
+                         gateway_expired_at = COALESCE(gateway_expired_at, CURRENT_TIMESTAMP)
+                     WHERE order_code = ?"
                 )->execute([$orderCode]);
             }
 
             $updateOrder = $db->prepare(
-                'UPDATE orders SET order_status = ? WHERE order_code = ?'
+                'UPDATE orders
+                 SET order_status = ?,
+                     delivered_at = CASE
+                         WHEN ? = \'delivered\' THEN COALESCE(delivered_at, CURRENT_TIMESTAMP)
+                         ELSE delivered_at
+                     END
+                 WHERE order_code = ?'
             );
-            $updateOrder->execute([$nextStatus, $orderCode]);
+            $updateOrder->execute([$nextStatus, $nextStatus, $orderCode]);
             if ($nextStatus === 'cancelled') {
                 $itemStatement = $db->prepare(
-                    'SELECT vegetable_id, quantity FROM sales WHERE order_code = ?'
+                    'SELECT vegetable_id, quantity
+                     FROM sales
+                     WHERE order_code = ?
+                     ORDER BY vegetable_id'
                 );
                 $itemStatement->execute([$orderCode]);
                 $currentStock = $db->prepare(
@@ -108,8 +137,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $restock = $db->prepare(
                     'UPDATE inventory SET quantity = quantity + ? WHERE vegetable_id = ?'
                 );
-                foreach ($itemStatement->fetchAll() as $item) {
+                $cancelledItems = $itemStatement->fetchAll();
+                $expectedReleaseByVegetable = [];
+                foreach ($cancelledItems as $item) {
                     $vegetableId = (int) $item['vegetable_id'];
+                    $quantity = (float) $item['quantity'];
+                    $expectedReleaseByVegetable[$vegetableId] = round(
+                        ($expectedReleaseByVegetable[$vegetableId] ?? 0) + $quantity,
+                        2
+                    );
                     $currentStock->execute([$vegetableId]);
                     $quantityBefore = $currentStock->fetchColumn();
                     if ($quantityBefore === false) {
@@ -123,16 +159,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db,
                         $vegetableId,
                         (float) $quantityBefore,
-                        round((float) $quantityBefore + (float) $item['quantity'], 2),
+                        round((float) $quantityBefore + $quantity, 2),
                         'order_cancelled',
                         'Stock restored after order ' . $orderCode . ' was cancelled.',
                         $orderCode
                     );
                 }
+                $releasedByVegetable = fifo_release_order_stock($db, $orderCode);
+                foreach ($expectedReleaseByVegetable as $vegetableId => $quantity) {
+                    if (round($releasedByVegetable[$vegetableId] ?? 0, 2) !== $quantity) {
+                        throw new RuntimeException('Could not restore the cancelled order stock batches.');
+                    }
+                }
+                foreach ($releasedByVegetable as $vegetableId => $quantity) {
+                    if (round($expectedReleaseByVegetable[$vegetableId] ?? 0, 2) !== round($quantity, 2)) {
+                        throw new RuntimeException('Could not restore the cancelled order stock batches.');
+                    }
+                }
                 $db->prepare(
                     "UPDATE sales SET status = 'cancelled' WHERE order_code = ?"
                 )->execute([$orderCode]);
             }
+            create_notification_for_user(
+                $db,
+                (int) $order['buyer_id'],
+                'order_status',
+                'Your order ' . $orderCode . ' is now ' . str_replace('_', ' ', $nextStatus) . '.',
+                'buyer/order_details.php?order=' . rawurlencode($orderCode),
+                $orderCode
+            );
 
             log_activity(
                 'order_status_updated',
@@ -215,16 +270,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $from = is_string($_GET['from'] ?? null) ? trim($_GET['from']) : '';
 $to = is_string($_GET['to'] ?? null) ? trim($_GET['to']) : '';
-$search = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
-$paymentStatus = is_string($_GET['status'] ?? null) ? trim($_GET['status']) : '';
+$searchInput = $_GET['search'] ?? $_GET['q'] ?? null;
+$search = is_string($searchInput) ? trim($searchInput) : '';
+$statusFilter = is_string($_GET['status'] ?? null) ? trim($_GET['status']) : '';
 $filterError = '';
 
 if (($from !== '' && !is_valid_date($from)) || ($to !== '' && !is_valid_date($to))) {
     $filterError = 'Enter dates in the required year-month-day format.';
 } elseif ($from !== '' && $to !== '' && $from > $to) {
     $filterError = 'The start date must be on or before the end date.';
-} elseif (!in_array($paymentStatus, $validPaymentStatuses, true)) {
-    $filterError = 'Choose a valid payment status.';
+} elseif (!in_array($statusFilter, $validStatusFilters, true)) {
+    $filterError = 'Choose a valid order or payment status.';
 }
 
 $conditions = [];
@@ -237,19 +293,19 @@ if ($to !== '') {
     $conditions[] = 'o.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
     $parameters[] = $to;
 }
-if ($paymentStatus !== '') {
-    $conditions[] = 'o.payment_status = ?';
-    $parameters[] = $paymentStatus;
+if ($statusFilter !== '') {
+    $conditions[] = '(o.order_status = ? OR o.payment_status = ?)';
+    array_push($parameters, $statusFilter, $statusFilter);
 }
 if ($search !== '') {
-    $conditions[] = '(o.order_code LIKE ? OR u.name LIKE ? OR EXISTS (
+    $conditions[] = '(o.order_code LIKE ? OR u.name LIKE ? OR u.email LIKE ? OR EXISTS (
         SELECT 1
         FROM sales AS sx
         JOIN vegetables AS vx ON vx.id = sx.vegetable_id
         WHERE sx.order_code = o.order_code AND vx.name LIKE ?
     ))';
     $searchTerm = '%' . $search . '%';
-    array_push($parameters, $searchTerm, $searchTerm, $searchTerm);
+    array_push($parameters, $searchTerm, $searchTerm, $searchTerm, $searchTerm);
 }
 $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
@@ -265,6 +321,7 @@ $itemsByOrder = [];
 $historyByOrder = [];
 $dailySales = [];
 $matchingOrders = 0;
+$pendingReturnCount = pending_order_return_count($db);
 
 if ($filterError === '') {
     $summaryStatement = $db->prepare(
@@ -354,6 +411,9 @@ require __DIR__ . '/../includes/header.php';
         <h1>Sales and orders</h1>
         <p>Review order totals, payment status, delivery progress, and payment history.</p>
     </div>
+    <a class="button secondary" href="<?= h(app_url('modules/returns.php')) ?>">
+        Return requests<?= $pendingReturnCount > 0 ? ' (' . number_format($pendingReturnCount) . ' pending)' : '' ?>
+    </a>
 </section>
 
 <section class="module-stat-grid" aria-label="Sales summary">
@@ -390,15 +450,15 @@ require __DIR__ . '/../includes/header.php';
             <input id="to" type="date" name="to" value="<?= h($to) ?>">
         </div>
         <div class="field module-search-field">
-            <label for="q">Search orders</label>
-            <input id="q" name="q" value="<?= h($search) ?>" maxlength="100">
+            <label for="search">Search order / buyer / product</label>
+            <input id="search" name="search" value="<?= h($search) ?>" maxlength="100">
         </div>
         <div class="field">
-            <label for="status">Payment status</label>
+            <label for="status">Status</label>
             <select id="status" name="status">
                 <option value="">All statuses</option>
-                <?php foreach (array_slice($validPaymentStatuses, 1) as $statusOption): ?>
-                    <option value="<?= h($statusOption) ?>" <?= $paymentStatus === $statusOption ? 'selected' : '' ?>>
+                <?php foreach (array_slice($validStatusFilters, 1) as $statusOption): ?>
+                    <option value="<?= h($statusOption) ?>" <?= $statusFilter === $statusOption ? 'selected' : '' ?>>
                         <?= h(ucwords(str_replace('_', ' ', $statusOption))) ?>
                     </option>
                 <?php endforeach; ?>
@@ -486,7 +546,10 @@ require __DIR__ . '/../includes/header.php';
                                 $order['payment_method'] !== 'online'
                                 || (
                                     !empty($order['gateway_session_id'])
-                                    && paymongo_is_configured()
+                                    && (
+                                        !empty($order['gateway_expired_at'])
+                                        || online_payment_provider_is_configured($order['gateway_provider'] ?? null)
+                                    )
                                 )
                             );
                         $availableNextStatuses = $nextOrderStatuses[$order['order_status']] ?? [];
@@ -559,8 +622,11 @@ require __DIR__ . '/../includes/header.php';
                                 <small><?= h($order['delivery_address']) ?></small>
                             </td>
                             <td>
+                                <a class="button secondary" href="<?= h(app_url(
+                                    'modules/returns.php?order=' . rawurlencode($order['order_code'])
+                                )) ?>">View returns</a>
                                 <?php if ($availableNextStatuses): ?>
-                                    <form method="post" class="order-action-form">
+                                    <form method="post" class="order-action-form" data-confirm-cancel>
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="action" value="update_order_status">
                                         <input type="hidden" name="order_code" value="<?= h($order['order_code']) ?>">

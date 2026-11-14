@@ -13,7 +13,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');
 
 $statement = $db->prepare(
-    'SELECT order_code, payment_status, order_status
+    'SELECT order_code, payment_status, order_status, delivered_at
      FROM orders
      WHERE buyer_id = ?
      ORDER BY created_at DESC'

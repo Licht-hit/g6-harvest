@@ -99,7 +99,7 @@ require __DIR__ . '/../includes/header.php';
             </p>
         </div>
 
-        <?php if ($stock >= 1): ?>
+        <?php if ($stock > 0): ?>
             <form class="product-detail-form" method="post" action="<?= h(app_url('buyer/cart.php')) ?>" data-cart-add>
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="add">
@@ -115,11 +115,11 @@ require __DIR__ . '/../includes/header.php';
                             id="quantity"
                             class="quantity-input"
                             type="number"
-                            min="1"
+                            min="0.01"
                             max="<?= h($product['stock']) ?>"
                             step="0.01"
                             name="quantity"
-                            value="1"
+                            value="<?= h((string) min(1.0, $stock)) ?>"
                             inputmode="numeric"
                             required
                         >
@@ -137,8 +137,6 @@ require __DIR__ . '/../includes/header.php';
                     Add to cart
                 </button>
             </form>
-        <?php elseif ($stock > 0): ?>
-            <p class="product-minimum-note">The available stock is below the 1 <?= h($product['unit']) ?> minimum order.</p>
         <?php endif; ?>
     </div>
 </section>

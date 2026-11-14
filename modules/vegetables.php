@@ -54,6 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         || !$priceHasValidFormat
         || $price < 0) {
         $error = 'Choose a category, enter a vegetable name and unit, and use a price with up to two decimal places.';
+    } elseif ($action === 'create' && !$hasPhotoUpload) {
+        $error = 'Choose a JPEG, PNG, or WebP photo for the new vegetable.';
     } else {
         $existing = null;
         if ($action === 'update') {
@@ -167,9 +169,13 @@ if ($search !== '') {
 $pageTitle = 'Vegetables';
 require __DIR__ . '/../includes/header.php';
 ?>
-<div class="page-heading">
-    <h1>Vegetables</h1>
-</div>
+<section class="module-heading">
+    <div>
+        <p class="module-eyebrow">Catalog management</p>
+        <h1>Vegetables</h1>
+        <p>Create produce listings and control what buyers can see.</p>
+    </div>
+</section>
 
 <section class="panel section">
     <h2><?= $editingVegetable ? 'Edit vegetable' : 'Add vegetable' ?></h2>
@@ -244,10 +250,24 @@ require __DIR__ . '/../includes/header.php';
         <?php endif; ?>
         <div class="field">
             <label for="photo">Vegetable photo (JPEG, PNG, or WebP; up to 5 MB)</label>
-            <input id="photo" type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+            <input
+                id="photo"
+                type="file"
+                name="photo"
+                accept="image/jpeg,image/png,image/webp"
+                <?= $editingVegetable ? '' : 'required' ?>
+            >
+            <?php if ($editingVegetable): ?>
+                <small class="field-help">Optional when editing. Leave empty to keep the current photo.</small>
+            <?php else: ?>
+                <small class="field-help">Required for new vegetables.</small>
+            <?php endif; ?>
         </div>
 
         <button type="submit"><?= $editingVegetable ? 'Save changes' : 'Add vegetable' ?></button>
+        <?php if (!$editingVegetable): ?>
+            <button class="button secondary" type="reset">Clear</button>
+        <?php endif; ?>
     </form>
 </section>
 
@@ -268,7 +288,7 @@ require __DIR__ . '/../includes/header.php';
         <p class="empty">No vegetables have been added.</p>
     <?php else: ?>
         <div class="table-wrap">
-            <table>
+            <table class="module-table">
                 <thead>
                     <tr>
                         <th>Name</th>
@@ -306,7 +326,7 @@ require __DIR__ . '/../includes/header.php';
                                         type="hidden"
                                         name="id"
                                         value="<?= (int) $vegetable['id'] ?>">
-                                    <button class="button secondary" type="submit">
+                                    <button class="button <?= $vegetable['active'] ? 'danger' : 'secondary' ?>" type="submit">
                                         <?= $vegetable['active'] ? 'Deactivate' : 'Activate' ?>
                                     </button>
                                 </form>

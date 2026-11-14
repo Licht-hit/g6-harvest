@@ -166,6 +166,8 @@ CREATE TABLE IF NOT EXISTS orders (
     checkout_token_hash CHAR(64) NULL,
     checkout_request_hash CHAR(64) NULL,
     gateway_checkout_url VARCHAR(1000) NULL,
+    gateway_provider ENUM('paymongo', 'xendit') NULL DEFAULT NULL,
+    gateway_expired_at DATETIME NULL,
     subtotal DECIMAL(10,2) NOT NULL,
     eligible_quantity DECIMAL(10,2) NOT NULL DEFAULT 0,
     discount_percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
@@ -184,6 +186,7 @@ CREATE TABLE IF NOT EXISTS orders (
         'delivered',
         'cancelled'
     ) NOT NULL DEFAULT 'pending',
+    delivered_at DATETIME NULL,
     payment_reference VARCHAR(120) NULL,
     gateway_session_id VARCHAR(120) NULL,
     payment_confirmed_by INT UNSIGNED NULL,
@@ -264,6 +267,98 @@ CREATE TABLE IF NOT EXISTS buyer_favorites (
         FOREIGN KEY (vegetable_id) REFERENCES vegetables(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS inventory_lots (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    vegetable_id INT UNSIGNED NOT NULL,
+    source_type ENUM('opening_balance', 'harvest', 'manual_addition', 'cancellation') NOT NULL,
+    harvest_id INT UNSIGNED NULL,
+    received_on DATE NOT NULL,
+    quantity_received DECIMAL(10,2) NOT NULL,
+    quantity_remaining DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_inventory_lots_fifo (vegetable_id, received_on, id),
+    INDEX idx_inventory_lots_harvest (harvest_id),
+    CONSTRAINT fk_inventory_lots_vegetable
+        FOREIGN KEY (vegetable_id) REFERENCES vegetables(id),
+    CONSTRAINT fk_inventory_lots_harvest
+        FOREIGN KEY (harvest_id) REFERENCES harvests(id),
+    CONSTRAINT chk_inventory_lot_quantities
+        CHECK (quantity_received >= 0 AND quantity_remaining >= 0 AND quantity_remaining <= quantity_received)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS inventory_lot_allocations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_code VARCHAR(24) NOT NULL,
+    vegetable_id INT UNSIGNED NOT NULL,
+    inventory_lot_id BIGINT UNSIGNED NOT NULL,
+    quantity DECIMAL(10,2) NOT NULL,
+    released_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_fifo_order_lot (order_code, vegetable_id, inventory_lot_id),
+    INDEX idx_fifo_allocation_lot (inventory_lot_id),
+    CONSTRAINT fk_fifo_allocation_order
+        FOREIGN KEY (order_code) REFERENCES orders(order_code) ON DELETE CASCADE,
+    CONSTRAINT fk_fifo_allocation_vegetable
+        FOREIGN KEY (vegetable_id) REFERENCES vegetables(id),
+    CONSTRAINT fk_fifo_allocation_lot
+        FOREIGN KEY (inventory_lot_id) REFERENCES inventory_lots(id),
+    CONSTRAINT chk_fifo_allocation_quantity CHECK (quantity > 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS return_requests (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_code VARCHAR(24) NOT NULL,
+    buyer_id INT UNSIGNED NOT NULL,
+    reason ENUM('damaged', 'quality_issue') NOT NULL,
+    notes VARCHAR(2000) NULL,
+    status ENUM('pending', 'approved', 'rejected', 'completed') NOT NULL DEFAULT 'pending',
+    staff_notes VARCHAR(2000) NULL,
+    reviewed_by INT UNSIGNED NULL,
+    requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME NULL,
+    completed_at DATETIME NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_return_requests_order (order_code, requested_at),
+    INDEX idx_return_requests_buyer (buyer_id, requested_at),
+    INDEX idx_return_requests_status (status, requested_at),
+    CONSTRAINT fk_return_requests_order
+        FOREIGN KEY (order_code) REFERENCES orders(order_code) ON DELETE CASCADE,
+    CONSTRAINT fk_return_requests_buyer
+        FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_return_requests_reviewer
+        FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS return_request_items (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    return_request_id BIGINT UNSIGNED NOT NULL,
+    sales_id INT UNSIGNED NOT NULL,
+    quantity DECIMAL(10,2) NOT NULL,
+    UNIQUE KEY uq_return_request_sales (return_request_id, sales_id),
+    INDEX idx_return_items_sales (sales_id),
+    CONSTRAINT fk_return_items_request
+        FOREIGN KEY (return_request_id) REFERENCES return_requests(id) ON DELETE CASCADE,
+    CONSTRAINT fk_return_items_sale
+        FOREIGN KEY (sales_id) REFERENCES sales(id),
+    CONSTRAINT chk_return_item_quantity CHECK (quantity > 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    type VARCHAR(40) NOT NULL,
+    message VARCHAR(255) NOT NULL,
+    target_path VARCHAR(512) NOT NULL,
+    order_code VARCHAR(24) NULL,
+    read_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notifications_user_unread (user_id, read_at, id),
+    CONSTRAINT fk_notifications_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_notifications_order
+        FOREIGN KEY (order_code) REFERENCES orders(order_code) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 INSERT INTO vegetables (id, name, category, variety, description, unit, price, active) VALUES
     (1, 'Tomato', 'Fruiting vegetables', 'Roma', 'Firm, flavorful tomatoes, ideal for salads and cooking.', 'kg', 40.50, 1),
     (2, 'Carrot', 'Root vegetables', 'Nantes', 'Sweet, crisp carrots freshly harvested from the farm.', 'kg', 25.25, 1),
@@ -339,6 +434,7 @@ WHERE v.id = 3
         WHERE p.vegetable_id = v.id
             AND p.planted_on = '2026-10-01'
     );
+
     -- Run this against an existing vegetable_system database after backing it up.
 
 SET @harvest_archive_column_exists = (
@@ -384,8 +480,11 @@ CREATE TABLE IF NOT EXISTS orders (
         'delivered',
         'cancelled'
     ) NOT NULL DEFAULT 'pending',
+    delivered_at DATETIME NULL,
     payment_reference VARCHAR(120) NULL,
     gateway_session_id VARCHAR(120) NULL,
+    gateway_provider ENUM('paymongo', 'xendit') NULL DEFAULT NULL,
+    gateway_expired_at DATETIME NULL,
     payment_confirmed_by INT UNSIGNED NULL,
     payment_confirmed_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -473,3 +572,40 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     CONSTRAINT fk_activity_logs_user
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+INSERT INTO inventory_lots (
+    vegetable_id, source_type, received_on, quantity_received, quantity_remaining
+)
+SELECT
+    v.id,
+    'opening_balance',
+    COALESCE(DATE(i.updated_at), CURDATE()),
+    COALESCE(i.quantity, 0) + COALESCE(reserved.quantity, 0),
+    COALESCE(i.quantity, 0)
+FROM vegetables AS v
+LEFT JOIN inventory AS i ON i.vegetable_id = v.id
+LEFT JOIN (
+    SELECT s.vegetable_id, SUM(s.quantity) AS quantity
+    FROM sales AS s
+    JOIN orders AS o ON o.order_code = s.order_code
+    WHERE o.order_status NOT IN ('delivered', 'cancelled')
+    GROUP BY s.vegetable_id
+) AS reserved ON reserved.vegetable_id = v.id
+WHERE NOT EXISTS (
+    SELECT 1 FROM inventory_lots AS l
+    WHERE l.vegetable_id = v.id AND l.source_type = 'opening_balance'
+);
+
+INSERT INTO inventory_lot_allocations (order_code, vegetable_id, inventory_lot_id, quantity)
+SELECT s.order_code, s.vegetable_id, l.id, s.quantity
+FROM sales AS s
+JOIN orders AS o ON o.order_code = s.order_code
+JOIN inventory_lots AS l
+    ON l.vegetable_id = s.vegetable_id AND l.source_type = 'opening_balance'
+WHERE o.order_status NOT IN ('delivered', 'cancelled')
+    AND NOT EXISTS (
+        SELECT 1 FROM inventory_lot_allocations AS a
+        WHERE a.order_code = s.order_code
+            AND a.vegetable_id = s.vegetable_id
+            AND a.inventory_lot_id = l.id
+    );

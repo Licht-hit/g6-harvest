@@ -69,6 +69,7 @@ if ($eventType === 'payment.refunded') {
         $orderStatement = $db->prepare(
             'SELECT * FROM orders
              WHERE payment_reference = ? AND payment_method = \'online\'
+               AND gateway_provider = \'paymongo\'
              FOR UPDATE'
         );
         $orderStatement->execute([$paymentId]);
@@ -168,7 +169,7 @@ try {
     $orderStatement = $db->prepare(
         'SELECT *
          FROM orders
-         WHERE order_code = ?
+         WHERE order_code = ? AND gateway_provider = \'paymongo\'
          FOR UPDATE'
     );
     $orderStatement->execute([$orderCode]);
@@ -188,7 +189,8 @@ try {
     $transitionAction = paymongo_payment_transition_action(
         $order['payment_status'],
         $newPaymentStatus,
-        $order['order_status']
+        $order['order_status'],
+        !empty($order['gateway_expired_at'])
     );
     if ($transitionAction === 'ignore') {
         $db->commit();
@@ -231,6 +233,9 @@ try {
     $providerEventId = is_string($event['id'] ?? null)
         ? $event['id']
         : $eventType . ':' . $sessionId . ':' . $paymentId;
+    $latePayment = $transitionAction === 'late_payment';
+    $historyEventType = $latePayment ? 'manual_review_required' : $eventType;
+    $historyPaymentStatus = $latePayment ? $order['payment_status'] : $newPaymentStatus;
     $history = $db->prepare(
         'INSERT IGNORE INTO payment_history (
             order_code,
@@ -245,12 +250,12 @@ try {
     );
     $history->execute([
         $orderCode,
-        $eventType,
-        $newPaymentStatus,
+        $historyEventType,
+        $historyPaymentStatus,
         $order['final_total'],
         $paymentId,
         $providerEventId,
-        $transitionAction === 'late_payment'
+        $latePayment
             ? 'Payment completed after the order was cancelled and stock was released. Manual refund or fulfillment review is required.'
             : ($newPaymentStatus === 'paid'
                 ? 'Payment confirmed by PayMongo webhook.'
@@ -264,7 +269,19 @@ try {
         exit;
     }
 
-    if ($newPaymentStatus === 'paid') {
+    if ($latePayment) {
+        $db->prepare(
+            'UPDATE orders
+             SET payment_reference = ?
+             WHERE id = ?'
+        )->execute([$paymentId, (int) $order['id']]);
+        log_activity(
+            'manual_review_required',
+            'payment',
+            (int) $order['id'],
+            'Late PayMongo payment requires manual review: ' . $providerEventId
+        );
+    } elseif ($newPaymentStatus === 'paid') {
         $updateOrder = $db->prepare(
             "UPDATE orders
              SET payment_status = 'paid',

@@ -2,10 +2,12 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/orders.php';
 require_once __DIR__ . '/../includes/payments.php';
+require_once __DIR__ . '/../includes/notifications.php';
 require_role('buyer');
 
 $cart = cart_contents();
 $cartItems = [];
+$deliveryAddress = null;
 $cartIsValid = count($cart) <= 50;
 foreach ($cart as $productId => $quantity) {
     $validId = filter_var($productId, FILTER_VALIDATE_INT);
@@ -33,9 +35,16 @@ if (
     && preg_match('/^[a-f0-9]{64}$/', $_POST['checkout_token'])
 ) {
     verify_csrf();
+    try {
+        $deliveryAddress = checkout_delivery_address($_POST);
+    } catch (RuntimeException $exception) {
+        flash('error', $exception->getMessage());
+        redirect(app_url('buyer/checkout.php'));
+    }
+
     $replayedTokenHash = checkout_token_hash($_POST['checkout_token']);
     $replayedOrderStatement = $db->prepare(
-        'SELECT order_code, payment_method, payment_status, checkout_request_hash, gateway_checkout_url
+        'SELECT order_code, payment_method, payment_status, checkout_request_hash, gateway_checkout_url, gateway_provider
          FROM orders
          WHERE buyer_id = ? AND checkout_token_hash = ?'
     );
@@ -46,14 +55,10 @@ if (
     $replayedOrder = $replayedOrderStatement->fetch();
     if ($replayedOrder) {
         $replayedRequestFingerprint = null;
-        if (
-            $cartItems
-            && is_string($_POST['delivery_address'] ?? null)
-            && is_string($_POST['payment_method'] ?? null)
-        ) {
+        if ($cartItems && is_string($_POST['payment_method'] ?? null)) {
             $replayedRequestFingerprint = checkout_request_fingerprint(
                 $cartItems,
-                trim($_POST['delivery_address']),
+                $deliveryAddress,
                 $_POST['payment_method']
             );
         }
@@ -88,10 +93,6 @@ $productQuery = "SELECT
 $checkoutToken = bin2hex(random_bytes(32));
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    $deliveryAddress = is_string($_POST['delivery_address'] ?? null)
-        ? trim($_POST['delivery_address'])
-        : '';
-    $paymentMethod = $_POST['payment_method'] ?? '';
     $submittedCheckoutToken = $_POST['checkout_token'] ?? '';
 
     if (!is_string($submittedCheckoutToken) || !preg_match('/^[a-f0-9]{64}$/', $submittedCheckoutToken)) {
@@ -99,16 +100,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(app_url('buyer/checkout.php'));
     }
 
-    if (strlen($deliveryAddress) < 10 || strlen($deliveryAddress) > 1000) {
-        flash('error', 'Enter a complete delivery address (10 to 1,000 characters).');
-        redirect(app_url('buyer/checkout.php'));
+    if ($deliveryAddress === null) {
+        try {
+            $deliveryAddress = checkout_delivery_address($_POST);
+        } catch (RuntimeException $exception) {
+            flash('error', $exception->getMessage());
+            redirect(app_url('buyer/checkout.php'));
+        }
     }
+    $paymentMethod = $_POST['payment_method'] ?? '';
     if (!in_array($paymentMethod, ['cod', 'online'], true)) {
         flash('error', 'Choose Cash on Delivery or Online Payment.');
         redirect(app_url('buyer/checkout.php'));
     }
-    if ($paymentMethod === 'online' && !paymongo_is_configured()) {
-        flash('error', paymongo_unavailable_message());
+    if ($paymentMethod === 'online' && !xendit_is_configured()) {
+        flash('error', xendit_unavailable_message());
         redirect(app_url('buyer/checkout.php'));
     }
     if (!$cartIsValid || count($ids) !== count($cart)) {
@@ -125,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $buyerId = (int) current_user()['id'];
     $loadExistingOrder = static function () use ($db, $buyerId, $checkoutTokenHash): ?array {
         $statement = $db->prepare(
-            'SELECT order_code, payment_method, payment_status, checkout_request_hash, gateway_checkout_url
+            'SELECT order_code, payment_method, payment_status, checkout_request_hash, gateway_checkout_url, gateway_provider
              FROM orders
              WHERE buyer_id = ? AND checkout_token_hash = ?'
         );
@@ -185,9 +191,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 final_total,
                 delivery_address,
                 payment_method,
+                gateway_provider,
                 payment_status,
                 order_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', 'confirmed')"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', 'confirmed')"
         );
         $insertOrder->execute([
             $orderCode,
@@ -202,6 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $totals['final_total'],
             $deliveryAddress,
             $paymentMethod,
+            $paymentMethod === 'online' ? 'xendit' : null,
         ]);
         $orderId = (int) $db->lastInsertId();
 
@@ -229,6 +237,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             reserve_inventory_stock($db, $productId, $quantity, $orderCode);
         }
+        create_notifications_for_roles(
+            $db,
+            ['admin', 'staff', 'farmer'],
+            'new_order',
+            'New order ' . $orderCode . ' has been placed.',
+            'modules/sales.php',
+            $orderCode
+        );
 
         $paymentHistory = $db->prepare(
             'INSERT INTO payment_history (
@@ -248,22 +264,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $totals['final_total'],
             $paymentMethod === 'cod'
                 ? 'Cash will be collected at delivery.'
-                : 'Waiting for payment through PayMongo hosted checkout.',
+                : 'Waiting for payment through Xendit hosted checkout.',
         ]);
 
         $checkoutUrl = null;
         if ($paymentMethod === 'online') {
-            [$gatewaySessionId, $checkoutUrl] = paymongo_checkout_url(
+            [$gatewaySessionId, $checkoutUrl] = xendit_checkout_url(
                 $orderCode,
                 $totals['final_total']
             );
             $saveGatewaySession = $db->prepare(
                 'UPDATE orders
-                 SET gateway_session_id = ?, payment_reference = ?, gateway_checkout_url = ?
+                 SET gateway_session_id = ?, gateway_checkout_url = ?
                  WHERE order_code = ?'
             );
             $saveGatewaySession->execute([
-                $gatewaySessionId,
                 $gatewaySessionId,
                 $checkoutUrl,
                 $orderCode,
@@ -274,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'checkout_created',
                 'pending_payment',
                 $totals['final_total'],
-                $gatewaySessionId,
+                'Xendit session: ' . $gatewaySessionId,
             ]);
         }
 
@@ -332,7 +347,7 @@ foreach ($cartItems as $productId => $quantity) {
 }
 $cartIsValid = $cartIsValid && count($byId) === count($cartItems);
 $totals = $previewItems ? calculate_order_totals($previewItems) : null;
-$onlinePaymentAvailable = paymongo_is_configured();
+$onlinePaymentAvailable = xendit_is_configured();
 
 $pageTitle = 'Checkout';
 require __DIR__ . '/../includes/header.php';
@@ -457,17 +472,45 @@ require __DIR__ . '/../includes/header.php';
             <form class="checkout-form" method="post">
                 <?= csrf_field() ?>
                 <input type="hidden" name="checkout_token" value="<?= h($checkoutToken) ?>">
-                <div class="field">
-                    <label for="delivery-address">Delivery address</label>
-                    <textarea
-                        id="delivery-address"
-                        name="delivery_address"
-                        minlength="10"
-                        maxlength="1000"
-                        required
-                        placeholder="House number, street, barangay, city, and delivery instructions"
-                    ></textarea>
+                <h2>Delivery details</h2>
+                <div class="checkout-delivery-fields">
+                    <div class="field">
+                        <label for="recipient-name">Recipient name</label>
+                        <input id="recipient-name" name="recipient_name" type="text"
+                            autocomplete="name" required minlength="2" maxlength="100">
+                    </div>
+                    <div class="field">
+                        <label for="contact-number">Contact number</label>
+                        <input id="contact-number" name="contact_number" type="tel"
+                            inputmode="tel" autocomplete="tel" required minlength="7" maxlength="20"
+                            pattern="(?=.*[0-9])[+0-9() .-]{7,20}">
+                    </div>
+                    <div class="field checkout-delivery-field-wide">
+                        <label for="street-address">House number and street</label>
+                        <input id="street-address" name="street_address" type="text"
+                            autocomplete="address-line1" required minlength="3" maxlength="200"
+                            placeholder="Enter the house number and street.">
+                    </div>
+                    <div class="field">
+                        <label for="delivery-barangay">Barangay</label>
+                        <input id="delivery-barangay" name="barangay" type="text"
+                            required minlength="2" maxlength="100">
+                    </div>
+                    <div class="field">
+                        <label for="delivery-city">City / Municipality</label>
+                        <input id="delivery-city" name="city_municipality" type="text"
+                            autocomplete="address-level2" required minlength="2" maxlength="100">
+                    </div>
+                    <div class="field checkout-delivery-field-wide">
+                        <label for="delivery-instructions">Delivery instructions</label>
+                        <textarea id="delivery-instructions" name="delivery_instructions"
+                            maxlength="300"
+                            placeholder="Optional: landmark or directions for the rider."></textarea>
+                    </div>
                 </div>
+                <p class="muted checkout-delivery-note">
+                    Flat ₱20 delivery fee per order. The order summary shows the fee and final total.
+                </p>
 
                 <fieldset class="payment-method-options">
                     <legend>Payment method</legend>
@@ -480,11 +523,11 @@ require __DIR__ . '/../includes/header.php';
                         <label>
                             <input type="radio" name="payment_method" value="online" required>
                             Online Payment
-                            <span class="muted">Pay securely through PayMongo using available GCash or card.</span>
+                            <span class="muted">Pay securely through Xendit using an available payment method.</span>
                         </label>
                     <?php else: ?>
                         <p class="notice">
-                            Online payment is unavailable until PayMongo credentials, a public HTTPS
+                            Online payment is unavailable until Xendit credentials, a public HTTPS
                             APP_URL, PHP OpenSSL, and allow_url_fopen are configured.
                         </p>
                     <?php endif; ?>

@@ -127,6 +127,331 @@ a {
     font-size: .7rem;
 }
 
+.nav-count[hidden] {
+    display: none;
+}
+
+.operations-sidebar .main-nav a {
+    position: relative;
+}
+
+.nav-return-count {
+    display: inline-grid;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    place-items: center;
+    margin-left: auto;
+    padding: 0 .25rem;
+    color: #fff;
+    background: #b42318;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 750;
+}
+
+.nav-return-count[hidden] {
+    display: none;
+}
+
+.live-notification-stack {
+    display: grid;
+    gap: .65rem;
+}
+
+.live-notification-toast {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+}
+
+.live-notification-toast a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.live-notification-toast a:hover {
+    color: var(--green);
+    text-decoration: underline;
+}
+
+.live-notification-close {
+    flex: 0 0 auto;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+    padding: 0;
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.buyer-active-order {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1.15rem 1.25rem;
+    border-color: #d6e4d7;
+    background: #f0f7ef;
+}
+
+.buyer-active-order h2,
+.buyer-active-order p {
+    margin: 0;
+}
+
+.buyer-active-order p {
+    margin-top: .2rem;
+    color: var(--muted);
+    font-size: .82rem;
+}
+
+.buyer-active-order-actions {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+}
+
+@media (max-width: 720px) {
+    .buyer-active-order,
+    .buyer-active-order-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
+
+.app-order-tracker {
+    margin-top: 1rem;
+}
+
+.app-order-tracker-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.app-order-tracker-heading h2 {
+    margin: 0 0 .35rem;
+}
+
+.app-order-tracker-heading p,
+.app-order-tracker-step p,
+.app-order-tracker-live,
+.app-order-tracker-pending,
+.app-order-tracker-cancelled {
+    margin: 0;
+    color: var(--muted);
+    font-size: .88rem;
+    line-height: 1.55;
+}
+
+.app-order-tracker-heading .status-badge {
+    margin-top: .2rem;
+}
+
+.app-order-tracker-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.app-order-tracker-step {
+    position: relative;
+    min-width: 0;
+    padding-top: 2.45rem;
+}
+
+.app-order-tracker-step::before {
+    position: absolute;
+    top: .8rem;
+    left: calc(-100% + .075rem);
+    width: calc(100% + .75rem);
+    height: 2px;
+    background: var(--line);
+    content: "";
+}
+
+.app-order-tracker-step.is-current::before,
+.app-order-tracker-step.is-complete::before {
+    background: var(--green);
+}
+
+.app-order-tracker-step:first-child::before {
+    display: none;
+}
+
+.app-order-tracker-marker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    width: 1.65rem;
+    height: 1.65rem;
+    place-items: center;
+    color: var(--muted);
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: 50%;
+    font-size: .76rem;
+    font-weight: 750;
+}
+
+.app-order-tracker-step.is-complete .app-order-tracker-marker,
+.app-order-tracker-step.is-current .app-order-tracker-marker {
+    color: #fff;
+    background: var(--green);
+    border-color: var(--green);
+}
+
+.app-order-tracker-step h3 {
+    margin: 0 0 .3rem;
+    color: var(--green-dark);
+    font-size: .9rem;
+}
+
+.app-order-tracker-step.is-upcoming h3 {
+    color: var(--muted);
+}
+
+.app-order-tracker-live {
+    margin-top: 1rem;
+    font-size: .78rem;
+}
+
+.app-order-tracker-pending,
+.app-order-tracker-cancelled {
+    margin-bottom: 1rem;
+    padding: .7rem .85rem;
+    background: #fff5d8;
+    border-radius: 8px;
+}
+
+.app-order-tracker-cancelled {
+    margin: 0;
+    background: #fff0ef;
+}
+
+.app-order-tracker.is-cancelled .status-badge {
+    color: #7d2020;
+    background: #fff0ef;
+}
+
+.return-request-list,
+.return-request-history {
+    display: grid;
+    gap: 1rem;
+}
+
+.return-request-card {
+    padding: 1.25rem;
+}
+
+.return-request-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.return-review-form,
+.return-request-form {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.return-review-actions {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    white-space: nowrap;
+}
+
+.return-review-action {
+    margin: 0;
+}
+
+.notification-list {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0;
+    list-style: none;
+}
+
+.notification-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.notification-list li.is-unread {
+    background: var(--green-light);
+}
+
+.notification-list li a {
+    display: grid;
+    gap: 0.35rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+@media (max-width: 700px) {
+    .app-order-tracker-heading {
+        flex-direction: column;
+    }
+
+    .app-order-tracker-list {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .app-order-tracker-step {
+        min-height: 5rem;
+        padding: 0 0 1.1rem 2.5rem;
+    }
+
+    .app-order-tracker-step::before {
+        top: 1.65rem;
+        right: auto;
+        bottom: -.825rem;
+        left: .8rem;
+        width: 2px;
+        height: auto;
+        background: var(--line);
+    }
+
+    .app-order-tracker-step.is-current::before {
+        background: var(--line);
+    }
+
+    .app-order-tracker-step:first-child::before {
+        display: block;
+    }
+
+    .app-order-tracker-step:last-child::before {
+        display: none;
+    }
+
+    .notification-list li,
+    .return-request-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
 .account-menu {
     position: relative;
     flex-shrink: 0;
@@ -1856,6 +2181,17 @@ main.container:has(> .shop-hero) {
 
 .table-wrap form {
     margin: .35rem 0 0;
+}
+
+.farm-record-actions {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    flex-wrap: wrap;
+}
+
+.table-wrap .farm-record-actions form {
+    margin: 0;
 }
 
 .table-wrap button,
@@ -3992,6 +4328,24 @@ textarea:disabled {
     margin-bottom: 1.1rem;
 }
 
+.checkout-delivery-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+    gap: .8rem 1rem;
+}
+
+.checkout-delivery-fields .field {
+    margin: 0;
+}
+
+.checkout-delivery-field-wide {
+    grid-column: 1 / -1;
+}
+
+.checkout-delivery-note {
+    margin: .8rem 0 1.1rem;
+}
+
 .checkout-form textarea {
     min-height: 132px;
 }
@@ -4126,11 +4480,14 @@ textarea:disabled {
         width: 100%;
         min-height: 0;
         align-items: stretch;
-        flex: 1;
+        flex: 1 1 0;
         flex-direction: column;
         justify-content: flex-start;
         gap: .25rem;
         padding: .3rem 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
     }
 
     .operations-sidebar .main-nav::before {
@@ -4174,6 +4531,7 @@ textarea:disabled {
 
     .operations-sidebar .account-menu {
         margin-top: auto;
+        flex: 0 0 auto;
         padding-top: .75rem;
         border-top: 1px solid var(--line);
     }
@@ -4236,6 +4594,16 @@ textarea:disabled {
         width: 48px;
         justify-content: center;
         padding: .65rem;
+    }
+
+    body.operations-layout.sidebar-collapsed .operations-sidebar .nav-return-count {
+        position: absolute;
+        top: .1rem;
+        right: .1rem;
+        min-width: 1rem;
+        height: 1rem;
+        margin: 0;
+        font-size: .6rem;
     }
 
     body.operations-layout.sidebar-collapsed .operations-sidebar .account-menu summary {
@@ -4561,7 +4929,9 @@ textarea:disabled {
             flex: 0 0 100%;
             align-items: stretch;
             gap: .2rem;
+            max-height: calc(100vh - 150px);
             padding: .3rem 0 .4rem;
+            overflow-y: auto;
         }
 
         .operations-sidebar .main-nav.is-open {
@@ -4973,6 +5343,18 @@ textarea:disabled {
     min-height: 36px;
     padding: .45rem .65rem;
     font-size: .78rem;
+}
+
+.buyer-order-detail-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: .45rem;
+}
+
+.buyer-order-detail-actions form {
+    margin: 0;
 }
 
 .cart-heading-count {

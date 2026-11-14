@@ -19,11 +19,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $ownedOrder = $db->prepare(
-        'SELECT order_code FROM orders WHERE order_code = ? AND buyer_id = ?'
+        'SELECT order_status FROM orders WHERE order_code = ? AND buyer_id = ?'
     );
     $ownedOrder->execute([$orderCode, $buyerId]);
-    if ($ownedOrder->fetchColumn() === false) {
+    $ownedOrderStatus = $ownedOrder->fetchColumn();
+    if ($ownedOrderStatus === false) {
         flash('error', 'That order could not be found in your account.');
+        redirect(app_url('buyer/dashboard.php'));
+    }
+    if (!in_array($ownedOrderStatus, ['delivered', 'cancelled'], true)) {
+        flash('error', 'Only delivered or cancelled orders can be reordered.');
         redirect(app_url('buyer/dashboard.php'));
     }
 
@@ -133,6 +138,16 @@ $attentionStatement = $db->prepare(
 $attentionStatement->execute([$buyerId]);
 $attentionOrders = $attentionStatement->fetchAll();
 
+$activeOrderStatement = $db->prepare(
+    "SELECT order_code, order_status
+     FROM orders
+     WHERE buyer_id = ? AND order_status NOT IN ('delivered', 'cancelled')
+     ORDER BY created_at DESC
+     LIMIT 1"
+);
+$activeOrderStatement->execute([$buyerId]);
+$activeOrder = $activeOrderStatement->fetch() ?: null;
+
 $favoritesStatement = $db->prepare(
     'SELECT v.id, v.name, v.active, v.price, v.unit, COALESCE(i.quantity, 0) AS stock
      FROM buyer_favorites AS f
@@ -203,6 +218,24 @@ require __DIR__ . '/../includes/header.php';
     </div>
     <a class="button" href="<?= h(app_url('buyer/index.php')) ?>">Browse the shop</a>
 </section>
+
+<?php if ($activeOrder): ?>
+    <section class="panel buyer-active-order" data-active-order-for="<?= h($activeOrder['order_code']) ?>">
+        <div>
+            <h2>Your order in progress</h2>
+            <p>Order <?= h($activeOrder['order_code']) ?> · Progress updates automatically.</p>
+        </div>
+        <div class="buyer-active-order-actions">
+            <span class="status-badge status-<?= h($activeOrder['order_status']) ?>"
+                  data-order-status-for="<?= h($activeOrder['order_code']) ?>">
+                <?= h(ucwords(str_replace('_', ' ', $activeOrder['order_status']))) ?>
+            </span>
+            <a class="button secondary" href="<?= h(app_url(
+                'buyer/order_details.php?order=' . rawurlencode($activeOrder['order_code'])
+            )) ?>">Track order</a>
+        </div>
+    </section>
+<?php endif; ?>
 
 <section class="module-stat-grid" aria-label="Your account summary">
     <article class="module-stat-card">
@@ -419,12 +452,14 @@ require __DIR__ . '/../includes/header.php';
                                 <a class="button secondary" href="<?= h(app_url(
                                     'buyer/order_details.php?order=' . rawurlencode($order['order_code'])
                                 )) ?>">View order</a>
-                                <form method="post" action="<?= h(app_url('buyer/dashboard.php')) ?>">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="reorder">
-                                    <input type="hidden" name="order_code" value="<?= h($order['order_code']) ?>">
-                                    <button type="submit">Buy again</button>
-                                </form>
+                                <?php if (in_array($order['order_status'], ['delivered', 'cancelled'], true)): ?>
+                                    <form method="post" action="<?= h(app_url('buyer/dashboard.php')) ?>">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="reorder">
+                                        <input type="hidden" name="order_code" value="<?= h($order['order_code']) ?>">
+                                        <button type="submit">Buy again</button>
+                                    </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

@@ -35,6 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             || !is_valid_date($plantedOn)
             || ($expectedHarvestDate !== '' && !is_valid_date($expectedHarvestDate))) {
             $error = 'Choose a vegetable and enter a positive quantity and planting date.';
+        } elseif ($expectedHarvestDate !== '' && $expectedHarvestDate < $plantedOn) {
+            $error = 'Expected harvest date cannot be before planting date.';
         } elseif ($action === 'update' && $plantingId < 1) {
             $error = 'Choose a valid planting to update.';
         } else {
@@ -116,10 +118,16 @@ $plantings = $db->query(
 $pageTitle = 'Plantings';
 require __DIR__ . '/../includes/header.php';
 ?>
-<div class="page-heading"><h1>Plantings</h1></div>
+<section class="module-heading">
+    <div>
+        <p class="module-eyebrow">Growing cycle</p>
+        <h1>Plantings</h1>
+        <p>Track what is planted and when it is expected to be ready.</p>
+    </div>
+</section>
 
 <section class="panel section">
-    <h2><?= $editingPlanting ? 'Edit planting' : 'Record planting' ?></h2>
+    <h2><?= $editingPlanting ? 'Edit planting #' . (int) $editingPlanting['id'] : 'Add a planting' ?></h2>
 
     <?php if ($error): ?>
         <div class="notice error"><?= h($error) ?></div>
@@ -184,6 +192,9 @@ require __DIR__ . '/../includes/header.php';
             </div>
 
             <button type="submit"><?= $editingPlanting ? 'Save changes' : 'Save planting' ?></button>
+            <?php if (!$editingPlanting): ?>
+                <button class="button secondary" type="reset">Clear</button>
+            <?php endif; ?>
         </form>
     <?php endif; ?>
 </section>
@@ -194,8 +205,8 @@ require __DIR__ . '/../includes/header.php';
     <?php if (!$plantings): ?>
         <p class="empty">No plantings recorded.</p>
     <?php else: ?>
-        <div class="table-wrap">
-            <table>
+        <div class="table-wrap module-table-wrap">
+            <table class="module-table">
                 <thead>
                     <tr>
                         <th>Vegetable</th>
@@ -213,8 +224,12 @@ require __DIR__ . '/../includes/header.php';
                             <td>
                                 <?= number_format((float) $planting['quantity_planted'], 2) ?>
                             </td>
-                            <td><?= h($planting['planted_on']) ?></td>
-                            <td><?= h($planting['expected_harvest_on'] ?? '—') ?></td>
+                            <td><?= h(date('M j, Y', strtotime($planting['planted_on']))) ?></td>
+                            <td>
+                                <?= $planting['expected_harvest_on']
+                                    ? h(date('M j, Y', strtotime($planting['expected_harvest_on'])))
+                                    : '—' ?>
+                            </td>
                             <td>
                                 <span class="status-badge status-<?= h($planting['status']) ?>">
                                     <?= h(ucfirst($planting['status'])) ?>
@@ -222,13 +237,15 @@ require __DIR__ . '/../includes/header.php';
                             </td>
                             <td>
                                 <?php if ($planting['status'] === 'growing'): ?>
-                                    <a href="<?= h(app_url('modules/plantings.php?edit=' . (int) $planting['id'])) ?>">Edit</a>
-                                    <form method="post">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="action" value="archive">
-                                        <input type="hidden" name="planting_id" value="<?= (int) $planting['id'] ?>">
-                                        <button class="button secondary" type="submit">Archive</button>
-                                    </form>
+                                    <div class="farm-record-actions">
+                                        <a class="button secondary" href="<?= h(app_url('modules/plantings.php?edit=' . (int) $planting['id'])) ?>">Edit</a>
+                                        <form method="post" data-confirm="Archive this growing planting?">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="action" value="archive">
+                                            <input type="hidden" name="planting_id" value="<?= (int) $planting['id'] ?>">
+                                            <button class="button danger" type="submit">Archive</button>
+                                        </form>
+                                    </div>
                                 <?php else: ?>
                                     <span class="muted">History retained</span>
                                 <?php endif; ?>
