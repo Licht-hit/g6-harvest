@@ -3,15 +3,6 @@ require_once __DIR__ . '/../includes/auth.php';
 require_role('buyer');
 $shopCart = cart_contents();
 
-$favoriteStatement = $db->prepare(
-    'SELECT vegetable_id FROM buyer_favorites WHERE buyer_id = ?'
-);
-$favoriteStatement->execute([(int) current_user()['id']]);
-$favoriteIds = array_fill_keys(
-    array_map('intval', array_column($favoriteStatement->fetchAll(), 'vegetable_id')),
-    true
-);
-
 $vegetables = $db->query(
     'SELECT
         v.id,
@@ -167,18 +158,6 @@ require __DIR__ . '/../includes/header.php';
                     <?= h($picture['icon']) ?>
                 </span>
                 <span class="product-image-label">FRESH PICK</span>
-                <form class="favorite-image-form" method="post" action="<?= h(app_url('buyer/favorites.php')) ?>">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="<?= isset($favoriteIds[(int) $vegetable['id']]) ? 'remove' : 'save' ?>">
-                    <input type="hidden" name="vegetable_id" value="<?= (int) $vegetable['id'] ?>">
-                    <input type="hidden" name="return_to" value="shop">
-                    <button
-                        class="favorite-toggle"
-                        type="submit"
-                        aria-label="<?= isset($favoriteIds[(int) $vegetable['id']]) ? 'Remove ' . h($vegetable['name']) . ' from favorites' : 'Save ' . h($vegetable['name']) . ' to favorites' ?>"
-                        aria-pressed="<?= isset($favoriteIds[(int) $vegetable['id']]) ? 'true' : 'false' ?>"
-                    ><?= isset($favoriteIds[(int) $vegetable['id']]) ? '♥' : '♡' ?></button>
-                </form>
             </div>
             <div class="product-card-content">
                 <div class="product-card-heading">

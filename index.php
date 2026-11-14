@@ -6,23 +6,10 @@ if ($user) {
     redirect(app_url(dashboard_path_for_role($user['role'])));
 }
 
-$isBuyer = $user && $user['role'] === 'buyer';
-$favoriteIds = [];
 $contactEmail = getenv('CONTACT_EMAIL');
 $contactEmail = is_string($contactEmail) && filter_var($contactEmail, FILTER_VALIDATE_EMAIL)
     ? $contactEmail
     : '';
-
-if ($isBuyer) {
-    $favoriteStatement = $db->prepare(
-        'SELECT vegetable_id FROM buyer_favorites WHERE buyer_id = ?'
-    );
-    $favoriteStatement->execute([(int) $user['id']]);
-    $favoriteIds = array_fill_keys(
-        array_map('intval', array_column($favoriteStatement->fetchAll(), 'vegetable_id')),
-        true
-    );
-}
 
 $featuredVegetables = $db->query(
     'SELECT
@@ -120,7 +107,7 @@ require __DIR__ . '/includes/header.php';
         </article>
         <article class="public-highlight">
             <span class="public-highlight-icon"><i data-lucide="package-check"></i></span>
-            <span><strong>Order when you are ready</strong><small>Create an account to save favorites and shop.</small></span>
+            <span><strong>Order when you are ready</strong><small>Create an account to shop and track orders.</small></span>
         </article>
     </aside>
 </section>
@@ -128,7 +115,7 @@ require __DIR__ . '/includes/header.php';
 <section class="public-trust-strip" aria-label="Harvest at a glance" data-reveal>
     <div><strong>Live catalog</strong><span>Explore produce currently listed by the farm.</span></div>
     <div><strong>Clear availability</strong><span>Check current stock before you decide.</span></div>
-    <div><strong>Your favorites</strong><span>Save regular picks to a buyer account.</span></div>
+    <div><strong>Order tracking</strong><span>Follow delivery progress from your buyer account.</span></div>
 </section>
 
 <section class="public-section public-featured" id="featured" aria-labelledby="featured-title">
@@ -148,7 +135,6 @@ require __DIR__ . '/includes/header.php';
                 <?php
                 $picture = product_picture($vegetable['name'], $vegetable['image_path']);
                 $inStock = (float) $vegetable['stock'] > 0;
-                $isFavorite = isset($favoriteIds[(int) $vegetable['id']]);
                 $description = trim((string) ($vegetable['description'] ?? ''));
                 ?>
                 <article class="public-product-card swiper-slide" data-reveal>
@@ -167,28 +153,6 @@ require __DIR__ . '/includes/header.php';
                         <span class="public-stock-badge<?= $inStock ? '' : ' is-unavailable' ?>">
                             <?= $inStock ? 'In stock' : 'Currently unavailable' ?>
                         </span>
-                        <?php if ($isBuyer): ?>
-                            <form method="post" action="<?= h(app_url('buyer/favorites.php')) ?>" class="public-favorite-form">
-                                <?= csrf_field() ?>
-                                <input type="hidden" name="action" value="<?= $isFavorite ? 'remove' : 'save' ?>">
-                                <input type="hidden" name="vegetable_id" value="<?= (int) $vegetable['id'] ?>">
-                                <input type="hidden" name="return_to" value="home">
-                                <button
-                                    class="public-favorite-button<?= $isFavorite ? ' is-favorite' : '' ?>"
-                                    type="submit"
-                                    aria-label="<?= $isFavorite ? 'Remove ' . h($vegetable['name']) . ' from favorites' : 'Save ' . h($vegetable['name']) . ' to favorites' ?>"
-                                    aria-pressed="<?= $isFavorite ? 'true' : 'false' ?>"
-                                    title="<?= $isFavorite ? 'Remove from favorites' : 'Save to favorites' ?>"
-                                ><i data-lucide="heart" aria-hidden="true"></i></button>
-                            </form>
-                        <?php else: ?>
-                            <a
-                                class="public-favorite-button"
-                                href="<?= h(app_url('auth/login.php')) ?>"
-                                aria-label="Log in to save <?= h($vegetable['name']) ?> to favorites"
-                                title="Log in to save favorites"
-                            ><i data-lucide="heart" aria-hidden="true"></i></a>
-                        <?php endif; ?>
                     </div>
                     <div class="public-product-copy">
                         <div class="public-product-heading">
@@ -248,7 +212,7 @@ require __DIR__ . '/includes/header.php';
         <p class="public-eyebrow">A closer connection to the farm</p>
         <h2 id="about-title">A farm story, from planting to <em>your table.</em></h2>
         <p>Harvest brings farm operations and produce ordering together. Staff can record plantings and harvests, track inventory, and share current availability with shoppers.</p>
-        <p>Customers can explore real catalog details, save favorite produce, and manage orders through their own account.</p>
+        <p>Customers can explore real catalog details and manage orders through their own account.</p>
         <a class="public-arrow-link" href="#farming-process">See how Harvest works <span aria-hidden="true">→</span></a>
     </div>
 </section>

@@ -21,8 +21,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $addRedirectPath = app_url('buyer/index.php');
         } elseif ($returnTarget === 'dashboard') {
             $addRedirectPath = app_url('buyer/dashboard.php');
-        } elseif ($returnTarget === 'favorites') {
-            $addRedirectPath = app_url('buyer/favorites.php');
         } elseif ($returnTarget === 'product') {
             $addRedirectPath = $returnProductId && $returnProductId > 0
                 ? app_url('buyer/product.php?id=' . $returnProductId)

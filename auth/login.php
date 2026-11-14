@@ -59,7 +59,7 @@ require __DIR__ . '/../includes/header.php';
                 Grown with care
             </span>
             <h1>Fresh Harvest, Fresh Choices</h1>
-            <p>Discover fresh vegetables and farm-grown favorites, thoughtfully harvested and ready for your table.</p>
+            <p>Discover fresh vegetables, thoughtfully harvested and ready for your table.</p>
         </div>
     </div>
     <div class="auth-form-panel">

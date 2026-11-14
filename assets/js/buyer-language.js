@@ -115,8 +115,6 @@
         'Stock': 'Stock',
         'Description': 'Paglalarawan',
         'Most recent harvest': 'Pinakahuling anihan',
-        'No favorites saved yet': 'Wala ka pang naka-save na paborito',
-        'Save produce from the shop or dashboard to find it quickly next time.': 'Mag-save ng produkto mula sa shop o dashboard para madali mo itong makita sa susunod.',
         'Explore available produce': 'Tingnan ang mga available na produkto',
         'Your recent orders': 'Mga kamakailang order mo',
         'Recent orders': 'Mga kamakailang order',

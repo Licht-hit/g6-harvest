@@ -148,18 +148,6 @@ $activeOrderStatement = $db->prepare(
 $activeOrderStatement->execute([$buyerId]);
 $activeOrder = $activeOrderStatement->fetch() ?: null;
 
-$favoritesStatement = $db->prepare(
-    'SELECT v.id, v.name, v.active, v.price, v.unit, COALESCE(i.quantity, 0) AS stock
-     FROM buyer_favorites AS f
-     JOIN vegetables AS v ON v.id = f.vegetable_id
-     LEFT JOIN inventory AS i ON i.vegetable_id = v.id
-     WHERE f.buyer_id = ?
-     ORDER BY v.active DESC, stock > 0 DESC, v.name
-     LIMIT 4'
-);
-$favoritesStatement->execute([$buyerId]);
-$favoriteItems = $favoritesStatement->fetchAll();
-
 $cart = cart_contents();
 $cartPreview = [];
 $cartSubtotal = 0.0;
@@ -340,61 +328,6 @@ require __DIR__ . '/../includes/header.php';
             <?php endif; ?>
         </ul>
         <p class="muted buyer-cart-note">Estimate excludes delivery and any checkout discount.</p>
-    <?php endif; ?>
-</section>
-
-<section class="panel section buyer-favorites-panel" aria-labelledby="buyer-favorites-title">
-    <div class="module-table-heading">
-        <div>
-            <h2 id="buyer-favorites-title">Your favorites</h2>
-            <p class="muted">Saved produce, ready when you are.</p>
-        </div>
-        <a href="<?= h(app_url('buyer/favorites.php')) ?>">Manage favorites</a>
-    </div>
-    <?php if ($favoriteItems): ?>
-        <ul class="buyer-favorite-list">
-            <?php foreach ($favoriteItems as $favorite): ?>
-                <li>
-                    <span>
-                        <strong><?= h($favorite['name']) ?></strong>
-                        <?php if (!$favorite['active'] || (float) $favorite['stock'] <= 0): ?>
-                            <small class="buyer-cart-warning">
-                                <?= $favorite['active'] ? 'Currently out of stock' : 'No longer available' ?>
-                            </small>
-                        <?php else: ?>
-                            <small><?= money($favorite['price']) ?> / <?= h($favorite['unit']) ?></small>
-                        <?php endif; ?>
-                    </span>
-                    <?php
-                    $favoriteCartQuantity = is_numeric($cart[$favorite['id']] ?? null)
-                        ? (float) $cart[$favorite['id']]
-                        : 0.0;
-                    $favoriteRemainingStock = max(
-                        0,
-                        round((float) $favorite['stock'] - $favoriteCartQuantity, 2)
-                    );
-                    ?>
-                    <?php if ($favorite['active'] && $favoriteRemainingStock > 0): ?>
-                        <form method="post" action="<?= h(app_url('buyer/cart.php')) ?>" data-cart-add>
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="action" value="add">
-                            <input type="hidden" name="return_to" value="dashboard">
-                            <input type="hidden" name="product_id" value="<?= (int) $favorite['id'] ?>">
-                            <input
-                                type="hidden"
-                                name="quantity"
-                                value="<?= h((string) min(1.0, $favoriteRemainingStock)) ?>"
-                            >
-                            <button class="button secondary" type="submit">Add 1</button>
-                        </form>
-                    <?php elseif ($favorite['active'] && (float) $favorite['stock'] > 0): ?>
-                        <a class="button secondary" href="<?= h(app_url('buyer/cart.php')) ?>">In cart</a>
-                    <?php endif; ?>
-                </li>
-            <?php endforeach; ?>
-        </ul>
-    <?php else: ?>
-        <p class="buyer-cart-empty">Save produce in the shop to find it here next time.</p>
     <?php endif; ?>
 </section>
 

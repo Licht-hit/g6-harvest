@@ -126,8 +126,8 @@ Enable `payment_session.completed`, `payment_session.expired`, `refund.succeeded
 4. Choose COD. As admin/staff, progress the order to Out for Delivery, confirm cash collection, then check that payment becomes Paid and the collection staff/date appear in order details.
 5. Configure Xendit test credentials and a publicly reachable HTTPS webhook. Choose Online Payment and complete a test checkout. Confirm that the buyer return page remains pending until the verified webhook arrives, then verify the order becomes Paid. Cancel a test checkout and confirm it is not shown as paid.
 6. Review Sales and Reports for original subtotal, discounts, final totals, payment method/status, discount history, and discounted vegetables.
-7. On the buyer dashboard, test quick add, saving/removing favorites, reordering a
-   past order with reduced stock, and reviewing an overstocked cart. Confirm
+7. On the buyer dashboard, test quick add, reordering a past order with reduced
+   stock, and reviewing an overstocked cart. Confirm
    checkout explains the combined-quantity discount threshold.
 8. Run `php tests\\cart_quantity_test.php`, `php tests\\checkout_calculation_test.php`,
    `php tests\\payment_flow_test.php`, `php tests\\xendit_payment_test.php`,
@@ -141,16 +141,12 @@ rolls back its data. Never use a production database for tests. See
 [`DEPLOYMENT.md`](./DEPLOYMENT.md) for test setup and backup/restore guidance.
 
 For an existing installation, run `database-upgrade.sql` after taking a backup
-to add farmer roles, vegetable photo paths, produce categories, buyer
-favorites, delivery timestamps, inventory batch tracking, return requests, notifications,
+to add farmer roles, vegetable photo paths, produce categories, delivery timestamps,
+inventory batch tracking, return requests, notifications,
 and payment-provider tracking. The migration assigns sensible categories to the included
 sample vegetables and leaves other produce in “Other.” It estimates historical
 delivery times from each delivered order's last update and creates an opening
 inventory batch from current stock and active orders.
-
-Buyer favorites are saved per account. New installations create the
-`buyer_favorites` table through `database.sql`; existing installations must run
-`database-upgrade.sql` before using favorites or the updated buyer dashboard.
 
 Order tracking appears on buyer order details until delivery. Return requests
 are available only for damaged or quality-issue items within 24 hours of
