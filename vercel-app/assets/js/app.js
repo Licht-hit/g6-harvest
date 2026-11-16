@@ -429,6 +429,7 @@ function updateNavigation() {
                 ? [['reports', '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>', 'Reports']]
                 : []),
             ...(state.profile.role === 'admin' ? [['activity', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', 'Activity']] : []),
+            ...(state.profile.role === 'admin' ? [['users', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', 'Users']] : []),
         ];
         nav.innerHTML = links.map(([page, icon, label, badgeCount]) => `
             <a class="nav-link ${state.page === page ? 'active' : ''}" href="?page=${page}" data-page="${page}" title="${label}" aria-label="${label}${badgeCount ? `, ${badgeCount} pending` : ''}" ${state.page === page ? 'aria-current="page"' : ''}>
@@ -1300,6 +1301,7 @@ async function renderDashboard() {
                     <a class="button secondary" href="?page=inventory" data-page="inventory"><span aria-hidden="true">▤</span> Manage inventory</a>
                     <a class="button secondary" href="?page=sales" data-page="sales"><span aria-hidden="true">↗</span> Review orders</a>
                     <a class="button secondary" href="?page=reports" data-page="reports"><span aria-hidden="true">▥</span> Reports</a>
+                    <a class="button secondary" href="?page=users" data-page="users"><span aria-hidden="true">♙</span> Manage users</a>
                 </div>
             </section>`
         : isStaffAccount
@@ -2281,6 +2283,69 @@ async function renderActivity() {
         </section>`;
 }
 
+async function renderAdminUsers() {
+    if (state.profile.role !== 'admin') {
+        app.innerHTML = '<section class="panel"><h1>Access denied</h1><p>Only administrators can manage user roles.</p></section>';
+        return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const page = Math.max(1, Number(params.get('p') || 1));
+    const search = params.get('search') || '';
+    const role = params.get('role') || '';
+    const query = new URLSearchParams({ page: String(page) });
+    if (search) query.set('search', search);
+    if (role) query.set('role', role);
+    const result = await apiRequest(`/api/admin-users?${query.toString()}`, null, 'GET');
+    const roleLabels = {
+        admin: 'Administrator',
+        staff: 'Staff',
+        farmer: 'Farmer',
+        buyer: 'Buyer',
+    };
+    const rows = result.users.map((user) => {
+        const isCurrentUser = String(user.id) === String(state.profile.id);
+        const verified = Boolean(user.email_verified_at);
+        const roleOptions = Object.entries(roleLabels).map(([value, label]) => `
+            <option value="${value}" ${user.role === value ? 'selected' : ''} ${!verified && value !== 'buyer' ? 'disabled' : ''}>${label}</option>
+        `).join('');
+        const roleForm = isCurrentUser
+            ? '—'
+            : !verified && user.role === 'buyer'
+                ? '<span class="muted">Verify email first</span>'
+            : `<form class="app-inline-form" data-form="admin-user-role">
+                <input type="hidden" name="profileId" value="${escapeHtml(user.id)}">
+                <div class="field"><label class="sr-only" for="user-role-${escapeHtml(user.id)}">Change role for ${escapeHtml(user.name)}</label>
+                    <select id="user-role-${escapeHtml(user.id)}" name="role">${roleOptions}</select></div>
+                <button class="button secondary" type="submit">Save role</button>
+            </form>`;
+        return `<tr><td><strong>${escapeHtml(user.name)}</strong>${isCurrentUser ? '<span class="table-secondary">You</span>' : ''}</td>
+            <td>${escapeHtml(user.email)}</td><td>${escapeHtml(roleLabels[user.role] || user.role)}</td>
+            <td>${statusBadge(verified ? 'active' : 'pending')}</td>
+            <td>${dateLabel(user.created_at)}</td><td>${roleForm}</td></tr>`;
+    });
+    const firstRecord = result.total ? ((result.page - 1) * result.pageSize) + 1 : 0;
+    const lastRecord = Math.min(result.page * result.pageSize, result.total);
+
+    app.innerHTML = `
+        <section class="module-heading"><div><p class="module-eyebrow">Administrator</p><h1>Users and roles</h1><p>Review accounts and control access to farm operations.</p></div></section>
+        <section class="panel report-filters section"><form class="app-inline-form" data-form="admin-users-filter">
+            <div class="field"><label for="user-search">Search accounts</label><input id="user-search" name="search" maxlength="100" value="${escapeHtml(search)}" placeholder="Name or email"></div>
+            <div class="field"><label for="user-role-filter">Role</label><select id="user-role-filter" name="role">
+                <option value="">All roles</option>${Object.entries(roleLabels).map(([value, label]) => `<option value="${value}" ${role === value ? 'selected' : ''}>${label}</option>`).join('')}
+            </select></div>
+            <button type="submit">Filter</button><a class="button secondary" href="?page=users" data-page="users">Clear</a>
+        </form></section>
+        <section class="panel section"><div class="module-table-heading"><div><h2>Accounts</h2>
+            <p class="muted">Role changes take effect immediately. You cannot change your own role or remove the last administrator. Verify an email before granting an operations role.</p>
+        </div></div>
+        ${table(['Name', 'Email', 'Current role', 'Email status', 'Created', 'Update role'], rows, 'No accounts match these filters.')}
+        <div class="app-pagination"><span class="muted">Showing ${firstRecord}–${lastRecord} of ${result.total} accounts</span><div class="app-actions">
+            ${result.page > 1 ? '<button type="button" class="button secondary" data-action="admin-users-page" data-page-number="' + (result.page - 1) + '">Previous</button>' : ''}
+            ${result.page * result.pageSize < result.total ? '<button type="button" class="button secondary" data-action="admin-users-page" data-page-number="' + (result.page + 1) + '">Next</button>' : ''}
+        </div></div></section>`;
+}
+
 async function renderPage() {
     syncBuyerOrderStatusSubscription();
     syncSalesOrderNotificationSubscription();
@@ -2333,10 +2398,11 @@ async function renderPage() {
         history.replaceState({}, '', url);
     }
     const buyerPages = ['shop', 'product', 'cart', 'checkout', 'orders', 'order'];
-    const staffPages = ['vegetables', 'plantings', 'harvests', 'inventory', 'sales', 'returns', 'quality', 'reports', 'activity'];
+    const staffPages = ['vegetables', 'plantings', 'harvests', 'inventory', 'sales', 'returns', 'quality', 'reports', 'activity', 'users'];
     if (state.profile.role === 'buyer' && staffPages.includes(page)) page = 'dashboard';
     if (isStaff() && buyerPages.includes(page)) page = 'dashboard';
     if (page === 'activity' && state.profile.role !== 'admin') page = 'dashboard';
+    if (page === 'users' && state.profile.role !== 'admin') page = 'dashboard';
     state.page = page;
     syncBuyerOrderStatusSubscription();
     document.body.classList.remove('auth-page');
@@ -2372,6 +2438,7 @@ async function renderPage() {
         if (page === 'returns') return await renderReturns();
         if (page === 'reports') return await renderReports();
         if (page === 'activity') return await renderActivity();
+        if (page === 'users') return await renderAdminUsers();
         return await renderDashboard();
     } catch (error) {
         showError(error);
@@ -2379,7 +2446,7 @@ async function renderPage() {
     }
 }
 
-async function apiRequest(path, payload) {
+async function apiRequest(path, payload, method = 'POST') {
     const auth = state.supabase.auth;
     let accessToken;
     try {
@@ -2397,14 +2464,15 @@ async function apiRequest(path, payload) {
         throw new Error('Your session expired. Sign in again.');
     }
 
-    const sendRequest = (token) => fetch(path, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-    });
+    const sendRequest = (token) => {
+        const headers = { Authorization: `Bearer ${token}` };
+        const options = { method, headers };
+        if (method !== 'GET') {
+            headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(payload);
+        }
+        return fetch(path, options);
+    };
 
     let response = await sendRequest(accessToken);
     if (response.status === 401) {
@@ -2737,6 +2805,26 @@ async function handleSubmit(form) {
         notify('Quality inspection recorded.');
         return await renderPage();
     }
+    if (formName === 'admin-user-role') {
+        await apiRequest('/api/admin-users', {
+            profileId: Number(values.profileId),
+            role: values.role,
+        });
+        notify('User role updated.');
+        return await renderPage();
+    }
+    if (formName === 'admin-users-filter') {
+        const url = new URL(location.href);
+        url.searchParams.set('page', 'users');
+        url.searchParams.delete('p');
+        for (const key of ['search', 'role']) {
+            if (values[key]) url.searchParams.set(key, values[key]);
+            else url.searchParams.delete(key);
+        }
+        history.pushState({}, '', url);
+        state.page = 'users';
+        return await renderPage();
+    }
     if (formName === 'report-filter' || formName === 'activity-filter'
         || formName === 'quality-filter' || formName === 'sales-filter') {
         const url = new URL(location.href);
@@ -2792,6 +2880,16 @@ async function handleClick(target) {
 
     const action = target.closest('[data-action]');
     if (!action) return;
+    if (action.dataset.action === 'admin-users-page') {
+        const page = Number(action.dataset.pageNumber);
+        if (!Number.isSafeInteger(page) || page < 1) throw new Error('Choose a valid user-list page.');
+        const url = new URL(location.href);
+        url.searchParams.set('page', 'users');
+        url.searchParams.set('p', String(page));
+        history.pushState({}, '', url);
+        state.page = 'users';
+        return await renderPage();
+    }
     if (action.dataset.action === 'toggle-language') {
         state.language = state.language === 'en' ? 'fil' : 'en';
         localStorage.setItem(languageStorageKey, state.language);

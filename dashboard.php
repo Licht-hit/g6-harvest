@@ -309,6 +309,7 @@ require __DIR__ . '/includes/header.php';
             <a class="button secondary" href="<?= h(app_url('modules/inventory.php')) ?>"><span aria-hidden="true">▤</span> Manage inventory</a>
             <a class="button secondary" href="<?= h(app_url('modules/sales.php')) ?>"><span aria-hidden="true">↗</span> Review orders</a>
             <a class="button secondary" href="<?= h(app_url('modules/reports.php')) ?>"><span aria-hidden="true">▥</span> Reports</a>
+            <a class="button secondary" href="<?= h(app_url('modules/users.php')) ?>"><span aria-hidden="true">♙</span> Manage users</a>
         <?php else: ?>
             <a class="button" href="<?= h(app_url('modules/harvests.php')) ?>"><span aria-hidden="true">⌁</span> Record harvest</a>
             <a class="button secondary" href="<?= h(app_url('modules/inventory.php')) ?>"><span aria-hidden="true">▤</span> Update inventory</a>

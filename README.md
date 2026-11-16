@@ -12,6 +12,9 @@ This project uses PHP to build pages and handle form submissions. MySQL stores a
 - `auth/` contains login, registration, logout, email verification, and password recovery pages.
 - `buyer/` contains the buyer dashboard, produce shop, cart, checkout, order tracking, and return-request history.
 - `modules/` contains farm staff pages for vegetables, plantings, harvests, inventory, quality checks, sales, return reviews, reports, and activity.
+- Admins can search accounts and assign roles in `modules/users.php`.
+  Role changes are recorded in Activity; only verified accounts can get
+  operations access, and admins cannot change their own role or remove the last admin.
 - Signed-in buyers and farm staff can use Notifications to see order and return updates.
 - Admins can review filtered, paginated inventory movement history from the Inventory page, including who changed stock and before/after quantities.
 - Vegetable categories are managed in the staff catalog and can be filtered in the buyer shop.

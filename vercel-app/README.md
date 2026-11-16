@@ -14,6 +14,7 @@ Do not copy the parent project's local email/payment configuration files into th
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
 - Inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
 - Administrator dashboard with sales and harvest trends, inventory charts, stock alerts, top sellers, recent orders, inventory updates, and activity.
+- Administrator-only user and role management for verified accounts. Role changes are recorded in the activity log; administrators cannot change their own role or remove the last administrator.
 - Transactional PostgreSQL functions for inventory changes, harvest adjustments, checkout, order status, COD collection, and payment events.
 - Xendit hosted checkout, COD, cancellation/stock restoration rules, and a verified webhook at `/api/xendit-webhook`. The PayMongo webhook remains available for orders created before the migration.
 - A MySQL import script that carries existing user accounts/roles and farm/order records into Supabase.
@@ -40,6 +41,7 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 14. Run `supabase/migrations/014_fix_return_quantity_ambiguity.sql` after migration 012. It replaces the return-request function with qualified SQL aliases so the requested quantity is not ambiguous.
 15. Run `supabase/migrations/015_return_request_realtime.sql` after migration 012 to publish return requests for live updates. Staff see new-request notifications and a pending-count badge on the Returns page; buyers see updates when staff change their request status.
 16. Run `supabase/migrations/016_staff_permissions.sql` to keep vegetable catalog changes and photo uploads available to administrators and farmers, while staff retain read-only catalog access.
+17. Run `supabase/migrations/017_admin_user_roles.sql` to enable audited, administrator-only role changes while protecting the last administrator account.
 For an existing project, if migration 001 finished successfully, run only later migrations that have not yet been applied, including migrations 004, 005, and 007. If you see `relation "profiles" already exists`, stop. Do not run migration 001 again or delete the table. Do not rerun migrations that have already been applied. If you are unsure whether migration 001 finished, check that the core tables exist with this query:
 
 ```sql
@@ -61,7 +63,7 @@ The schema does not insert user accounts. Migration 005 adds the ten sample prod
 
 ### 2. Install and deploy the converted folder
 
-Before deploying, apply all unapplied migrations through 016. If importing MySQL data, complete section 4 before running migrations 011–016; then run them before deploying this batch-tracking and returns-enabled frontend.
+Before deploying, apply all unapplied migrations through 017. If importing MySQL data, complete section 4 before running migrations 011–017; then run them before deploying this batch-tracking and returns-enabled frontend.
 
 1. Push the repository to GitHub without adding any local configuration files or secrets.
 2. In Vercel, choose **Add New → Project**, then import this GitHub repository.
