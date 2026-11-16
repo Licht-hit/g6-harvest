@@ -29,10 +29,11 @@ PREPARE email_verified_migration_statement FROM @email_verified_migration;
 EXECUTE email_verified_migration_statement;
 DEALLOCATE PREPARE email_verified_migration_statement;
 
--- Stores one-time, expiring email verification tokens.
+-- Stores one-time, expiring email confirmation code hashes.
 CREATE TABLE IF NOT EXISTS email_verification_tokens (
     user_id INT UNSIGNED PRIMARY KEY,
-    token_hash CHAR(64) NOT NULL UNIQUE,
+    token_hash VARBINARY(255) NOT NULL UNIQUE,
+    attempt_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     CONSTRAINT fk_verification_tokens_user

@@ -299,7 +299,7 @@ function auth_token_url(string $page, string $token): string
 
     if (!$validHost) {
         throw new RuntimeException(
-            'Set APP_URL to the public base URL of this application to send verification emails.'
+            'Set APP_URL to the public base URL of this application to send password-reset emails.'
         );
     }
 
@@ -309,14 +309,19 @@ function auth_token_url(string $page, string $token): string
         . '?token=' . rawurlencode($token);
 }
 
-function email_verification_url(string $token): string
-{
-    return auth_token_url('verify_email.php', $token);
-}
-
 function password_reset_url(string $token): string
 {
     return auth_token_url('reset_password.php', $token);
+}
+
+function generate_email_verification_code(): string
+{
+    return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+}
+
+function is_email_verification_code($code): bool
+{
+    return is_string($code) && preg_match('/^\d{6}$/D', $code) === 1;
 }
 
 function send_password_reset(MySQLiDatabase $db, array $user): string
@@ -389,24 +394,26 @@ function send_password_reset(MySQLiDatabase $db, array $user): string
 
 function send_email_verification(MySQLiDatabase $db, array $user): string
 {
-    $token = bin2hex(random_bytes(32));
-    $verificationUrl = email_verification_url($token);
+    $code = generate_email_verification_code();
+    $codeHash = password_hash($code, PASSWORD_DEFAULT);
     $emailConfig = require __DIR__ . '/../config/email.php';
+    unset($_SESSION['development_verification_code'], $_SESSION['development_verification_code_expires']);
 
     if ($emailConfig['mode'] === 'development') {
-        $tokenHash = hash('sha256', $token);
-
         $statement = $db->prepare(
-            'INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at)
-             VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 24 HOUR), CURRENT_TIMESTAMP)
+            'INSERT INTO email_verification_tokens (user_id, token_hash, attempt_count, expires_at, created_at)
+             VALUES (?, ?, 0, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 MINUTE), CURRENT_TIMESTAMP)
              ON DUPLICATE KEY UPDATE
                 token_hash = VALUES(token_hash),
+                attempt_count = 0,
                 expires_at = VALUES(expires_at),
                 created_at = VALUES(created_at)'
         );
-        $statement->execute([(int) $user['id'], $tokenHash]);
+        $statement->execute([(int) $user['id'], $codeHash]);
 
-        $_SESSION['development_verification_url'] = $verificationUrl;
+        $_SESSION['verification_email'] = $user['email'];
+        $_SESSION['development_verification_code'] = $code;
+        $_SESSION['development_verification_code_expires'] = time() + 600;
         return 'development';
     }
 
@@ -428,23 +435,22 @@ function send_email_verification(MySQLiDatabase $db, array $user): string
         throw new RuntimeException('For Gmail, the sender email must match the SMTP username.');
     }
 
-    $subject = 'Verify your Vegetable System email address';
+    $subject = 'Your Harvest confirmation code';
     $body = "Hello " . $user['name'] . ",\n\n"
-        . "Please verify your email address by opening this link within 24 hours:\n"
-        . $verificationUrl . "\n\n"
+        . "Enter this 6-digit code on the Harvest website within 10 minutes:\n\n"
+        . $code . "\n\n"
         . "If you did not create this account, you can ignore this message.\n";
 
-    // Store only the token hash so the original link is not saved in the database.
-    $tokenHash = hash('sha256', $token);
     $statement = $db->prepare(
-        'INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at)
-         VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 24 HOUR), CURRENT_TIMESTAMP)
+        'INSERT INTO email_verification_tokens (user_id, token_hash, attempt_count, expires_at, created_at)
+         VALUES (?, ?, 0, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 MINUTE), CURRENT_TIMESTAMP)
          ON DUPLICATE KEY UPDATE
             token_hash = VALUES(token_hash),
+            attempt_count = 0,
             expires_at = VALUES(expires_at),
             created_at = VALUES(created_at)'
     );
-    $statement->execute([(int) $user['id'], $tokenHash]);
+    $statement->execute([(int) $user['id'], $codeHash]);
 
     try {
         smtp_send_email(
@@ -460,12 +466,13 @@ function send_email_verification(MySQLiDatabase $db, array $user): string
     } catch (RuntimeException $exception) {
         error_log('Verification email delivery failed: ' . $exception->getMessage());
 
-        // Remove the token if delivery fails, so a failed email cannot leave an unusable link.
+        // Remove the code if delivery fails, so it cannot be used without reaching the inbox.
         $deleteToken = $db->prepare('DELETE FROM email_verification_tokens WHERE user_id = ? AND token_hash = ?');
-        $deleteToken->execute([(int) $user['id'], $tokenHash]);
+        $deleteToken->execute([(int) $user['id'], $codeHash]);
         throw $exception;
     }
 
+    $_SESSION['verification_email'] = $user['email'];
     return 'sent';
 }
 

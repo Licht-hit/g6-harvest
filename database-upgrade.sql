@@ -4,6 +4,36 @@
 ALTER TABLE users
     MODIFY COLUMN role ENUM('admin', 'staff', 'farmer', 'buyer') NOT NULL DEFAULT 'buyer';
 
+-- Store an expiring confirmation-code hash and limit failed attempts.
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    user_id INT UNSIGNED PRIMARY KEY,
+    token_hash VARBINARY(255) NOT NULL UNIQUE,
+    attempt_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    CONSTRAINT fk_verification_tokens_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+ALTER TABLE email_verification_tokens
+    MODIFY COLUMN token_hash VARBINARY(255) NOT NULL;
+
+SET @verification_attempt_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'email_verification_tokens'
+        AND COLUMN_NAME = 'attempt_count'
+);
+SET @verification_attempt_migration = IF(
+    @verification_attempt_column_exists = 0,
+    'ALTER TABLE email_verification_tokens ADD COLUMN attempt_count TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER token_hash',
+    'SELECT 1'
+);
+PREPARE verification_attempt_migration_statement FROM @verification_attempt_migration;
+EXECUTE verification_attempt_migration_statement;
+DEALLOCATE PREPARE verification_attempt_migration_statement;
+
 SET @harvest_archive_column_exists = (
     SELECT COUNT(*)
     FROM information_schema.COLUMNS

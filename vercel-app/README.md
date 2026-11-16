@@ -8,7 +8,7 @@ Do not copy the parent project's local email/payment configuration files into th
 
 ## What is included
 
-- Buyer registration, email verification, login, password reset, and logout through Supabase Auth.
+- Buyer registration with a 6-digit email verification code, login, password reset, and logout through Supabase Auth.
 - Buyer, staff, farmer, and administrator roles. Staff can handle daily farm operations, orders, quality checks, and returns. Catalog edits and business reports are limited to administrators and farmers. New registrations are buyers; roles are never chosen in the browser.
 - Public landing page and customer FAQs in English and Filipino. FAQs explain catalog availability, delivery fees, bulk discounts, payment options, order tracking, and the 24-hour return-request window.
 - Product catalog, product details, saved cart, checkout, order history, and receipts. Buyers can reopen tracking from order details while an order is undelivered; the tracking timeline is removed after delivery. Active orders also have shortcuts on the dashboard and shop.
@@ -58,7 +58,7 @@ order by table_name;
 
 You should see all ten table names. If any are missing, do not delete existing data or blindly rerun migration 001; ask for help checking the incomplete setup first.
 4. In **Authentication → URL Configuration**, set the Site URL to your Vercel deployment URL and add `https://your-deployment-domain.vercel.app/**` to Redirect URLs. This allows password-reset emails to open `/?page=reset-password`. Repeat with your production domain when you add one.
-5. Configure Supabase Auth email delivery and enable email confirmation. Supabase sends verification and password-reset links; the PHP SMTP configuration is not used. From the login page, users can choose **Forgot password?**, enter their email, then use the email link to open the **Choose a new password** form and sign in with the replacement password.
+5. Configure Supabase Auth email delivery and enable email confirmation. In **Authentication → Email Templates → Confirm signup**, use `{{ .Token }}` in the message body (for example, `Your Harvest confirmation code is {{ .Token }}`) instead of `{{ .ConfirmationURL }}`. New buyers enter that code on the website to verify their email. Password recovery remains link-based: from the login page, users can choose **Forgot password?**, enter their email, then use the email link to open the **Choose a new password** form and sign in with the replacement password. The PHP SMTP configuration is not used by Vercel.
 
 The schema does not insert user accounts. Migration 005 adds the ten sample products shown in the original MySQL schema, but does not add inventory; set stock quantities from the farm dashboard before accepting orders.
 

@@ -171,7 +171,7 @@ To add or replace an image, copy it into `assets/images/` and update the matchin
 
 - Buyer, staff, farmer, and administrator roles with server-side access checks;
   farmers share farm-operation permissions with staff
-- Registration, login, logout, password hashing, session protection, email verification, and one-time password reset links
+- Registration, login, logout, password hashing, session protection, 6-digit email confirmation codes, and one-time password reset links
 - Vegetable catalog, plantings, harvests, and quality inspection records
 - Produce categories, staff-uploaded vegetable photos, live shop search,
   availability filtering, and price sorting
@@ -202,7 +202,7 @@ This structure is used in checkout validation and total calculation, rather than
 
 ## Email and SMS
 
-Email verification and password recovery support configured SMTP delivery and expiring, single-use links. For local development, set `EMAIL_MODE=development` (or `mode => 'development'` in the ignored `config/email.local.php`) to display the generated links in the browser instead of sending email. For SMTP, configure the sender credentials and the public `APP_URL` so links point to the deployed application. Existing databases must run `database-upgrade.sql` to create the password-reset token table. SMS notifications are optional in the project requirements and are not needed for the core workflows.
+Email verification uses expiring 6-digit codes; only a password hash of each code is stored, and five failed attempts require requesting a new code. Password recovery continues to use one-time links. For local development, set `EMAIL_MODE=development` (or `mode => 'development'` in the ignored `config/email.local.php`) to display the confirmation code and password-reset link in the browser instead of sending email. For SMTP, configure the sender credentials and the public `APP_URL` for password-reset links. Existing databases must run `database-upgrade.sql` to update the email-code table and create the password-reset token table. SMS notifications are optional in the project requirements and are not needed for the core workflows.
 
 ## Vercel version
 

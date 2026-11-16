@@ -34,8 +34,10 @@ MySQL database, payment provider, and web server must be configured together.
    `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `EMAIL_FROM`.
    Gmail uses an App Password, not the normal account password. Port 587 uses
    STARTTLS; port 465 uses implicit TLS. The sender must match the Gmail SMTP
-   username. Use `EMAIL_MODE=development` only on a private local development
-   site; it displays verification links instead of sending email.
+   username. Email confirmation uses a 6-digit code; password recovery remains
+   link-based. Use `EMAIL_MODE=development` only on a private local development
+   site; it displays the confirmation code and password-reset link instead of
+   sending email.
 8. For new online payments, set `XENDIT_SECRET_KEY`, `XENDIT_WEBHOOK_TOKEN`, and
    `APP_URL`; enable OpenSSL and `allow_url_fopen`, then register
    `https://your-site/webhooks/xendit.php` in Xendit with the same callback token.

@@ -97,6 +97,20 @@ const buyerCopy = {
         reorderUnavailable: 'None of the items from this order are currently available.',
         reorderNotComplete: 'This order is still in progress and cannot be ordered again yet.',
         languageChanged: 'Language preference saved.',
+        verifyEmailTitle: 'Verify your email',
+        verifyEmailIntro: 'Enter the 6-digit code sent to your email address to activate your account.',
+        verifyEmailAddress: 'Email address',
+        verificationCode: '6-digit confirmation code',
+        verifyCode: 'Verify code',
+        resendCode: 'Resend code',
+        noVerificationCode: "Didn't receive a code?",
+        backToLogin: 'Back to log in',
+        verificationCodeSent: 'If that email has an unverified account, a new code will be sent.',
+        emailVerified: 'Email verified.',
+        accountCreated: 'Account created.',
+        accountCreatedVerify: 'Account created. Enter the code sent to your email.',
+        verificationCodeRequired: 'Enter the 6-digit code from your email.',
+        verificationCodeError: 'The confirmation code must contain exactly 6 digits.',
         productInformation: 'Product information', variety: 'Variety', unit: 'Unit', stock: 'Stock',
         mostRecentHarvest: 'Most recent harvest', description: 'Description',
         buyerAccount: 'Buyer account', welcome: 'Welcome', buyerIntro: "Browse today's produce and keep track of your orders.",
@@ -190,6 +204,20 @@ const buyerCopy = {
         reorderUnavailable: 'Wala nang available na produkto mula sa order na ito.',
         reorderNotComplete: 'Pinoproseso pa ang order na ito at hindi pa ito maaaring ulitin.',
         languageChanged: 'Nai-save ang piniling wika.',
+        verifyEmailTitle: 'Kumpirmahin ang email',
+        verifyEmailIntro: 'Ilagay ang 6-digit code na ipinadala sa email para ma-activate ang account.',
+        verifyEmailAddress: 'Email address',
+        verificationCode: '6-digit na confirmation code',
+        verifyCode: 'Kumpirmahin ang code',
+        resendCode: 'Magpadala ulit ng code',
+        noVerificationCode: 'Wala kang natanggap na code?',
+        backToLogin: 'Bumalik sa pag-log in',
+        verificationCodeSent: 'Kung may hindi pa beripikadong account para sa email na iyon, magpapadala kami ng bagong code.',
+        emailVerified: 'Nakumpirma na ang email.',
+        accountCreated: 'Nagawa na ang account.',
+        accountCreatedVerify: 'Nagawa na ang account. Ilagay ang code na ipinadala sa email mo.',
+        verificationCodeRequired: 'Ilagay ang 6-digit code mula sa email.',
+        verificationCodeError: 'Dapat eksaktong 6 na numero ang confirmation code.',
         productInformation: 'Impormasyon ng produkto', variety: 'Variety', unit: 'Yunit', stock: 'Stock',
         mostRecentHarvest: 'Huling anihan', description: 'Paglalarawan',
         buyerAccount: 'Buyer account', welcome: 'Kumusta', buyerIntro: 'Mamili ng ani ngayon at subaybayan ang mga order mo.',
@@ -413,6 +441,7 @@ const state = {
     page: new URLSearchParams(location.search).get('page')
         || (new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery' ? 'reset-password' : 'home'),
     language: readBuyerLanguage(),
+    verificationEmail: '',
     products: [],
     records: new Map(),
     orderDetails: null,
@@ -1185,7 +1214,7 @@ async function loadEmailCallback() {
 }
 
 function guestPage(page) {
-    const pages = ['home', 'login', 'register', 'forgot', 'reset-password'];
+    const pages = ['home', 'login', 'register', 'verify-email', 'forgot', 'reset-password'];
     if (!pages.includes(page)) return 'login';
     return page;
 }
@@ -1194,6 +1223,7 @@ function renderAuth(page) {
     document.body.classList.add('auth-page');
     document.body.classList.toggle('password-reset-page', page === 'reset-password');
     const title = page === 'register' ? 'Create your account'
+        : page === 'verify-email' ? buyerText('verifyEmailTitle')
         : page === 'forgot' ? 'Reset your password'
             : page === 'reset-password' ? 'Choose a new password'
                 : 'Welcome back';
@@ -1208,6 +1238,16 @@ function renderAuth(page) {
                 <div class="field"><label for="register-confirm">Confirm password</label><div class="password-field"><input id="register-confirm" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"><button class="password-toggle" type="button" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
                 <button class="auth-submit" type="submit">Create account</button>
                 <p class="auth-links">Already registered? <a href="?page=login" data-page="login">Log in</a></p>
+            </form>`;
+    } else if (page === 'verify-email') {
+        form = `
+            <form class="auth-form-content" data-form="verify-email">
+                <h2>${title}</h2><p class="auth-form-intro">${buyerText('verifyEmailIntro')}</p>
+                <div class="field"><label for="verification-email">${buyerText('verifyEmailAddress')}</label><input id="verification-email" name="email" type="email" required autocomplete="email" value="${escapeHtml(state.verificationEmail)}"></div>
+                <div class="field"><label for="verification-code">${buyerText('verificationCode')}</label><input id="verification-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></div>
+                <button class="auth-submit" type="submit">${buyerText('verifyCode')}</button>
+                <p class="auth-links">${buyerText('noVerificationCode')} <a href="#resend" data-action="resend-verification">${buyerText('resendCode')}</a></p>
+                <p class="auth-links"><a href="?page=login" data-page="login">${buyerText('backToLogin')}</a></p>
             </form>`;
     } else if (page === 'forgot') {
         form = `
@@ -1234,7 +1274,7 @@ function renderAuth(page) {
                 <button class="auth-submit" type="submit">Log in</button>
                 <p class="auth-links"><a href="?page=forgot" data-page="forgot">Forgot password?</a></p>
                 <p class="auth-links">New here? <a href="?page=register" data-page="register">Create account</a></p>
-                <p class="auth-links"><a href="#resend" data-action="resend-verification">Resend verification email</a></p>
+                <p class="auth-links"><a href="?page=verify-email" data-page="verify-email">Have a confirmation code?</a></p>
             </form>`;
     }
     app.innerHTML = `
@@ -2768,17 +2808,47 @@ async function handleSubmit(form) {
     }
     if (formName === 'register') {
         if (values.password !== values.confirmPassword) throw new Error('The passwords do not match.');
-        const { error } = await state.supabase.auth.signUp({
-            email: values.email.trim(),
+        const email = values.email.trim();
+        const { data, error } = await state.supabase.auth.signUp({
+            email,
             password: values.password,
-            options: {
-                data: { name: values.name.trim() },
-                emailRedirectTo: location.origin,
-            },
+            options: { data: { name: values.name.trim() } },
         });
         if (error) throw error;
-        go('login');
-        notify('Account created. Check your email to verify the address before signing in.');
+        if (data.session) {
+            state.session = data.session;
+            await loadProfile(data.session.user);
+            go('dashboard');
+            notify(buyerText('accountCreated'));
+            return;
+        }
+        state.verificationEmail = email;
+        go('verify-email');
+        notify(buyerText('accountCreatedVerify'));
+        return;
+    }
+    if (formName === 'verify-email') {
+        const email = values.email.trim();
+        const code = values.code.trim();
+        if (!/^\d{6}$/.test(code)) throw new Error(buyerText('verificationCodeError'));
+
+        const { data, error } = await state.supabase.auth.verifyOtp({
+            email,
+            token: code,
+            type: 'signup',
+        });
+        if (error) throw error;
+
+        state.verificationEmail = '';
+        if (data.session) {
+            state.session = data.session;
+            await loadProfile(data.session.user);
+            go('dashboard');
+            notify(buyerText('emailVerified'));
+        } else {
+            go('login');
+            notify(buyerText('emailVerified'));
+        }
         return;
     }
     if (formName === 'forgot') {
@@ -3281,15 +3351,21 @@ async function handleClick(target) {
         return await renderPage();
     }
     if (action.dataset.action === 'resend-verification') {
-        const email = window.prompt('Enter the email address used for your account.');
-        if (!email) return;
+        const emailField = app.querySelector('input[name="email"]');
+        const email = emailField?.value.trim() || window.prompt('Enter the email address used for your account.');
+        if (typeof email !== 'string' || !email.trim()) return;
+        const normalizedEmail = email.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            throw new Error('Enter a valid email address.');
+        }
         const { error } = await state.supabase.auth.resend({
             type: 'signup',
-            email: email.trim(),
-            options: { emailRedirectTo: location.origin },
+            email: normalizedEmail,
         });
         if (error) throw error;
-        notify('If the account needs verification, a new link will be sent.');
+        state.verificationEmail = normalizedEmail;
+        if (emailField) emailField.value = normalizedEmail;
+        notify(buyerText('verificationCodeSent'));
     }
 }
 

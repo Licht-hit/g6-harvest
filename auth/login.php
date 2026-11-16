@@ -74,9 +74,9 @@ require __DIR__ . '/../includes/header.php';
 
             <?php if (!empty($unverifiedEmail)): ?>
                 <p class="notice">
-                    Need a new verification link?
-                    <a href="<?= h(app_url('auth/resend_verification.php?email=' . rawurlencode($unverifiedEmail))) ?>">
-                        Resend verification email
+                    Email not confirmed yet?
+                    <a href="<?= h(app_url('auth/verify_email.php?email=' . rawurlencode($unverifiedEmail))) ?>">
+                        Enter your confirmation code
                     </a>
                 </p>
             <?php endif; ?>

@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 3. validate the data
     // 4. hash the password with password_hash()
     // 5. save the account
-    // 6. send verification email
+    // 6. send the email confirmation code
     verify_csrf();
     $name = trim($_POST['name'] ?? '');
     $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (mysqli_sql_exception $exception) {
             if ((int) $exception->getCode() === 1062) {
                 $error = 'That email address is already registered. '
-                    . 'If it is not verified, request a new verification link.';
+                    . 'If it is not verified, request a new confirmation code.';
             } else {
                 throw $exception;
             }
@@ -58,17 +58,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($deliveryStatus === 'sent') {
-                flash('success', 'Account created. Check your email for a verification link before logging in.');
+                flash('success', 'Account created. Enter the 6-digit confirmation code sent to your email.');
+                redirect(app_url('auth/verify_email.php'));
             } elseif ($deliveryStatus === 'development') {
-                flash('success', 'Account created. Use the local verification link on the next page. No email was sent.');
+                flash('success', 'Account created. Use the local confirmation code on the next page. No email was sent.');
+                redirect(app_url('auth/verify_email.php'));
             } else {
                 $message = 'Account created, but the verification email was not sent.';
                 if (!empty($deliveryError)) {
                     $message .= ' ' . $deliveryError;
                 }
                 flash('error', $message);
+                redirect(app_url('auth/resend_verification.php'));
             }
-            redirect(app_url('auth/resend_verification.php'));
         }
     }
 }
