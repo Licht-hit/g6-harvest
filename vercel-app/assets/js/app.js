@@ -5,6 +5,7 @@ import { getOrderTrackingState, shouldShowOrderTracking } from '../../src/orderT
 import { isFarmManagerRole, isFarmStaffRole } from '../../src/roles.js';
 import { sortFifoLots } from '../../src/fifoInventory.js';
 import { isOrderReturnWindowOpen } from '../../src/orderReturns.js';
+import { canBuyerCancelOrder } from '../../src/orderCancellation.js';
 import { filterAndSortProducts } from '../../src/shopFilters.js';
 import { getVegetablePhotoExtension } from '../../src/vegetablePhoto.js';
 
@@ -74,6 +75,9 @@ const buyerCopy = {
         trackingCancelled: 'Order cancelled', trackingCancelledNote: 'Contact the farm if you need help with this order.',
         noOrders: 'You have not placed an order yet.', paymentReturn: 'Payment return received',
         paymentReturnNote: 'Payment status changes only after the verified payment notification arrives.',
+        cancelOrder: 'Cancel order',
+        confirmCancelOrder: 'Cancel this order? This cannot be undone. Paid orders must be handled by farm staff.',
+        buyerOrderCancelled: 'Your order was cancelled and the reserved stock was released.',
         checkoutCancelled: 'Checkout cancelled',
         checkoutCancelledNote: 'Your payment is not marked as paid. Contact the farm for help with this order.',
         backToOrders: 'Back to orders', orderNotFound: 'Order not found',
@@ -181,6 +185,9 @@ const buyerCopy = {
         trackingCancelled: 'Kinansela ang order', trackingCancelledNote: 'Makipag-ugnayan sa bukid kung kailangan mo ng tulong sa order na ito.',
         noOrders: 'Wala ka pang nailalagay na order.', paymentReturn: 'Natanggap ang pagbabalik mula sa bayad',
         paymentReturnNote: 'Magbabago lang ang status ng bayad kapag natanggap ang beripikadong abiso.',
+        cancelOrder: 'Kanselahin ang order',
+        confirmCancelOrder: 'Kanselahin ang order na ito? Hindi na ito maibabalik. Farm staff ang dapat mag-asikaso ng bayad na order.',
+        buyerOrderCancelled: 'Nakansela ang order mo at naibalik ang nakareserbang stock.',
         checkoutCancelled: 'Kinansela ang checkout',
         checkoutCancelledNote: 'Hindi minarkahang bayad ang order. Makipag-ugnayan sa bukid kung kailangan ng tulong.',
         backToOrders: 'Bumalik sa mga order', orderNotFound: 'Hindi makita ang order',
@@ -2040,7 +2047,7 @@ async function renderBuyerOrders() {
         .eq('buyer_id', state.profile.id)
         .order('created_at', { ascending: false }));
     const rows = orders.map((order) => `<tr><td><a href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${escapeHtml(order.order_code)}</a><span class="table-secondary">${dateLabel(order.created_at)}</span></td>
-        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerOrderStatusBadge(order.order_code, order.order_status)}</td><td>${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</td><td><div class="app-table-actions">${shouldShowOrderTracking(order.order_status) ? `<a class="button secondary" href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${buyerText('trackOrder')}</a>` : ''}${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}</div></td></tr>`);
+        <td>${money(order.final_total)}</td><td>${escapeHtml(buyerPaymentMethod(order.payment_method))}</td><td>${buyerOrderStatusBadge(order.order_code, order.order_status)}</td><td>${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</td><td><div class="app-table-actions">${shouldShowOrderTracking(order.order_status) ? `<a class="button secondary" href="?page=order&order=${encodeURIComponent(order.order_code)}" data-page="order" data-order="${escapeHtml(order.order_code)}">${buyerText('trackOrder')}</a>` : ''}${state.profile.role === 'buyer' && canBuyerCancelOrder(order) ? `<button type="button" class="button danger" data-action="cancel-buyer-order" data-order="${escapeHtml(order.order_code)}">${buyerText('cancelOrder')}</button>` : ''}${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button secondary" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}</div></td></tr>`);
     app.insertAdjacentHTML('beforeend', `<section class="panel section"><div class="page-heading"><h1>${buyerText('ordersTitle')}</h1></div>${table([buyerText('order'), buyerText('total'), buyerText('payment'), buyerText('deliveryStatus'), buyerText('paymentStatus'), buyerText('actions')], rows, buyerText('noOrders'))}</section>`);
 }
 
@@ -2118,7 +2125,7 @@ async function renderOrderDetails(orderCode) {
             ${table([buyerText('date'), buyerText('items'), buyerText('returnReason'), buyerText('status'), buyerText('details')], returnRows, buyerText('noReturnRequests'))}
         </section>`;
     app.innerHTML = `
-        <div class="page-heading"><h1>${buyerText('order')} ${escapeHtml(order.order_code)}</h1><div class="app-actions">${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}<a class="button secondary" href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></div></div>
+        <div class="page-heading"><h1>${buyerText('order')} ${escapeHtml(order.order_code)}</h1><div class="app-actions">${state.profile.role === 'buyer' && canBuyerCancelOrder(order) ? `<button type="button" class="button danger" data-action="cancel-buyer-order" data-order="${escapeHtml(order.order_code)}">${buyerText('cancelOrder')}</button>` : ''}${['delivered', 'cancelled'].includes(order.order_status) ? `<button type="button" class="button" data-action="reorder" data-order="${escapeHtml(order.order_code)}">${buyerText('orderAgain')}</button>` : ''}<a class="button secondary" href="?page=orders" data-page="orders">${buyerText('backToOrders')}</a></div></div>
         <section class="stats"><article class="card"><span class="muted">${buyerText('deliveryStatus')}</span><strong class="stat-value">${buyerOrderStatusBadge(order.order_code, order.order_status)}</strong></article><article class="card"><span class="muted">${buyerText('paymentStatus')}</span><strong class="stat-value">${buyerPaymentStatusBadge(order.order_code, order.payment_status)}</strong></article><article class="card"><span class="muted">${buyerText('total')}</span><strong class="stat-value">${money(order.final_total)}</strong></article></section>
         ${buyerOrderTracker(order)}
         <section class="panel section"><h2>${buyerText('deliveryDetails')}</h2><p class="app-delivery-address">${escapeHtml(order.delivery_address)}</p><p><strong>${buyerText('payment')}:</strong> ${escapeHtml(buyerPaymentMethod(order.payment_method))}</p><p><strong>${buyerText('placed')}:</strong> ${dateLabel(order.created_at)}</p></section>
@@ -3316,6 +3323,12 @@ async function handleClick(target) {
         if (!window.confirm('Cancel this order? Reserved inventory will be returned only when cancellation is safe.')) return;
         await apiRequest('/api/orders', { action: 'cancel', orderCode: action.dataset.id });
         notify('Order cancelled and stock restored.');
+        return await renderPage();
+    }
+    if (action.dataset.action === 'cancel-buyer-order') {
+        if (!window.confirm(buyerText('confirmCancelOrder'))) return;
+        await apiRequest('/api/orders', { action: 'cancel', orderCode: action.dataset.order });
+        notify(buyerText('buyerOrderCancelled'));
         return await renderPage();
     }
     if (action.dataset.action === 'update-return-request') {

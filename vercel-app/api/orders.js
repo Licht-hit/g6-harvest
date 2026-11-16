@@ -1,5 +1,6 @@
 import { serviceClient, getRequestUser, readJsonBody, sendJson } from '../lib/supabaseServer.js';
 import { isValidXenditCheckoutHostname } from '../lib/xendit.js';
+import { canBuyerCancelOrder } from '../src/orderCancellation.js';
 import { isFarmStaffRole } from '../src/roles.js';
 
 function requiredEnvironmentValue(name) {
@@ -303,10 +304,13 @@ export default async function handler(request, response) {
         }
 
         if (action === 'cancel') {
-            if (!isFarmStaffRole(requestUser.profile.role)) {
-                return sendJson(response, 403, { error: 'Only farm staff can cancel orders.' });
+            const isBuyer = requestUser.profile.role === 'buyer';
+            const isFarmStaff = isFarmStaffRole(requestUser.profile.role);
+            if (!isBuyer && !isFarmStaff) {
+                return sendJson(response, 403, { error: 'Only buyers and farm staff can cancel orders.' });
             }
-            const { data: order, error: orderError } = await serviceClient
+            const orderClient = isBuyer ? requestUser.client : serviceClient;
+            const { data: order, error: orderError } = await orderClient
                 .from('orders')
                 .select('order_code, payment_method, gateway_session_id, gateway_provider, gateway_expired_at, payment_status, order_status')
                 .eq('order_code', payload.orderCode)
@@ -316,6 +320,11 @@ export default async function handler(request, response) {
             }
             if (!order) {
                 return sendJson(response, 404, { error: 'Order not found.' });
+            }
+            if (isBuyer && !canBuyerCancelOrder(order)) {
+                return sendJson(response, 409, {
+                    error: 'This order cannot be cancelled by you. Buyers can cancel unpaid orders before dispatch; contact farm staff for paid orders.',
+                });
             }
             if (order.payment_method === 'online') {
                 if (!order.gateway_session_id) {
@@ -332,15 +341,19 @@ export default async function handler(request, response) {
                     .from('orders')
                     .update({ gateway_expired_at: new Date().toISOString() })
                     .eq('order_code', order.order_code)
-                    .eq('payment_status', 'pending_payment');
+                    .in('payment_status', ['pending_payment', 'failed']);
                 if (expirationError) {
                     throw expirationError;
                 }
             }
-            const { error } = await requestUser.client.rpc('update_order_status', {
-                p_order_code: payload.orderCode,
-                p_status: 'cancelled',
-            });
+            const { error } = isBuyer
+                ? await requestUser.client.rpc('cancel_buyer_order', {
+                    p_order_code: payload.orderCode,
+                })
+                : await requestUser.client.rpc('update_order_status', {
+                    p_order_code: payload.orderCode,
+                    p_status: 'cancelled',
+                });
             if (error) {
                 return sendJson(response, 400, { error: error.message });
             }

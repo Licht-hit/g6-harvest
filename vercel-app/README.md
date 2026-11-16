@@ -12,6 +12,7 @@ Do not copy the parent project's local email/payment configuration files into th
 - Buyer, staff, farmer, and administrator roles. Staff can handle daily farm operations, orders, quality checks, and returns. Catalog edits and business reports are limited to administrators and farmers. New registrations are buyers; roles are never chosen in the browser.
 - Public landing page and customer FAQs in English and Filipino. FAQs explain catalog availability, delivery fees, bulk discounts, payment options, order tracking, and the 24-hour return-request window.
 - Product catalog, product details, saved cart, checkout, order history, and receipts. Buyers can reopen tracking from order details while an order is undelivered; the tracking timeline is removed after delivery. Active orders also have shortcuts on the dashboard and shop.
+- Buyers can cancel their own unpaid orders before dispatch. Paid orders and orders already out for delivery must be handled by farm staff; cancelling an online checkout expires the payment session before stock is restored.
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
 - Inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
 - Administrator dashboard with sales and harvest trends, inventory charts, stock alerts, top sellers, recent orders, inventory updates, and activity.
@@ -43,6 +44,7 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 15. Run `supabase/migrations/015_return_request_realtime.sql` after migration 012 to publish return requests for live updates. Staff see new-request notifications and a pending-count badge on the Returns page; buyers see updates when staff change their request status.
 16. Run `supabase/migrations/016_staff_permissions.sql` to keep vegetable catalog changes and photo uploads available to administrators and farmers, while staff retain read-only catalog access.
 17. Run `supabase/migrations/017_admin_user_roles.sql` to enable audited, administrator-only role changes while protecting the last administrator account.
+18. Run `supabase/migrations/018_buyer_order_cancellation.sql` to allow buyers to cancel their own unpaid orders before dispatch, with reserved inventory restored transactionally.
 For an existing project, if migration 001 finished successfully, run only later migrations that have not yet been applied, including migrations 004, 005, and 007. If you see `relation "profiles" already exists`, stop. Do not run migration 001 again or delete the table. Do not rerun migrations that have already been applied. If you are unsure whether migration 001 finished, check that the core tables exist with this query:
 
 ```sql
@@ -64,7 +66,7 @@ The schema does not insert user accounts. Migration 005 adds the ten sample prod
 
 ### 2. Install and deploy the converted folder
 
-Before deploying, apply all unapplied migrations through 017. If importing MySQL data, complete section 4 before running migrations 011–017; then run them before deploying this batch-tracking and returns-enabled frontend.
+Before deploying, apply all unapplied migrations through 018. If importing MySQL data, complete section 4 before running migrations 011–018; then run them before deploying this batch-tracking and returns-enabled frontend.
 
 1. Push the repository to GitHub without adding any local configuration files or secrets.
 2. In Vercel, choose **Add New → Project**, then import this GitHub repository.
