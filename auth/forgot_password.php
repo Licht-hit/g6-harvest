@@ -2,18 +2,15 @@
 require_once __DIR__ . '/../includes/auth.php';
 
 $submitted = false;
-$developmentResetUrl = null;
-$email = '';
-unset($_SESSION['development_password_reset_url']);
+$emailValue = $_POST['email'] ?? $_GET['email'] ?? $_SESSION['password_reset_email'] ?? '';
+$email = is_string($emailValue) ? trim($emailValue) : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    $rawEmail = $_POST['email'] ?? '';
-    $validatedEmail = is_string($rawEmail)
-        ? filter_var(trim($rawEmail), FILTER_VALIDATE_EMAIL)
-        : false;
+    $validatedEmail = filter_var($email, FILTER_VALIDATE_EMAIL);
 
     if ($validatedEmail) {
+        $email = $validatedEmail;
         $statement = $db->prepare(
             'SELECT id, name, email FROM users WHERE email = ?'
         );
@@ -38,11 +35,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $developmentResetUrl = $_SESSION['development_password_reset_url'] ?? null;
-    unset($_SESSION['development_password_reset_url']);
     $submitted = true;
-} elseif (is_string($_GET['email'] ?? null)) {
-    $email = trim($_GET['email']);
+}
+
+$developmentResetCode = $_SESSION['development_password_reset_code'] ?? null;
+$developmentCodeExpires = (int) ($_SESSION['development_password_reset_code_expires'] ?? 0);
+$resetCodeEmail = $_SESSION['password_reset_email'] ?? '';
+if (
+    !is_string($developmentResetCode)
+    || !is_six_digit_code($developmentResetCode)
+    || $developmentCodeExpires <= time()
+    || !is_string($resetCodeEmail)
+    || strcasecmp($email, $resetCodeEmail) !== 0
+) {
+    $developmentResetCode = null;
 }
 
 $pageTitle = 'Forgot password';
@@ -53,14 +59,17 @@ require __DIR__ . '/../includes/header.php';
     <?php if ($submitted): ?>
         <h1>Check your inbox</h1>
         <p class="muted" role="status">
-            If an account exists for that email address, we’ll send a password reset link.
-            The link expires in one hour.
+            If an account exists for that email address, a password reset code will be sent.
+            The code expires in 10 minutes.
         </p>
+        <?php if (filter_var($email, FILTER_VALIDATE_EMAIL)): ?>
+            <p><a class="button" href="<?= h(app_url('auth/reset_password.php?email=' . rawurlencode($email))) ?>">Enter reset code</a></p>
+        <?php endif; ?>
     <?php else: ?>
         <p class="dashboard-eyebrow">Account recovery</p>
         <h1>Forgot your password?</h1>
         <p class="muted">
-            Enter the email address linked to your Harvest account and we’ll send a reset link.
+            Enter the email address linked to your Harvest account and we’ll send a 6-digit reset code.
         </p>
         <form method="post">
             <?= csrf_field() ?>
@@ -76,15 +85,15 @@ require __DIR__ . '/../includes/header.php';
                     value="<?= h($email) ?>"
                 >
             </div>
-            <button type="submit">Send reset link</button>
+            <button type="submit">Send reset code</button>
         </form>
     <?php endif; ?>
 
-    <?php if ($developmentResetUrl): ?>
+    <?php if ($developmentResetCode): ?>
         <div class="notice">
-            <strong>Local development link</strong>
-            <p>Email is not sent in development mode. Open this one-time link to reset the password:</p>
-            <p><a href="<?= h($developmentResetUrl) ?>">Reset your password</a></p>
+            <strong>Local development password reset code</strong>
+            <p>Email is not sent in development mode. Enter this code on the password reset page:</p>
+            <p><code><?= h($developmentResetCode) ?></code></p>
         </div>
     <?php endif; ?>
 

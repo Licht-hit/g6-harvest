@@ -122,15 +122,35 @@ PREPARE vegetable_category_backfill_statement FROM @vegetable_category_backfill;
 EXECUTE vegetable_category_backfill_statement;
 DEALLOCATE PREPARE vegetable_category_backfill_statement;
 
--- Store one-time, expiring password reset tokens for existing installations.
+-- Store one-time, expiring password reset code hashes for existing installations.
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
     user_id INT UNSIGNED PRIMARY KEY,
-    token_hash CHAR(64) NOT NULL UNIQUE,
+    token_hash VARBINARY(255) NOT NULL UNIQUE,
+    attempt_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     CONSTRAINT fk_password_reset_tokens_user
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+ALTER TABLE password_reset_tokens
+    MODIFY COLUMN token_hash VARBINARY(255) NOT NULL;
+
+SET @password_reset_attempt_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'password_reset_tokens'
+        AND COLUMN_NAME = 'attempt_count'
+);
+SET @password_reset_attempt_migration = IF(
+    @password_reset_attempt_column_exists = 0,
+    'ALTER TABLE password_reset_tokens ADD COLUMN attempt_count TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER token_hash',
+    'SELECT 1'
+);
+PREPARE password_reset_attempt_migration_statement FROM @password_reset_attempt_migration;
+EXECUTE password_reset_attempt_migration_statement;
+DEALLOCATE PREPARE password_reset_attempt_migration_statement;
 
 -- Allow new sale items to remain unpaid until COD collection or a gateway webhook.
 ALTER TABLE sales

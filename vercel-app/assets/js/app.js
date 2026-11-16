@@ -111,6 +111,17 @@ const buyerCopy = {
         accountCreatedVerify: 'Account created. Enter the code sent to your email.',
         verificationCodeRequired: 'Enter the 6-digit code from your email.',
         verificationCodeError: 'The confirmation code must contain exactly 6 digits.',
+        forgotPasswordIntro: 'Enter the email address linked to your account. We will send a 6-digit password reset code.',
+        sendPasswordResetCode: 'Send reset code',
+        resetPasswordIntro: 'Enter the 6-digit code sent to your email, then choose a new password.',
+        resetCodeLabel: '6-digit password reset code',
+        passwordResetCodeSent: 'If that account can receive email, a password reset code will be sent.',
+        noPasswordResetCode: "Didn't receive a reset code?",
+        resendPasswordResetCode: 'Send another reset code',
+        passwordResetCodeError: 'The password reset code must contain exactly 6 digits.',
+        passwordResetCodeRequired: 'Enter the 6-digit password reset code from your email.',
+        passwordUpdated: 'Password updated. Sign in using your new password.',
+        passwordUpdatedLogError: 'Password updated, but the activity log could not be updated.',
         productInformation: 'Product information', variety: 'Variety', unit: 'Unit', stock: 'Stock',
         mostRecentHarvest: 'Most recent harvest', description: 'Description',
         buyerAccount: 'Buyer account', welcome: 'Welcome', buyerIntro: "Browse today's produce and keep track of your orders.",
@@ -218,6 +229,17 @@ const buyerCopy = {
         accountCreatedVerify: 'Nagawa na ang account. Ilagay ang code na ipinadala sa email mo.',
         verificationCodeRequired: 'Ilagay ang 6-digit code mula sa email.',
         verificationCodeError: 'Dapat eksaktong 6 na numero ang confirmation code.',
+        forgotPasswordIntro: 'Ilagay ang email na naka-link sa account mo. Magpapadala kami ng 6-digit password reset code.',
+        sendPasswordResetCode: 'Ipadala ang reset code',
+        resetPasswordIntro: 'Ilagay ang 6-digit code na ipinadala sa email, pagkatapos ay pumili ng bagong password.',
+        resetCodeLabel: '6-digit na password reset code',
+        passwordResetCodeSent: 'Kung makatatanggap ng email ang account na iyon, magpapadala kami ng password reset code.',
+        noPasswordResetCode: 'Wala kang natanggap na reset code?',
+        resendPasswordResetCode: 'Magpadala ulit ng reset code',
+        passwordResetCodeError: 'Dapat eksaktong 6 na numero ang password reset code.',
+        passwordResetCodeRequired: 'Ilagay ang 6-digit password reset code mula sa email.',
+        passwordUpdated: 'Na-update na ang password. Mag-log in gamit ang bago mong password.',
+        passwordUpdatedLogError: 'Na-update ang password pero hindi naitala ang aktibidad.',
         productInformation: 'Impormasyon ng produkto', variety: 'Variety', unit: 'Yunit', stock: 'Stock',
         mostRecentHarvest: 'Huling anihan', description: 'Paglalarawan',
         buyerAccount: 'Buyer account', welcome: 'Kumusta', buyerIntro: 'Mamili ng ani ngayon at subaybayan ang mga order mo.',
@@ -442,6 +464,8 @@ const state = {
         || (new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery' ? 'reset-password' : 'home'),
     language: readBuyerLanguage(),
     verificationEmail: '',
+    recoveryEmail: '',
+    recoveryVerified: false,
     products: [],
     records: new Map(),
     orderDetails: null,
@@ -1209,7 +1233,13 @@ async function loadEmailCallback() {
     url.searchParams.delete('next');
     history.replaceState({}, '', url);
     if (error) throw error;
-    notify('Your email has been verified. You can now sign in.');
+    if (type === 'recovery') {
+        state.recoveryVerified = true;
+        state.page = 'reset-password';
+        notify('Recovery confirmed. Choose a new password.');
+    } else {
+        notify('Your email has been verified. You can now sign in.');
+    }
     return true;
 }
 
@@ -1252,18 +1282,24 @@ function renderAuth(page) {
     } else if (page === 'forgot') {
         form = `
             <form class="auth-form-content" data-form="forgot">
-                <h2>${title}</h2><p class="auth-form-intro">We will send a password reset link if the account can receive email.</p>
+                <h2>${title}</h2><p class="auth-form-intro">${buyerText('forgotPasswordIntro')}</p>
                 <div class="field"><label for="forgot-email">Email address</label><input id="forgot-email" name="email" type="email" required autocomplete="email"></div>
-                <button class="auth-submit" type="submit">Send reset link</button>
+                <button class="auth-submit" type="submit">${buyerText('sendPasswordResetCode')}</button>
                 <p class="auth-links"><a href="?page=login" data-page="login">Back to log in</a></p>
             </form>`;
     } else if (page === 'reset-password') {
         form = `
             <form class="auth-form-content" data-form="reset-password">
-                <h2>${title}</h2><p class="auth-form-intro">Use at least 10 characters for your new password.</p>
+                <h2>${title}</h2><p class="auth-form-intro">${state.recoveryVerified ? 'Use at least 10 characters for your new password.' : buyerText('resetPasswordIntro')}</p>
+                ${state.recoveryVerified ? '' : `
+                    <div class="field"><label for="reset-email">${buyerText('verifyEmailAddress')}</label><input id="reset-email" name="email" type="email" required autocomplete="email" value="${escapeHtml(state.recoveryEmail)}"></div>
+                    <div class="field"><label for="reset-code">${buyerText('resetCodeLabel')}</label><input id="reset-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></div>
+                `}
                 <div class="field"><label for="new-password">New password</label><div class="password-field"><input id="new-password" name="password" type="password" required minlength="10" autocomplete="new-password"><button class="password-toggle" type="button" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
                 <div class="field"><label for="new-password-confirm">Confirm new password</label><div class="password-field"><input id="new-password-confirm" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"><button class="password-toggle" type="button" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
                 <button class="auth-submit" type="submit">Update password</button>
+                ${state.recoveryVerified ? '' : `<p class="auth-links">${buyerText('noPasswordResetCode')} <a href="#resend-password-reset" data-action="resend-password-reset">${buyerText('resendPasswordResetCode')}</a></p>`}
+                <p class="auth-links"><a href="?page=login" data-page="login">${buyerText('backToLogin')}</a></p>
             </form>`;
     } else {
         form = `
@@ -2852,26 +2888,51 @@ async function handleSubmit(form) {
         return;
     }
     if (formName === 'forgot') {
-        const redirectUrl = new URL('/', location.origin);
-        redirectUrl.searchParams.set('page', 'reset-password');
-        const { error } = await state.supabase.auth.resetPasswordForEmail(values.email.trim(), {
-            redirectTo: redirectUrl.toString(),
-        });
+        const email = values.email.trim();
+        const { error } = await state.supabase.auth.resetPasswordForEmail(email);
         if (error) throw error;
-        notify('If the address belongs to an account, a password reset link will be sent.');
+        state.recoveryEmail = email;
+        state.recoveryVerified = false;
+        go('reset-password');
+        notify(buyerText('passwordResetCodeSent'));
         return;
     }
     if (formName === 'reset-password') {
-        if (values.password !== values.confirmPassword) throw new Error('The passwords do not match.');
+        if (typeof values.password !== 'string' || values.password.length < 10) {
+            throw new Error('Choose a password with at least 10 characters.');
+        }
+        if (typeof values.confirmPassword !== 'string' || values.password !== values.confirmPassword) {
+            throw new Error('The passwords do not match.');
+        }
+        if (!state.recoveryVerified) {
+            const email = typeof values.email === 'string' ? values.email.trim() : '';
+            const code = typeof values.code === 'string' ? values.code.trim() : '';
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                throw new Error('Enter a valid email address.');
+            }
+            if (!/^\d{6}$/.test(code)) throw new Error(buyerText('passwordResetCodeError'));
+
+            const { data, error } = await state.supabase.auth.verifyOtp({
+                email,
+                token: code,
+                type: 'recovery',
+            });
+            if (error) throw error;
+            if (!data.session) throw new Error('The recovery code was accepted but no recovery session was created. Request a new code.');
+            state.session = data.session;
+            state.recoveryEmail = email;
+            state.recoveryVerified = true;
+        }
+
         const { error } = await state.supabase.auth.updateUser({ password: values.password });
         if (error) throw error;
         const logged = await logAccountAction('password_reset');
         await state.supabase.auth.signOut();
         state.session = null;
         state.profile = null;
-        const message = logged
-            ? 'Password updated. Sign in using your new password.'
-            : 'Password updated, but the activity log could not be updated.';
+        state.recoveryEmail = '';
+        state.recoveryVerified = false;
+        const message = logged ? buyerText('passwordUpdated') : buyerText('passwordUpdatedLogError');
         go('login');
         notify(message, logged ? 'success' : 'error');
         return;
@@ -3367,6 +3428,20 @@ async function handleClick(target) {
         if (emailField) emailField.value = normalizedEmail;
         notify(buyerText('verificationCodeSent'));
     }
+    if (action.dataset.action === 'resend-password-reset') {
+        const emailField = app.querySelector('input[name="email"]');
+        const email = emailField?.value.trim() || state.recoveryEmail;
+        if (!email) throw new Error('Enter the email address linked to your account.');
+        const normalizedEmail = email.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            throw new Error('Enter a valid email address.');
+        }
+        const { error } = await state.supabase.auth.resetPasswordForEmail(normalizedEmail);
+        if (error) throw error;
+        state.recoveryEmail = normalizedEmail;
+        state.recoveryVerified = false;
+        notify(buyerText('passwordResetCodeSent'));
+    }
 }
 
 async function handleOrderStatusChange(select) {
@@ -3597,6 +3672,7 @@ async function start() {
         state.session = session;
         if (event === 'PASSWORD_RECOVERY') {
             state.page = 'reset-password';
+            state.recoveryVerified = true;
             history.replaceState({}, '', '?page=reset-password');
         }
         if (!session) state.profile = null;

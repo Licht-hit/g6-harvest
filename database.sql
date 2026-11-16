@@ -40,10 +40,11 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- Stores one-time, expiring password reset tokens.
+-- Stores one-time, expiring password reset code hashes and attempt counts.
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
     user_id INT UNSIGNED PRIMARY KEY,
-    token_hash CHAR(64) NOT NULL UNIQUE,
+    token_hash VARBINARY(255) NOT NULL UNIQUE,
+    attempt_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     CONSTRAINT fk_password_reset_tokens_user

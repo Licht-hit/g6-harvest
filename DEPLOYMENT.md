@@ -22,7 +22,8 @@ MySQL database, payment provider, and web server must be configured together.
    DATABASE` and `USE` lines when importing into a database already selected in
    the host's panel). Never re-import it over production data to apply changes.
    For an existing installation, take and test a backup before applying
-   `database-upgrade.sql`.
+   `database-upgrade.sql`. Previously sent password-reset links will no longer
+   work; users can request a new reset code.
 5. Set `APP_ENV=production` and `DB_HOST`, `DB_NAME`, `DB_USER`, and
    `DB_PASSWORD` in the hosting environment settings. The app now refuses to
    connect in production if any database setting is missing. Do not paste these
@@ -34,10 +35,9 @@ MySQL database, payment provider, and web server must be configured together.
    `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `EMAIL_FROM`.
    Gmail uses an App Password, not the normal account password. Port 587 uses
    STARTTLS; port 465 uses implicit TLS. The sender must match the Gmail SMTP
-   username. Email confirmation uses a 6-digit code; password recovery remains
-   link-based. Use `EMAIL_MODE=development` only on a private local development
-   site; it displays the confirmation code and password-reset link instead of
-   sending email.
+   username. Email confirmation and password recovery use expiring 6-digit codes.
+   Use `EMAIL_MODE=development` only on a private local development site; it
+   displays both codes instead of sending email.
 8. For new online payments, set `XENDIT_SECRET_KEY`, `XENDIT_WEBHOOK_TOKEN`, and
    `APP_URL`; enable OpenSSL and `allow_url_fopen`, then register
    `https://your-site/webhooks/xendit.php` in Xendit with the same callback token.
