@@ -10,6 +10,7 @@ Do not copy the parent project's local email/payment configuration files into th
 
 - Buyer registration, email verification, login, password reset, and logout through Supabase Auth.
 - Buyer, staff, farmer, and administrator roles. Staff can handle daily farm operations, orders, quality checks, and returns. Catalog edits and business reports are limited to administrators and farmers. New registrations are buyers; roles are never chosen in the browser.
+- Public landing page and customer FAQs in English and Filipino. FAQs explain catalog availability, delivery fees, bulk discounts, payment options, order tracking, and the 24-hour return-request window.
 - Product catalog, product details, saved cart, checkout, order history, and receipts. Buyers can reopen tracking from order details while an order is undelivered; the tracking timeline is removed after delivery. Active orders also have shortcuts on the dashboard and shop.
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
 - Inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
@@ -82,7 +83,7 @@ Before deploying, apply all unapplied migrations through 017. If importing MySQL
 | `SUPABASE_ANON_KEY` | The same Supabase **anon/public** or **publishable** key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase **service_role secret** key. Keep it private; do not add `VITE_` to this name. |
 | `APP_URL` | Your deployed Vercel address, for example `https://your-project.vercel.app` |
-| `VITE_CONTACT_EMAIL` (optional) | Public email address to show in the homepage Contact section. |
+| `VITE_CONTACT_EMAIL` (optional) | Public email address to show in the homepage Contact section and customer FAQ. |
 
 Add these only if you are turning on online payments:
 

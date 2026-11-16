@@ -207,6 +207,181 @@ const buyerCopy = {
         amount: 'Halaga', reference: 'Sanggunian', details: 'Detalye',
     },
 };
+const publicCopy = {
+    en: {
+        navHome: 'Home', navAbout: 'About', navProduce: 'Produce', navWhy: 'Why Harvest',
+        navProcess: 'Our process', navContact: 'Contact', navFaq: 'FAQs',
+        heroEyebrow: 'From our farm to your table',
+        heroTitle: 'A little more <em>goodness</em> in every day.',
+        heroIntro: 'Get to know the produce in our live farm catalog and find fresh picks for your table.',
+        heroShop: 'Shop the harvest', heroLearn: 'Learn more',
+        heroPriceNote: 'Prices are from the current catalog. Sign in to check stock and order.',
+        heroPhotoCaption: 'A fresh look at the harvest',
+        highlightsTitle: 'Good things, made simple',
+        highlightAvailabilityTitle: 'See what is available',
+        highlightAvailabilityText: 'Check produce from the live catalog.',
+        highlightDetailsTitle: 'Know what you are choosing',
+        highlightDetailsText: 'Browse item details, prices, and units.',
+        highlightOrderTitle: 'Order when you are ready',
+        highlightOrderText: 'Create an account when you want to shop.',
+        trustCatalogTitle: 'Live catalog',
+        trustCatalogText: 'Explore produce listed by the farm.',
+        trustDetailsTitle: 'Clear details',
+        trustDetailsText: 'Know the price, variety, and unit.',
+        trustTrackingTitle: 'Order tracking',
+        trustTrackingText: 'Follow delivery progress from your buyer account.',
+        catalogEyebrow: 'From the current catalog',
+        catalogTitle: 'Meet the fresh picks.',
+        catalogIntro: "Every item below comes from the farm's active produce catalog.",
+        catalogEmpty: 'The next harvest is on its way. Please check back soon.',
+        catalogUnavailable: 'The live catalog is temporarily unavailable. Please check back soon.',
+        catalogCategory: 'From the farm',
+        catalogDescription: 'Fresh produce, grown and harvested with care.',
+        catalogAvailability: 'Sign in to check current stock.',
+        catalogOrder: 'Create account to order',
+        catalogReady: 'Ready to choose your produce?',
+        catalogCreateAccount: 'Create an account to shop',
+        storyEyebrow: 'A closer connection to the farm',
+        storyTitle: 'Farm to <em>your table.</em>',
+        storyFirst: 'Harvest brings farm operations and produce ordering together. Staff can record plantings and harvests, track inventory, and share current availability with shoppers.',
+        storySecond: 'Customers can explore real catalog details and manage orders through their own account.',
+        storyLink: 'See how Harvest works',
+        whyEyebrow: 'The Harvest difference',
+        whyTitle: 'Farm details, made easier to find.',
+        whyIntro: 'A connected view of produce, availability, and ordering.',
+        featureCatalogTitle: 'Current catalog',
+        featureCatalogText: 'Explore active produce and see the prices and units listed by the farm.',
+        featureAvailabilityTitle: 'Clear availability',
+        featureAvailabilityText: 'Check current inventory before choosing what to order.',
+        featureOrdersTitle: 'Orders in one place',
+        featureOrdersText: 'Review past orders and track delivery progress from your buyer account.',
+        featureManagementTitle: 'Order management',
+        featureManagementText: 'Place orders through your account and keep track of their status.',
+        processEyebrow: 'From farm records to fresh picks',
+        processTitle: 'Connected at every step.',
+        processIntro: 'Harvest brings farm records and the customer shop into one place.',
+        processPlan: 'Plan',
+        processPlanText: 'Staff record what is planted and when it is expected to grow.',
+        processHarvest: 'Harvest',
+        processHarvestText: 'Harvest records keep quantities and dates together.',
+        processTrack: 'Track',
+        processTrackText: 'Inventory shows the produce currently listed as available.',
+        processChoose: 'Choose',
+        processChooseText: 'Customers browse the catalog and place orders from their account.',
+        contactEyebrow: "We're here to help",
+        contactTitle: 'Questions about your next order?',
+        contactText: 'Sign in to manage an order, or create a buyer account to start browsing and save produce you love.',
+        contactNoEmail: 'No farm contact email is listed yet. Sign in to view and manage your orders.',
+        createBuyer: 'Create a buyer account',
+        login: 'Already have an account? Log in',
+        faqTitle: 'Frequently asked questions',
+        faqIntro: 'Quick answers about produce, delivery, payments, orders, and returns.',
+        faqAvailabilityQuestion: 'How do I check if produce is available?',
+        faqAvailabilityAnswer: 'Browse the live catalog. Sign in to see current stock; availability is checked again at checkout.',
+        faqDeliveryQuestion: 'How much is delivery?',
+        faqDeliveryAnswer: 'A flat ₱20 delivery fee is added per order and shown in the order total.',
+        faqBulkQuestion: 'Is there a discount for larger orders?',
+        faqBulkAnswer: 'Orders with 20 or more combined units receive a 10% discount on produce.',
+        faqPaymentQuestion: 'Which payment methods can I use?',
+        faqPaymentAnswer: 'Cash on Delivery is available. Online payment appears at checkout only when it is enabled for the farm.',
+        faqTrackingQuestion: 'How do I track my order?',
+        faqTrackingAnswer: 'Sign in and open My Orders to review your order and follow its status updates.',
+        faqReturnsQuestion: 'Can I request a return?',
+        faqReturnsAnswer: 'For a damaged item or quality issue, request a return within 24 hours after delivery. Farm staff review requests; refunds and restocking are handled manually.',
+        faqSupportQuestion: 'How can I get help with an order?',
+        faqSupportAnswer: 'Sign in and open My Orders to view tracking or request a return when eligible.',
+        faqSupportEmail: 'For more help, email',
+        faqSupportNoEmail: 'This website does not have live chat, and no farm contact email is currently listed. Sign in to review your order details.',
+        faqJump: 'Questions? Read the FAQs',
+    },
+    fil: {
+        navHome: 'Home', navAbout: 'Tungkol dito', navProduce: 'Mga gulay',
+        navWhy: 'Bakit Harvest', navProcess: 'Proseso', navContact: 'Makipag-ugnayan',
+        navFaq: 'Mga FAQ',
+        heroEyebrow: 'Mula sa aming bukid, para sa inyong hapag',
+        heroTitle: 'Kaunting dagdag na <em>kabutihan</em> sa bawat araw.',
+        heroIntro: 'Tingnan ang mga gulay sa kasalukuyang talaan ng bukid at pumili ng sariwang ani para sa inyong hapag.',
+        heroShop: 'Mamili ng ani', heroLearn: 'Alamin pa',
+        heroPriceNote: 'Mula sa kasalukuyang talaan ang mga presyo. Mag-sign in para makita ang stock at umorder.',
+        heroPhotoCaption: 'Sariwang tingin sa ani',
+        highlightsTitle: 'Mas madaling mamili ng sariwa',
+        highlightAvailabilityTitle: 'Tingnan ang available',
+        highlightAvailabilityText: 'Tingnan ang mga gulay sa kasalukuyang talaan.',
+        highlightDetailsTitle: 'Alamin ang detalye',
+        highlightDetailsText: 'Tingnan ang detalye, presyo, at yunit ng produkto.',
+        highlightOrderTitle: 'Umorder kapag handa na',
+        highlightOrderText: 'Gumawa ng account kapag nais nang mamili.',
+        trustCatalogTitle: 'Kasalukuyang talaan',
+        trustCatalogText: 'Tingnan ang mga produktong inilista ng bukid.',
+        trustDetailsTitle: 'Malinaw na detalye',
+        trustDetailsText: 'Alamin ang presyo, variety, at yunit.',
+        trustTrackingTitle: 'Pagsubaybay sa order',
+        trustTrackingText: 'Subaybayan ang delivery gamit ang buyer account.',
+        catalogEyebrow: 'Mula sa kasalukuyang talaan',
+        catalogTitle: 'Mga sariwang mapagpipilian.',
+        catalogIntro: 'Mula sa aktibong talaan ng bukid ang mga produktong ito.',
+        catalogEmpty: 'Parating na ang susunod na ani. Balikan kami sa lalong madaling panahon.',
+        catalogUnavailable: 'Pansamantalang hindi makuha ang talaan ng produkto. Subukan ulit mamaya.',
+        catalogCategory: 'Mula sa bukid',
+        catalogDescription: 'Sariwang ani na inalagaan at maingat na inani.',
+        catalogAvailability: 'Mag-sign in para makita ang kasalukuyang stock.',
+        catalogOrder: 'Gumawa ng account para umorder',
+        catalogReady: 'Handa ka na bang pumili ng gulay?',
+        catalogCreateAccount: 'Gumawa ng account para mamili',
+        storyEyebrow: 'Mas malapit sa bukid',
+        storyTitle: 'Mula bukid <em>hanggang hapag.</em>',
+        storyFirst: 'Pinag-uugnay ng Harvest ang operasyon ng bukid at pag-order ng ani. Naitatala ng staff ang pagtatanim at pag-aani, nasusubaybayan ang stock, at naibabahagi ang kasalukuyang availability.',
+        storySecond: 'Makikita ng mga mamimili ang detalye ng produkto at mapamamahalaan ang mga order gamit ang sariling account.',
+        storyLink: 'Alamin kung paano gumagana ang Harvest',
+        whyEyebrow: 'Ang kaibahan ng Harvest',
+        whyTitle: 'Mas madaling makita ang detalye ng bukid.',
+        whyIntro: 'Magkakaugnay na impormasyon tungkol sa produkto, stock, at pag-order.',
+        featureCatalogTitle: 'Kasalukuyang talaan',
+        featureCatalogText: 'Tingnan ang mga aktibong produkto, presyo, at yunit na inilista ng bukid.',
+        featureAvailabilityTitle: 'Malinaw na availability',
+        featureAvailabilityText: 'Suriin ang kasalukuyang stock bago pumili ng oorderin.',
+        featureOrdersTitle: 'Mga order sa iisang lugar',
+        featureOrdersText: 'Tingnan ang mga dating order at subaybayan ang delivery gamit ang buyer account.',
+        featureManagementTitle: 'Pamamahala ng order',
+        featureManagementText: 'Umorder gamit ang account at subaybayan ang status nito.',
+        processEyebrow: 'Mula tala ng bukid hanggang sariwang ani',
+        processTitle: 'Magkakaugnay sa bawat hakbang.',
+        processIntro: 'Pinagsasama ng Harvest ang mga tala ng bukid at online shop.',
+        processPlan: 'Magplano',
+        processPlanText: 'Itinatala ng staff kung ano ang itinanim at kailan ito inaasahang tutubo.',
+        processHarvest: 'Mag-ani',
+        processHarvestText: 'Magkakasama sa tala ng ani ang dami at petsa.',
+        processTrack: 'Subaybayan',
+        processTrackText: 'Ipinapakita ng imbentaryo kung anong produkto ang available.',
+        processChoose: 'Pumili',
+        processChooseText: 'Tinitingnan ng mamimili ang talaan at nag-oorder gamit ang account.',
+        contactEyebrow: 'Narito kami para tumulong',
+        contactTitle: 'May tanong tungkol sa susunod mong order?',
+        contactText: 'Mag-sign in para pamahalaan ang order, o gumawa ng buyer account para mamili.',
+        contactNoEmail: 'Wala pang nakalistang email ng bukid. Mag-sign in para makita at mapamahalaan ang mga order.',
+        createBuyer: 'Gumawa ng buyer account',
+        login: 'May account ka na? Mag-log in',
+        faqTitle: 'Mga madalas itanong',
+        faqIntro: 'Mabilis na sagot tungkol sa gulay, delivery, bayad, order, at pagsasauli.',
+        faqAvailabilityQuestion: 'Paano ko malalaman kung available ang gulay?',
+        faqAvailabilityAnswer: 'Tingnan ang kasalukuyang talaan. Mag-sign in para makita ang stock; kukumpirmahin ulit ang availability sa checkout.',
+        faqDeliveryQuestion: 'Magkano ang delivery?',
+        faqDeliveryAnswer: 'May flat na ₱20 delivery fee bawat order at makikita ito sa kabuuang bayarin.',
+        faqBulkQuestion: 'May diskuwento ba sa maramihang order?',
+        faqBulkAnswer: 'May 10% diskuwento sa gulay kapag umabot sa 20 pinagsamang yunit ang order.',
+        faqPaymentQuestion: 'Anong paraan ng bayad ang puwede?',
+        faqPaymentAnswer: 'Available ang Cash on Delivery. Lalabas lang ang online payment sa checkout kapag naka-enable ito ng bukid.',
+        faqTrackingQuestion: 'Paano ko masusubaybayan ang order?',
+        faqTrackingAnswer: 'Mag-sign in at buksan ang Mga order ko para makita ang detalye at mga update sa status.',
+        faqReturnsQuestion: 'Puwede bang humiling ng pagsasauli?',
+        faqReturnsAnswer: 'Kung may sira o problema sa kalidad, humiling sa loob ng 24 oras mula sa delivery. Susuriin ito ng farm staff; mano-manong aasikasuhin ang refund at pagbalik sa stock.',
+        faqSupportQuestion: 'Paano ako hihingi ng tulong sa order?',
+        faqSupportAnswer: 'Mag-sign in at buksan ang Mga order ko para makita ang tracking o humiling ng pagsasauli kung pasok sa patakaran.',
+        faqSupportEmail: 'Para sa karagdagang tulong, mag-email sa',
+        faqSupportNoEmail: 'Walang live chat ang website na ito at wala pang nakalistang email ng bukid. Mag-sign in para makita ang detalye ng order.',
+        faqJump: 'May tanong? Tingnan ang mga FAQ',
+    },
+};
 const imageByName = {
     tomato: 'tomato.webp',
     carrot: 'OIP (2).webp',
@@ -262,6 +437,10 @@ function readBuyerLanguage() {
 
 function buyerText(key) {
     return buyerCopy[state.language]?.[key] || buyerCopy.en[key] || key;
+}
+
+function publicText(key) {
+    return publicCopy[state.language]?.[key] || publicCopy.en[key] || key;
 }
 
 function formatQuantity(value) {
@@ -384,6 +563,8 @@ function updateNavigation() {
     const nav = document.querySelector('#primary-navigation');
     const header = document.querySelector('.site-header');
     const navToggle = document.querySelector('[data-nav-toggle]');
+    nav.classList.remove('is-open');
+    document.documentElement.lang = state.language === 'fil' ? 'fil' : 'en';
     const isOperationsUser = Boolean(
         state.session
         && state.profile
@@ -399,8 +580,8 @@ function updateNavigation() {
         menu.hidden = true;
         guest.hidden = false;
         nav.innerHTML = state.page === 'home'
-            ? '<a href="#home">Home</a><a href="#about">About</a><a href="#featured">Produce</a><a href="#why-harvest">Why Harvest</a><a href="#farming-process">Our process</a><a href="#contact">Contact</a>'
-            : '<a href="/" data-page="home">Home</a>';
+            ? `<a href="#home">${publicText('navHome')}</a><a href="#about">${publicText('navAbout')}</a><a href="#featured">${publicText('navProduce')}</a><a href="#why-harvest">${publicText('navWhy')}</a><a href="#farming-process">${publicText('navProcess')}</a><a href="#faq">${publicText('navFaq')}</a><a href="#contact">${publicText('navContact')}</a><button class="buyer-language-toggle" type="button" data-action="toggle-language">${buyerText('switchLanguage')}</button>`
+            : `<a href="/" data-page="home">${publicText('navHome')}</a>`;
         navToggle.setAttribute('aria-expanded', 'false');
         navToggle.setAttribute('aria-label', 'Open navigation');
         return;
@@ -451,7 +632,6 @@ function updateNavigation() {
         `).join('') + `<button class="buyer-language-toggle" type="button" data-action="toggle-language">${buyerText('switchLanguage')}</button>`;
     }
 
-    document.documentElement.lang = state.language === 'fil' ? 'fil' : 'en';
     const isMobile = window.matchMedia(isOperationsUser ? '(max-width: 900px)' : '(max-width: 1180px)').matches;
     const isCollapsed = isOperationsUser && document.body.classList.contains('sidebar-collapsed');
     navToggle.setAttribute('aria-expanded', String(isOperationsUser && !isMobile && !isCollapsed));
@@ -1407,6 +1587,37 @@ async function renderDashboard() {
     if (topSelling.length) drawDashboardChart('top-selling-chart', topSelling.map((item) => `${item.name} (${item.unit})`), topSelling.map((item) => item.quantity), '#76a85b');
 }
 
+function renderCustomerFaq() {
+    const items = [
+        ['faqAvailabilityQuestion', 'faqAvailabilityAnswer'],
+        ['faqDeliveryQuestion', 'faqDeliveryAnswer'],
+        ['faqBulkQuestion', 'faqBulkAnswer'],
+        ['faqPaymentQuestion', 'faqPaymentAnswer'],
+        ['faqTrackingQuestion', 'faqTrackingAnswer'],
+        ['faqReturnsQuestion', 'faqReturnsAnswer'],
+    ];
+    const supportAnswer = contactEmail
+        ? `${publicText('faqSupportAnswer')} ${publicText('faqSupportEmail')} <a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>.`
+        : publicText('faqSupportNoEmail');
+    items.push(['faqSupportQuestion', supportAnswer]);
+
+    return `<section class="customer-faq" id="faq" aria-labelledby="customer-faq-title">
+        <div class="customer-faq-heading"><div><p class="landing-eyebrow">${publicText('navFaq')}</p>
+            <h2 id="customer-faq-title">${publicText('faqTitle')}</h2></div>
+            <p>${publicText('faqIntro')}</p>
+        </div>
+        <div class="customer-faq-list">${items.map(([questionKey, answer]) => {
+        const answerHtml = questionKey === 'faqSupportQuestion'
+            ? answer
+            : publicText(answer);
+        return `<details class="customer-faq-item">
+            <summary>${publicText(questionKey)}</summary>
+            <p>${answerHtml}</p>
+        </details>`;
+    }).join('')}</div>
+    </section>`;
+}
+
 function renderShop(products, activeOrder = null) {
     state.products = products;
     const categories = [...new Set(products.map((product) => product.category).filter(Boolean))]
@@ -1452,10 +1663,12 @@ function renderShop(products, activeOrder = null) {
         <section class="shop-hero"><div class="shop-hero-copy"><p class="shop-eyebrow">${buyerText('shopEyebrow')}</p><h1>${buyerText('shopTitle')}</h1><p>${buyerText('shopIntro')}</p></div><a class="button shop-hero-button" href="?page=cart" data-page="cart">${buyerText('viewCart')} <span class="cart-count">${cartCount()}</span></a></section>
         <section class="shop-highlights"><div><span aria-hidden="true">🌱</span><strong>${buyerText('farmFresh')}</strong><small>${buyerText('harvestedCare')}</small></div><div><span aria-hidden="true">🥬</span><strong>${buyerText('seasonalProduce')}</strong><small>${buyerText('availableToday')}</small></div><div><span aria-hidden="true">🚚</span><strong>${buyerText('localDelivery')}</strong><small>${buyerText('flatDelivery')}</small></div></section>
         <p class="shop-delivery-note">${buyerText('deliveryNote')} ${buyerText('bulkNote')}</p>
+        <p class="shop-help-link"><a href="#faq">${publicText('faqJump')}</a></p>
         <section class="shop-section-heading"><div><h2>${buyerText('catalogTitle')}</h2><p class="muted">${buyerText('catalogIntro')}</p></div></section>
         ${filters}
         <section class="card-grid shop-product-grid" data-shop-grid>${cards || `<div class="empty">${buyerText('emptyCatalog')}</div>`}<p class="empty shop-filter-empty" data-shop-empty hidden>${buyerText('noMatchingProducts')}</p></section>
-        ${cartCount() ? `<a class="button shop-mobile-cart" href="?page=cart" data-page="cart">${buyerText('viewCart')} · ${cartCount()} · ${money(subtotal)}</a>` : ''}`;
+        ${cartCount() ? `<a class="button shop-mobile-cart" href="?page=cart" data-page="cart">${buyerText('viewCart')} · ${cartCount()} · ${money(subtotal)}</a>` : ''}
+        ${renderCustomerFaq()}`;
     applyShopFilters();
 }
 
@@ -1508,12 +1721,12 @@ function renderLanding(products, catalogUnavailable = false) {
         <article class="landing-product">
             <div class="landing-product-image">${productPicture(product.name, product.image_path)}</div>
             <div class="landing-product-copy">
-                <p class="landing-product-category">${escapeHtml(product.category || 'From the farm')}</p>
+                <p class="landing-product-category">${escapeHtml(product.category || publicText('catalogCategory'))}</p>
                 <h3>${escapeHtml(product.name)}</h3>
-                <p>${escapeHtml(product.description || 'Fresh produce, grown and harvested with care.')}</p>
+                <p>${escapeHtml(product.description || publicText('catalogDescription'))}</p>
                 <strong>${money(product.price)} <small>/ ${escapeHtml(product.unit)}</small></strong>
-                <p class="landing-product-availability">Sign in to check current stock.</p>
-                <a class="button landing-product-cta" href="?page=register" data-page="register">Create account to order <span aria-hidden="true">→</span></a>
+                <p class="landing-product-availability">${publicText('catalogAvailability')}</p>
+                <a class="button landing-product-cta" href="?page=register" data-page="register">${publicText('catalogOrder')} <span aria-hidden="true">→</span></a>
             </div>
         </article>`).join('');
 
@@ -1521,84 +1734,86 @@ function renderLanding(products, catalogUnavailable = false) {
         <div class="landing-page">
             <section class="landing-hero" id="home" aria-labelledby="landing-title">
                 <div class="landing-hero-copy">
-                    <p class="landing-eyebrow"><span></span> From our farm to your table</p>
-                    <h1 id="landing-title">A little more <em>goodness</em> in every day.</h1>
-                    <p class="landing-intro">Get to know the produce in our live farm catalog and find fresh picks for your table.</p>
+                    <p class="landing-eyebrow"><span></span> ${publicText('heroEyebrow')}</p>
+                    <h1 id="landing-title">${publicText('heroTitle')}</h1>
+                    <p class="landing-intro">${publicText('heroIntro')}</p>
                     <div class="landing-actions">
-                        <a class="button" href="#featured">Shop the harvest <span aria-hidden="true">→</span></a>
-                        <a class="landing-secondary-link" href="#about">Learn more <span aria-hidden="true">↗</span></a>
+                        <a class="button" href="#featured">${publicText('heroShop')} <span aria-hidden="true">→</span></a>
+                        <a class="landing-secondary-link" href="#about">${publicText('heroLearn')} <span aria-hidden="true">↗</span></a>
                     </div>
-                    <p class="landing-note">Prices are from the current catalog. Sign in to check stock and order.</p>
+                    <p class="landing-note">${publicText('heroPriceNote')}</p>
                 </div>
                 <div class="landing-photo-grid" aria-label="Fresh vegetable photography">
-                    <figure class="landing-photo landing-photo-main">${productPicture('Carrot')}<figcaption>A fresh look at the harvest</figcaption></figure>
+                    <figure class="landing-photo landing-photo-main">${productPicture('Carrot')}<figcaption>${publicText('heroPhotoCaption')}</figcaption></figure>
                     <figure class="landing-photo landing-photo-tomato">${productPicture('Tomato')}</figure>
                     <figure class="landing-photo landing-photo-greens">${productPicture('Zucchini')}</figure>
                 </div>
                 <aside class="landing-highlights" aria-label="Shopping highlights">
-                    <p>Good things, made simple</p>
-                    <div><strong>See what is available</strong><small>Check produce from the live catalog.</small></div>
-                    <div><strong>Know what you are choosing</strong><small>Browse item details, prices, and units.</small></div>
-                    <div><strong>Order when you are ready</strong><small>Create an account when you want to shop.</small></div>
+                    <p>${publicText('highlightsTitle')}</p>
+                    <div><strong>${publicText('highlightAvailabilityTitle')}</strong><small>${publicText('highlightAvailabilityText')}</small></div>
+                    <div><strong>${publicText('highlightDetailsTitle')}</strong><small>${publicText('highlightDetailsText')}</small></div>
+                    <div><strong>${publicText('highlightOrderTitle')}</strong><small>${publicText('highlightOrderText')}</small></div>
                 </aside>
             </section>
             <section class="landing-trust" aria-label="Harvest at a glance">
-                <div><strong>Live catalog</strong><span>Explore produce listed by the farm.</span></div>
-                <div><strong>Clear details</strong><span>Know the price, variety, and unit.</span></div>
-                <div><strong>Order tracking</strong><span>Follow delivery progress from your buyer account.</span></div>
+                <div><strong>${publicText('trustCatalogTitle')}</strong><span>${publicText('trustCatalogText')}</span></div>
+                <div><strong>${publicText('trustDetailsTitle')}</strong><span>${publicText('trustDetailsText')}</span></div>
+                <div><strong>${publicText('trustTrackingTitle')}</strong><span>${publicText('trustTrackingText')}</span></div>
             </section>
             <section class="landing-section" id="featured" aria-labelledby="landing-featured-title">
                 <div class="landing-section-heading">
-                    <div><p class="landing-eyebrow">From the current catalog</p><h2 id="landing-featured-title">Meet the fresh picks.</h2></div>
-                    <p>Every item below comes from the farm's active produce catalog.</p>
+                    <div><p class="landing-eyebrow">${publicText('catalogEyebrow')}</p><h2 id="landing-featured-title">${publicText('catalogTitle')}</h2></div>
+                    <p>${publicText('catalogIntro')}</p>
                 </div>
-                <div class="landing-product-grid">${cards || `<p class="landing-empty">${catalogUnavailable ? 'The live catalog is temporarily unavailable. Please check back soon.' : 'The next harvest is on its way. Please check back soon.'}</p>`}</div>
-                <div class="landing-section-action"><p>Ready to choose your produce?</p><a class="button" href="?page=register" data-page="register">Create an account to shop <span aria-hidden="true">→</span></a></div>
+                <div class="landing-product-grid">${cards || `<p class="landing-empty">${catalogUnavailable ? publicText('catalogUnavailable') : publicText('catalogEmpty')}</p>`}</div>
+                <div class="landing-section-action"><p>${publicText('catalogReady')}</p><a class="button" href="?page=register" data-page="register">${publicText('catalogCreateAccount')} <span aria-hidden="true">→</span></a></div>
             </section>
             <section class="landing-story" id="about" aria-labelledby="landing-story-title">
                 <div class="landing-story-image">${productPicture('Kale')}</div>
                 <div class="landing-story-copy">
-                    <p class="landing-eyebrow">A closer connection to the farm</p>
-                    <h2 id="landing-story-title">Farm to <em>your table.</em></h2>
-                    <p>Harvest brings farm operations and produce ordering together. Staff can record plantings and harvests, track inventory, and share current availability with shoppers.</p>
-                    <p>Customers can explore real catalog details and manage orders through their own account.</p>
-                    <a class="landing-secondary-link" href="#farming-process">See how Harvest works <span aria-hidden="true">→</span></a>
+                    <p class="landing-eyebrow">${publicText('storyEyebrow')}</p>
+                    <h2 id="landing-story-title">${publicText('storyTitle')}</h2>
+                    <p>${publicText('storyFirst')}</p>
+                    <p>${publicText('storySecond')}</p>
+                    <a class="landing-secondary-link" href="#farming-process">${publicText('storyLink')} <span aria-hidden="true">→</span></a>
                 </div>
             </section>
             <section class="landing-section landing-why" id="why-harvest" aria-labelledby="landing-why-title">
                 <div class="landing-section-heading">
-                    <div><p class="landing-eyebrow">The Harvest difference</p><h2 id="landing-why-title">Farm details, made easier to find.</h2></div>
-                    <p>A connected view of produce, availability, and ordering.</p>
+                    <div><p class="landing-eyebrow">${publicText('whyEyebrow')}</p><h2 id="landing-why-title">${publicText('whyTitle')}</h2></div>
+                    <p>${publicText('whyIntro')}</p>
                 </div>
                 <div class="landing-feature-grid">
-                    <article class="landing-feature-card"><span aria-hidden="true">🌱</span><h3>Current catalog</h3><p>Explore active produce and see the prices and units listed by the farm.</p></article>
-                    <article class="landing-feature-card"><span aria-hidden="true">📦</span><h3>Clear availability</h3><p>Check current inventory before choosing what to order.</p></article>
-                    <article class="landing-feature-card"><span aria-hidden="true">▤</span><h3>Orders in one place</h3><p>Review past orders and track delivery progress from your buyer account.</p></article>
-                    <article class="landing-feature-card"><span aria-hidden="true">🧺</span><h3>Order management</h3><p>Place orders through your account and keep track of their status.</p></article>
+                    <article class="landing-feature-card"><span aria-hidden="true">🌱</span><h3>${publicText('featureCatalogTitle')}</h3><p>${publicText('featureCatalogText')}</p></article>
+                    <article class="landing-feature-card"><span aria-hidden="true">📦</span><h3>${publicText('featureAvailabilityTitle')}</h3><p>${publicText('featureAvailabilityText')}</p></article>
+                    <article class="landing-feature-card"><span aria-hidden="true">▤</span><h3>${publicText('featureOrdersTitle')}</h3><p>${publicText('featureOrdersText')}</p></article>
+                    <article class="landing-feature-card"><span aria-hidden="true">🧺</span><h3>${publicText('featureManagementTitle')}</h3><p>${publicText('featureManagementText')}</p></article>
                 </div>
             </section>
             <section class="landing-section landing-process" id="farming-process" aria-labelledby="landing-process-title">
                 <div class="landing-section-heading">
-                    <div><p class="landing-eyebrow">From farm records to fresh picks</p><h2 id="landing-process-title">Connected at every step.</h2></div>
-                    <p>Harvest brings farm records and the customer shop into one place.</p>
+                    <div><p class="landing-eyebrow">${publicText('processEyebrow')}</p><h2 id="landing-process-title">${publicText('processTitle')}</h2></div>
+                    <p>${publicText('processIntro')}</p>
                 </div>
                 <ol class="landing-process-grid">
-                    <li><span>01</span><h3>Plan</h3><p>Staff record what is planted and when it is expected to grow.</p></li>
-                    <li><span>02</span><h3>Harvest</h3><p>Harvest records keep quantities and dates together.</p></li>
-                    <li><span>03</span><h3>Track</h3><p>Inventory shows the produce currently listed as available.</p></li>
-                    <li><span>04</span><h3>Choose</h3><p>Customers browse the catalog and place orders from their account.</p></li>
+                    <li><span>01</span><h3>${publicText('processPlan')}</h3><p>${publicText('processPlanText')}</p></li>
+                    <li><span>02</span><h3>${publicText('processHarvest')}</h3><p>${publicText('processHarvestText')}</p></li>
+                    <li><span>03</span><h3>${publicText('processTrack')}</h3><p>${publicText('processTrackText')}</p></li>
+                    <li><span>04</span><h3>${publicText('processChoose')}</h3><p>${publicText('processChooseText')}</p></li>
                 </ol>
             </section>
+            ${renderCustomerFaq()}
             <section class="landing-contact" id="contact" aria-labelledby="landing-contact-title">
                 <div>
-                    <p class="landing-eyebrow">We're here to help</p>
-                    <h2 id="landing-contact-title">Questions about your next order?</h2>
-                    <p>Sign in to manage an order, or create a buyer account to start browsing and save produce you love.</p>
+                    <p class="landing-eyebrow">${publicText('contactEyebrow')}</p>
+                    <h2 id="landing-contact-title">${publicText('contactTitle')}</h2>
+                    <p>${publicText('contactText')}</p>
                 </div>
                 <div class="landing-contact-actions">
                     ${contactEmail ? `<a class="landing-contact-email" href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''}
-                    <a class="button" href="?page=register" data-page="register">Create a buyer account <span aria-hidden="true">→</span></a>
-                    <a class="landing-secondary-link" href="?page=login" data-page="login">Already have an account? Log in</a>
+                    ${contactEmail ? '' : `<p class="landing-contact-note">${publicText('contactNoEmail')}</p>`}
+                    <a class="button" href="?page=register" data-page="register">${publicText('createBuyer')} <span aria-hidden="true">→</span></a>
+                    <a class="landing-secondary-link" href="?page=login" data-page="login">${publicText('login')}</a>
                 </div>
             </section>
         </div>`;
