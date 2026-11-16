@@ -14,7 +14,7 @@ $developmentVerificationCode = $_SESSION['development_verification_code'] ?? nul
 $developmentCodeExpires = (int) ($_SESSION['development_verification_code_expires'] ?? 0);
 if (
     !is_string($developmentVerificationCode)
-    || !is_six_digit_code($developmentVerificationCode)
+    || !is_email_verification_code($developmentVerificationCode)
     || $developmentCodeExpires <= time()
 ) {
     $developmentVerificationCode = null;
@@ -27,7 +27,7 @@ if ($submitted) {
 
     if (!$validatedEmail) {
         $inputError = 'Enter a valid email address.';
-    } elseif (!is_six_digit_code($code)) {
+    } elseif (!is_email_verification_code($code)) {
         $inputError = 'Enter the 6-digit confirmation code from your email.';
     } else {
         try {

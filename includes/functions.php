@@ -270,38 +270,79 @@ function delete_vegetable_photo(?string $imagePath): void
     }
 }
 
-function generate_six_digit_code(): string
+function auth_token_url(string $page, string $token): string
+{
+    $emailConfig = require __DIR__ . '/../config/email.php';
+    $configuredAppUrl = $emailConfig['app_url'];
+
+    if ($configuredAppUrl) {
+        $parts = parse_url($configuredAppUrl);
+        $validScheme = $parts && in_array($parts['scheme'] ?? '', ['http', 'https'], true);
+        $hasHost = $parts && !empty($parts['host']);
+        $hasNoCredentials = $parts && !isset($parts['user']) && !isset($parts['pass']);
+
+        if (!$validScheme || !$hasHost || !$hasNoCredentials) {
+            throw new RuntimeException(
+                'APP_URL must be an absolute HTTP or HTTPS URL for this application.'
+            );
+        }
+
+        $baseUrl = rtrim($configuredAppUrl, '/');
+        return $baseUrl . '/auth/' . $page . '?token=' . rawurlencode($token);
+    }
+
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    $validHost = preg_match(
+        '/^(?:[a-zA-Z0-9.-]+|\[[0-9a-fA-F:]+\])(?::\d{1,5})?$/',
+        $host
+    );
+
+    if (!$validHost) {
+        throw new RuntimeException(
+            'Set APP_URL to the public base URL of this application to send password-reset emails.'
+        );
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return $scheme . '://' . $host
+        . app_url('auth/' . $page)
+        . '?token=' . rawurlencode($token);
+}
+
+function password_reset_url(string $token): string
+{
+    return auth_token_url('reset_password.php', $token);
+}
+
+function generate_email_verification_code(): string
 {
     return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 }
 
-function is_six_digit_code($code): bool
+function is_email_verification_code($code): bool
 {
     return is_string($code) && preg_match('/^\d{6}$/D', $code) === 1;
 }
 
 function send_password_reset(MySQLiDatabase $db, array $user): string
 {
-    $code = generate_six_digit_code();
-    $codeHash = password_hash($code, PASSWORD_DEFAULT);
+    $token = bin2hex(random_bytes(32));
+    $resetUrl = password_reset_url($token);
     $emailConfig = require __DIR__ . '/../config/email.php';
-    unset($_SESSION['development_password_reset_code'], $_SESSION['development_password_reset_code_expires']);
+    $tokenHash = hash('sha256', $token);
+
+    $statement = $db->prepare(
+        'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at)
+         VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR), CURRENT_TIMESTAMP)
+         ON DUPLICATE KEY UPDATE
+            token_hash = VALUES(token_hash),
+            expires_at = VALUES(expires_at),
+            created_at = VALUES(created_at)'
+    );
+    $statement->execute([(int) $user['id'], $tokenHash]);
 
     if ($emailConfig['mode'] === 'development') {
-        $statement = $db->prepare(
-            'INSERT INTO password_reset_tokens (user_id, token_hash, attempt_count, expires_at, created_at)
-             VALUES (?, ?, 0, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 MINUTE), CURRENT_TIMESTAMP)
-             ON DUPLICATE KEY UPDATE
-                token_hash = VALUES(token_hash),
-                attempt_count = 0,
-                expires_at = VALUES(expires_at),
-                created_at = VALUES(created_at)'
-        );
-        $statement->execute([(int) $user['id'], $codeHash]);
-
-        $_SESSION['password_reset_email'] = $user['email'];
-        $_SESSION['development_password_reset_code'] = $code;
-        $_SESSION['development_password_reset_code_expires'] = time() + 600;
+        $_SESSION['development_password_reset_url'] = $resetUrl;
         return 'development';
     }
 
@@ -325,20 +366,9 @@ function send_password_reset(MySQLiDatabase $db, array $user): string
         }
 
         $body = "Hello " . $user['name'] . ",\n\n"
-            . "Enter this 6-digit code on the Harvest website within 10 minutes to reset your password:\n\n"
-            . $code . "\n\n"
+            . "Reset your Harvest password using the link below within one hour:\n"
+            . $resetUrl . "\n\n"
             . "If you did not request a password reset, you can ignore this message.\n";
-
-        $statement = $db->prepare(
-            'INSERT INTO password_reset_tokens (user_id, token_hash, attempt_count, expires_at, created_at)
-             VALUES (?, ?, 0, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 MINUTE), CURRENT_TIMESTAMP)
-             ON DUPLICATE KEY UPDATE
-                token_hash = VALUES(token_hash),
-                attempt_count = 0,
-                expires_at = VALUES(expires_at),
-                created_at = VALUES(created_at)'
-        );
-        $statement->execute([(int) $user['id'], $codeHash]);
 
         smtp_send_email(
             $host,
@@ -355,17 +385,16 @@ function send_password_reset(MySQLiDatabase $db, array $user): string
         $deleteToken = $db->prepare(
             'DELETE FROM password_reset_tokens WHERE user_id = ? AND token_hash = ?'
         );
-        $deleteToken->execute([(int) $user['id'], $codeHash]);
+        $deleteToken->execute([(int) $user['id'], $tokenHash]);
         throw $exception;
     }
 
-    $_SESSION['password_reset_email'] = $user['email'];
     return 'sent';
 }
 
 function send_email_verification(MySQLiDatabase $db, array $user): string
 {
-    $code = generate_six_digit_code();
+    $code = generate_email_verification_code();
     $codeHash = password_hash($code, PASSWORD_DEFAULT);
     $emailConfig = require __DIR__ . '/../config/email.php';
     unset($_SESSION['development_verification_code'], $_SESSION['development_verification_code_expires']);

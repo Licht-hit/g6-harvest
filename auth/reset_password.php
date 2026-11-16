@@ -1,27 +1,17 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-$emailValue = $_POST['email'] ?? $_GET['email'] ?? $_SESSION['password_reset_email'] ?? '';
-$email = is_string($emailValue) ? trim($emailValue) : '';
-$submitted = $_SERVER['REQUEST_METHOD'] === 'POST';
+$token = $_GET['token'] ?? ($_POST['token'] ?? '');
+$tokenIsValidFormat = is_string($token) && preg_match('/^[a-f0-9]{64}$/', $token) === 1;
 $error = '';
-$inputError = '';
-$invalidCode = false;
-$attemptsExceeded = false;
 $resetComplete = false;
 
-if ($submitted) {
+if ($tokenIsValidFormat && $_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    $validatedEmail = filter_var($email, FILTER_VALIDATE_EMAIL);
-    $code = $_POST['code'] ?? '';
     $password = $_POST['password'] ?? '';
     $passwordConfirmation = $_POST['password_confirmation'] ?? '';
 
-    if (!$validatedEmail) {
-        $inputError = 'Enter a valid email address.';
-    } elseif (!is_six_digit_code($code)) {
-        $inputError = 'Enter the 6-digit password reset code from your email.';
-    } elseif (!is_string($password) || strlen($password) < 10) {
+    if (!is_string($password) || strlen($password) < 10) {
         $error = 'Choose a password with at least 10 characters.';
     } elseif (!is_string($passwordConfirmation) || $password !== $passwordConfirmation) {
         $error = 'The password confirmation does not match.';
@@ -29,57 +19,27 @@ if ($submitted) {
         try {
             $db->beginTransaction();
             $statement = $db->prepare(
-                'SELECT t.user_id, t.token_hash, t.attempt_count,
-                        (t.expires_at <= CURRENT_TIMESTAMP) AS expired
-                 FROM password_reset_tokens AS t
-                 JOIN users AS u ON u.id = t.user_id
-                 WHERE u.email = ?
+                'SELECT user_id
+                 FROM password_reset_tokens
+                 WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP
                  FOR UPDATE'
             );
-            $statement->execute([$validatedEmail]);
-            $record = $statement->fetch();
+            $statement->execute([hash('sha256', $token)]);
+            $tokenRecord = $statement->fetch();
 
-            if (!$record) {
+            if (!$tokenRecord) {
                 $db->rollBack();
-                $invalidCode = true;
-            } elseif ((int) $record['expired'] === 1) {
-                $db->rollBack();
-                $invalidCode = true;
-            } elseif ((int) $record['attempt_count'] >= 5) {
-                $db->rollBack();
-                $attemptsExceeded = true;
-            } elseif (password_verify($code, $record['token_hash'])) {
-                $userId = (int) $record['user_id'];
+                $error = 'This reset link is invalid, expired, or already used. Request a new link to continue.';
+            } else {
+                $userId = (int) $tokenRecord['user_id'];
                 $update = $db->prepare('UPDATE users SET password = ? WHERE id = ?');
                 $update->execute([password_hash($password, PASSWORD_DEFAULT), $userId]);
 
                 $delete = $db->prepare('DELETE FROM password_reset_tokens WHERE user_id = ?');
                 $delete->execute([$userId]);
-                log_activity(
-                    'password_reset',
-                    'user',
-                    $userId,
-                    'Password reset using an emailed recovery code.',
-                    $userId
-                );
+                log_activity('password_reset', 'user', $userId, 'Password reset using an emailed recovery link.', $userId);
                 $db->commit();
                 $resetComplete = true;
-                unset(
-                    $_SESSION['password_reset_email'],
-                    $_SESSION['development_password_reset_code'],
-                    $_SESSION['development_password_reset_code_expires']
-                );
-            } else {
-                $attempts = (int) $record['attempt_count'] + 1;
-                $update = $db->prepare(
-                    'UPDATE password_reset_tokens
-                     SET attempt_count = ?
-                     WHERE user_id = ?'
-                );
-                $update->execute([$attempts, (int) $record['user_id']]);
-                $db->commit();
-                $attemptsExceeded = $attempts >= 5;
-                $invalidCode = !$attemptsExceeded;
             }
         } catch (Throwable $exception) {
             if ($db->inTransaction()) {
@@ -90,18 +50,14 @@ if ($submitted) {
     }
 }
 
-$developmentResetCode = $_SESSION['development_password_reset_code'] ?? null;
-$developmentCodeExpires = (int) ($_SESSION['development_password_reset_code_expires'] ?? 0);
-$resetCodeEmail = $_SESSION['password_reset_email'] ?? '';
-if (
-    !is_string($developmentResetCode)
-    || !is_six_digit_code($developmentResetCode)
-    || $developmentCodeExpires <= time()
-    || !is_string($resetCodeEmail)
-    || strcasecmp($email, $resetCodeEmail) !== 0
-    || $resetComplete
-) {
-    $developmentResetCode = null;
+$tokenAvailable = false;
+if ($tokenIsValidFormat && !$resetComplete) {
+    $statement = $db->prepare(
+        'SELECT 1 FROM password_reset_tokens
+         WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP'
+    );
+    $statement->execute([hash('sha256', $token)]);
+    $tokenAvailable = (bool) $statement->fetchColumn();
 }
 
 $pageTitle = 'Reset password';
@@ -113,52 +69,24 @@ require __DIR__ . '/../includes/header.php';
         <h1>Password updated</h1>
         <p class="muted" role="status">Your password has been reset. You can now sign in with your new password.</p>
         <a class="button" href="<?= h(app_url('auth/login.php')) ?>">Back to log in</a>
+    <?php elseif (!$tokenIsValidFormat || !$tokenAvailable): ?>
+        <h1>Reset link unavailable</h1>
+        <p class="muted">
+            This reset link is invalid, expired, or already used. Request a new link to continue.
+        </p>
+        <a class="button" href="<?= h(app_url('auth/forgot_password.php')) ?>">Request a new link</a>
     <?php else: ?>
         <p class="dashboard-eyebrow">Account recovery</p>
         <h1>Choose a new password</h1>
-        <p class="muted">Enter the 6-digit code sent to your email and choose a password with at least 10 characters. The code expires in 10 minutes.</p>
+        <p class="muted">Use at least 10 characters for your new password.</p>
 
-        <?php if ($inputError): ?>
-            <div class="notice error" role="alert"><?= h($inputError) ?></div>
-        <?php elseif ($attemptsExceeded): ?>
-            <div class="notice error" role="alert">
-                Too many incorrect attempts. Request a new password reset code.
-            </div>
-        <?php elseif ($invalidCode): ?>
-            <div class="notice error" role="alert">
-                That code is invalid or expired. Check it or request a new one.
-            </div>
-        <?php elseif ($error): ?>
+        <?php if ($error): ?>
             <div class="notice error" role="alert"><?= h($error) ?></div>
         <?php endif; ?>
 
         <form method="post">
             <?= csrf_field() ?>
-            <div class="field">
-                <label for="reset-email">Email address</label>
-                <input
-                    id="reset-email"
-                    type="email"
-                    name="email"
-                    autocomplete="email"
-                    required
-                    value="<?= h($email) ?>"
-                >
-            </div>
-            <div class="field">
-                <label for="reset-code">6-digit password reset code</label>
-                <input
-                    id="reset-code"
-                    type="text"
-                    name="code"
-                    inputmode="numeric"
-                    autocomplete="one-time-code"
-                    pattern="[0-9]{6}"
-                    minlength="6"
-                    maxlength="6"
-                    required
-                >
-            </div>
+            <input type="hidden" name="token" value="<?= h($token) ?>">
             <div class="field">
                 <label for="password">New password</label>
                 <div class="password-field">
@@ -189,19 +117,10 @@ require __DIR__ . '/../includes/header.php';
             </div>
             <button type="submit">Reset password</button>
         </form>
+    <?php endif; ?>
 
-        <?php if ($developmentResetCode): ?>
-            <div class="notice">
-                <strong>Local development password reset code</strong>
-                <p>Email is not sent in development mode. Enter this code to reset the password:</p>
-                <p><code><?= h($developmentResetCode) ?></code></p>
-            </div>
-        <?php endif; ?>
-
-        <p class="auth-links">
-            Need a new code?
-            <a href="<?= h(app_url('auth/forgot_password.php?email=' . rawurlencode($email))) ?>">Request another reset code</a>
-        </p>
+    <?php if (!$resetComplete): ?>
+        <p class="auth-links"><a href="<?= h(app_url('auth/login.php')) ?>">Back to log in</a></p>
     <?php endif; ?>
 </section>
 <?php require __DIR__ . '/../includes/footer.php'; ?>
