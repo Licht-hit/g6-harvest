@@ -1,8 +1,8 @@
 <?php
-// This page displays sales and harvest reports for admin/staff.
+// Sales reports include financial details and are limited to admins and farmers.
 // The logic is written in a beginner-friendly style using simple SQL queries and summaries.
 require_once __DIR__ . '/../includes/auth.php';
-require_role('admin', 'staff', 'farmer');
+require_role('admin', 'farmer');
 
 $from = is_string($_GET['from'] ?? null) ? trim($_GET['from']) : '';
 $to = is_string($_GET['to'] ?? null) ? trim($_GET['to']) : '';

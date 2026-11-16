@@ -4,3 +4,7 @@ const farmRoles = new Set(['admin', 'staff', 'farmer']);
 export function isFarmStaffRole(role) {
     return farmRoles.has(role);
 }
+
+export function isFarmManagerRole(role) {
+    return role === 'admin' || role === 'farmer';
+}

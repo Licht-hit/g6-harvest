@@ -1,8 +1,10 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/order_returns.php';
 require_role('admin', 'staff', 'farmer');
 
 $isAdmin = current_user()['role'] === 'admin';
+$pendingReturnCount = $isAdmin ? 0 : pending_order_return_count($db);
 $lowStockThreshold = 5.0;
 $requestedChartPeriod = $_GET['period'] ?? null;
 $chartPeriodDays = $isAdmin
@@ -282,6 +284,16 @@ require __DIR__ . '/includes/header.php';
         <strong><?= number_format($openOrderCount) ?></strong>
         <small>Ready for staff review</small>
     </a>
+    <a
+        class="dashboard-stat-card dashboard-stat-card-link<?= $pendingReturnCount > 0 ? ' dashboard-stat-card-warning' : '' ?>"
+        href="<?= h(app_url('modules/returns.php')) ?>"
+        aria-label="Review <?= number_format($pendingReturnCount) ?> pending return requests"
+    >
+        <span class="dashboard-stat-icon" aria-hidden="true">↩</span>
+        <span class="dashboard-stat-label">Pending returns</span>
+        <strong><?= number_format($pendingReturnCount) ?></strong>
+        <small>Need review</small>
+    </a>
     <?php endif; ?>
 </section>
 
@@ -300,8 +312,11 @@ require __DIR__ . '/includes/header.php';
         <?php else: ?>
             <a class="button" href="<?= h(app_url('modules/harvests.php')) ?>"><span aria-hidden="true">⌁</span> Record harvest</a>
             <a class="button secondary" href="<?= h(app_url('modules/inventory.php')) ?>"><span aria-hidden="true">▤</span> Update inventory</a>
-            <a class="button secondary" href="<?= h(app_url('modules/vegetables.php')) ?>"><span aria-hidden="true">◉</span> Vegetables</a>
+            <a class="button secondary" href="<?= h(app_url('modules/sales.php')) ?>"><span aria-hidden="true">↗</span> Review orders</a>
+            <a class="button secondary" href="<?= h(app_url('modules/quality_inspection.php')) ?>"><span aria-hidden="true">✓</span> Quality check</a>
+            <a class="button secondary" href="<?= h(app_url('modules/returns.php')) ?>"><span aria-hidden="true">↩</span> Review returns</a>
             <a class="button secondary" href="<?= h(app_url('modules/plantings.php')) ?>"><span aria-hidden="true">♧</span> Plantings</a>
+            <a class="button secondary" href="<?= h(app_url('modules/vegetables.php')) ?>"><span aria-hidden="true">◉</span> View vegetables</a>
         <?php endif; ?>
     </div>
 </section>

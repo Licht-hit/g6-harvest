@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getAccessToken, refreshAccessToken } from '../../src/authSession.js';
 import { calculateOrderTotals } from '../../src/orderMath.js';
 import { getOrderTrackingState, shouldShowOrderTracking } from '../../src/orderTracking.js';
-import { isFarmStaffRole } from '../../src/roles.js';
+import { isFarmManagerRole, isFarmStaffRole } from '../../src/roles.js';
 import { sortFifoLots } from '../../src/fifoInventory.js';
 import { isOrderReturnWindowOpen } from '../../src/orderReturns.js';
 import { filterAndSortProducts } from '../../src/shopFilters.js';
@@ -425,7 +425,9 @@ function updateNavigation() {
             ['sales', '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 7H6"/>', 'Sales'],
             ['returns', '<path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>', 'Returns', state.pendingReturnCount],
             ['quality', '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>', 'Quality'],
-            ['reports', '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>', 'Reports'],
+            ...(isFarmManagerRole(state.profile.role)
+                ? [['reports', '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>', 'Reports']]
+                : []),
             ...(state.profile.role === 'admin' ? [['activity', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', 'Activity']] : []),
         ];
         nav.innerHTML = links.map(([page, icon, label, badgeCount]) => `
@@ -1095,6 +1097,7 @@ async function renderDashboard() {
     }
 
     const isAdmin = state.profile.role === 'admin';
+    const isStaffAccount = state.profile.role === 'staff';
     const requestedPeriod = Number(new URLSearchParams(location.search).get('period'));
     const chartPeriod = isAdmin && [7, 30, 90].includes(requestedPeriod) ? requestedPeriod : 7;
     const today = dateInputValue();
@@ -1104,22 +1107,26 @@ async function renderDashboard() {
     const weekStart = dateInputValue(new Date(Date.now() - 6 * 86400000));
     const topSellingStart = dateInputValue(new Date(Date.now() - 29 * 86400000));
     const [vegetables, inventory, paidOrders, dailyHarvests, recentOrders, recentHarvests,
-        recentInventory, harvestCount, openOrderCount, topSellingRows, activityRows] = await Promise.all([
+        recentInventory, harvestCount, openOrderCount, pendingReturnCount, topSellingRows, activityRows] = await Promise.all([
         queryOrThrow(state.supabase.from('vegetables').select('id, name, unit, active')),
         queryOrThrow(state.supabase.from('inventory').select('vegetable_id, quantity, updated_at')),
-        queryAllRows(() => state.supabase.from('orders').select('final_total, created_at')
-            .eq('payment_status', 'paid')
-            .gte('created_at', dateTimeBoundary(salesStart))
-            .lte('created_at', dateTimeBoundary(today, true))
-            .order('created_at')),
+        isAdmin
+            ? queryAllRows(() => state.supabase.from('orders').select('final_total, created_at')
+                .eq('payment_status', 'paid')
+                .gte('created_at', dateTimeBoundary(salesStart))
+                .lte('created_at', dateTimeBoundary(today, true))
+                .order('created_at'))
+            : Promise.resolve([]),
         queryAllRows(() => state.supabase.from('harvests').select('quantity, harvested_on')
             .is('archived_at', null)
             .gte('harvested_on', chartStart)
             .lte('harvested_on', today)
             .order('harvested_on')),
-        queryOrThrow(state.supabase.from('orders')
-            .select('order_code, buyer_id, eligible_quantity, final_total, order_status, payment_status, created_at')
-            .order('created_at', { ascending: false }).limit(8)),
+        isAdmin
+            ? queryOrThrow(state.supabase.from('orders')
+                .select('order_code, buyer_id, eligible_quantity, final_total, order_status, payment_status, created_at')
+                .order('created_at', { ascending: false }).limit(8))
+            : Promise.resolve([]),
         queryOrThrow(state.supabase.from('harvests').select('id, harvested_on, quantity, planting_id').is('archived_at', null).order('harvested_on', { ascending: false }).limit(6)),
         queryOrThrow(state.supabase.from('inventory').select('vegetable_id, quantity, updated_at')
             .order('updated_at', { ascending: false }).limit(6)),
@@ -1134,6 +1141,15 @@ async function renderDashboard() {
             if (error) throw error;
             return count || 0;
         })(),
+        isStaffAccount
+            ? (async () => {
+                const { count, error } = await state.supabase.from('return_requests')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('status', 'pending');
+                if (error) throw error;
+                return count || 0;
+            })()
+            : Promise.resolve(0),
         isAdmin
             ? queryAllRows(() => state.supabase.from('sales')
                 .select('vegetable_id, quantity, orders!inner(payment_status, created_at)')
@@ -1147,6 +1163,10 @@ async function renderDashboard() {
                 .order('created_at', { ascending: false }).limit(8))
             : Promise.resolve([]),
     ]);
+    if (isStaffAccount) {
+        state.pendingReturnCount = pendingReturnCount;
+        updateNavigation();
+    }
 
     const profileIds = [...new Set([
         ...recentOrders.map((row) => row.buyer_id),
@@ -1261,7 +1281,13 @@ async function renderDashboard() {
             <a class="dashboard-stat-card dashboard-stat-card-link" href="?page=sales" data-page="sales" aria-label="View ${openOrderCount} open orders"><span class="dashboard-stat-icon">▱</span><span class="dashboard-stat-label">Open orders</span><strong>${openOrderCount}</strong><small>Need fulfillment</small></a>
             <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Total harvests</span><strong>${harvestCount}</strong><small>Active harvest records</small></article>
             <a class="dashboard-stat-card dashboard-stat-card-link dashboard-stat-card-warning" href="?page=inventory" data-page="inventory" aria-label="View ${lowStockItems.length} low stock items"><span class="dashboard-stat-icon">!</span><span class="dashboard-stat-label">Low stock items</span><strong>${lowStockItems.length}</strong><small>At or below 5.00 units</small></a>`
-        : `
+        : isStaffAccount
+            ? `
+            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Today's harvest</span><strong>${(harvestsByDay.get(today) || 0).toFixed(2)}</strong><small>Combined quantity; units vary by crop</small></article>
+            <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Available inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Combined quantity across catalog units</small></article>
+            <a class="dashboard-stat-card dashboard-stat-card-link" href="?page=sales" data-page="sales" aria-label="Review ${openOrderCount} open orders"><span class="dashboard-stat-icon">▱</span><span class="dashboard-stat-label">Open orders</span><strong>${openOrderCount}</strong><small>Ready for staff review</small></a>
+            <a class="dashboard-stat-card dashboard-stat-card-link${pendingReturnCount ? ' dashboard-stat-card-warning' : ''}" href="?page=returns" data-page="returns" aria-label="Review ${pendingReturnCount} pending return requests"><span class="dashboard-stat-icon">↩</span><span class="dashboard-stat-label">Pending returns</span><strong>${pendingReturnCount}</strong><small>Need review</small></a>`
+            : `
             <article class="dashboard-stat-card"><span class="dashboard-stat-icon">⌁</span><span class="dashboard-stat-label">Today's harvest</span><strong>${(harvestsByDay.get(today) || 0).toFixed(2)}</strong><small>Combined quantity; units vary by crop</small></article>
             <article class="dashboard-stat-card"><span class="dashboard-stat-icon">▤</span><span class="dashboard-stat-label">Available inventory</span><strong>${totalStock.toFixed(2)}</strong><small>Combined quantity across catalog units</small></article>
             <a class="dashboard-stat-card dashboard-stat-card-link" href="?page=sales" data-page="sales" aria-label="Review ${openOrderCount} open orders"><span class="dashboard-stat-icon">▱</span><span class="dashboard-stat-label">Open orders</span><strong>${openOrderCount}</strong><small>Ready for staff review</small></a>`;
@@ -1276,7 +1302,20 @@ async function renderDashboard() {
                     <a class="button secondary" href="?page=reports" data-page="reports"><span aria-hidden="true">▥</span> Reports</a>
                 </div>
             </section>`
-        : `<section class="dashboard-section dashboard-actions" aria-label="Quick actions">
+        : isStaffAccount
+            ? `<section class="dashboard-section dashboard-actions" aria-label="Quick actions">
+                <div><h2>Quick actions</h2><p>The tools you need for today's farm work.</p></div>
+                <div class="dashboard-action-links">
+                    <a class="button" href="?page=harvests" data-page="harvests"><span aria-hidden="true">⌁</span> Record harvest</a>
+                    <a class="button secondary" href="?page=inventory" data-page="inventory"><span aria-hidden="true">▤</span> Update inventory</a>
+                    <a class="button secondary" href="?page=sales" data-page="sales"><span aria-hidden="true">↗</span> Review orders</a>
+                    <a class="button secondary" href="?page=quality" data-page="quality"><span aria-hidden="true">✓</span> Quality check</a>
+                    <a class="button secondary" href="?page=returns" data-page="returns"><span aria-hidden="true">↩</span> Review returns</a>
+                    <a class="button secondary" href="?page=plantings" data-page="plantings"><span aria-hidden="true">♧</span> Plantings</a>
+                    <a class="button secondary" href="?page=vegetables" data-page="vegetables"><span aria-hidden="true">◉</span> View vegetables</a>
+                </div>
+            </section>`
+            : `<section class="dashboard-section dashboard-actions" aria-label="Quick actions">
                 <div><h2>Quick actions</h2><p>The tools you need for today's farm work.</p></div>
                 <div class="dashboard-action-links">
                     <a class="button" href="?page=harvests" data-page="harvests"><span aria-hidden="true">⌁</span> Record harvest</a>
@@ -1331,7 +1370,7 @@ async function renderDashboard() {
 
     app.innerHTML = `
         <section class="dashboard-welcome"><div><p class="dashboard-eyebrow">${isAdmin ? 'Farm operations · Admin' : 'Daily farm operations'}</p><h1>Welcome back, ${escapeHtml(state.profile.name)}</h1><p>${isAdmin ? 'Here’s what’s happening across your farm today.' : 'Your farm activity and priorities for today.'}</p></div><div class="dashboard-date"><span class="dashboard-date-icon" aria-hidden="true">▦</span>${escapeHtml(dashboardDate)}</div></section>
-        <section class="dashboard-stat-grid ${isAdmin ? 'dashboard-admin-stats' : ''}" aria-label="Farm summary">
+        <section class="dashboard-stat-grid ${isAdmin ? 'dashboard-admin-stats' : isStaffAccount ? 'dashboard-staff-stats' : ''}" aria-label="Farm summary">
             ${summaryCards}
         </section>
         ${quickActions}
@@ -1833,13 +1872,14 @@ async function renderOrderDetails(orderCode) {
 }
 
 function renderVegetables(products) {
+    const canManageCatalog = isFarmManagerRole(state.profile.role);
     state.products = products;
     state.records = new Map(products.map((row) => [String(row.id), row]));
     const rows = products.map((item) => `<tr><td><strong>${escapeHtml(item.name)}</strong></td><td>${escapeHtml(item.variety || '—')}</td><td>${money(item.price)} / ${escapeHtml(item.unit)}</td><td>${Number(item.quantity).toFixed(2)}</td><td>${statusBadge(item.active ? 'active' : 'inactive')}</td>
-        <td><div class="app-table-actions"><button type="button" class="button secondary" data-action="edit-vegetable" data-id="${item.id}">Edit</button><button type="button" class="button ${item.active ? 'danger' : 'secondary'}" data-action="toggle-vegetable" data-id="${item.id}">${item.active ? 'Deactivate' : 'Activate'}</button></div></td></tr>`);
+        ${canManageCatalog ? `<td><div class="app-table-actions"><button type="button" class="button secondary" data-action="edit-vegetable" data-id="${item.id}">Edit</button><button type="button" class="button ${item.active ? 'danger' : 'secondary'}" data-action="toggle-vegetable" data-id="${item.id}">${item.active ? 'Deactivate' : 'Activate'}</button></div></td>` : ''}</tr>`);
     app.innerHTML = `
-        <section class="module-heading"><div><p class="module-eyebrow">Catalog management</p><h1>Vegetables</h1><p>Create produce listings and control what buyers can see.</p></div></section>
-        <section class="panel section"><h2 id="vegetable-form-title">Add a vegetable</h2>
+        <section class="module-heading"><div><p class="module-eyebrow">${canManageCatalog ? 'Catalog management' : 'Farm operations'}</p><h1>Vegetables</h1><p>${canManageCatalog ? 'Create produce listings and control what buyers can see.' : 'Browse produce details and current stock. Ask a farmer or admin to change listings or prices.'}</p></div></section>
+        ${canManageCatalog ? `<section class="panel section"><h2 id="vegetable-form-title">Add a vegetable</h2>
             <form class="app-form" data-form="vegetable">
                 <input type="hidden" name="id">
                 <div class="field"><label for="vegetable-name">Name</label><input id="vegetable-name" name="name" maxlength="120" required></div>
@@ -1850,8 +1890,8 @@ function renderVegetables(products) {
                 <div class="field field-wide"><label for="vegetable-photo">Vegetable photo</label><input id="vegetable-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required><small>Required for new vegetables. JPEG, PNG, or WebP; maximum 5 MB. When editing, leave empty to keep the current photo.</small><div class="vegetable-photo-preview" data-vegetable-photo-preview aria-live="polite"></div></div>
                 <div class="app-actions"><button type="submit">Save vegetable</button><button type="button" class="button secondary" data-action="clear-vegetable">Clear</button></div>
             </form>
-        </section>
-        <section class="panel section"><h2>Catalog</h2>${table(['Name', 'Variety', 'Price', 'Stock', 'Status', 'Actions'], rows, 'No vegetables in the catalog.')}</section>`;
+        </section>` : ''}
+        <section class="panel section"><h2>Catalog</h2>${table(['Name', 'Variety', 'Price', 'Stock', 'Status', ...(canManageCatalog ? ['Actions'] : [])], rows, 'No vegetables in the catalog.')}</section>`;
 }
 
 async function renderInventory(products) {
@@ -2114,6 +2154,11 @@ async function renderReturns() {
 }
 
 async function renderReports() {
+    if (!isFarmManagerRole(state.profile.role)) {
+        app.innerHTML = '<section class="panel"><h1>Access denied</h1><p>Business reports are available to administrators and farmers.</p></section>';
+        return;
+    }
+
     const params = new URLSearchParams(location.search);
     const from = params.get('from') || '';
     const to = params.get('to') || '';
@@ -2577,6 +2622,9 @@ async function handleSubmit(form) {
         return await renderPage();
     }
     if (formName === 'vegetable') {
+        if (!isFarmManagerRole(state.profile.role)) {
+            throw new Error('Only administrators and farmers can manage the produce catalog.');
+        }
         const id = values.id;
         const selectedPhoto = form.elements.photo.files[0] || null;
         const record = {
@@ -2783,6 +2831,9 @@ async function handleClick(target) {
         return await renderCart();
     }
     if (action.dataset.action === 'toggle-vegetable') {
+        if (!isFarmManagerRole(state.profile.role)) {
+            throw new Error('Only administrators and farmers can manage the produce catalog.');
+        }
         const item = state.records.get(action.dataset.id);
         if (!item) return;
         const { error } = await state.supabase.from('vegetables').update({ active: !item.active }).eq('id', item.id);
@@ -2791,6 +2842,9 @@ async function handleClick(target) {
         return await renderPage();
     }
     if (action.dataset.action === 'edit-vegetable') {
+        if (!isFarmManagerRole(state.profile.role)) {
+            throw new Error('Only administrators and farmers can manage the produce catalog.');
+        }
         const row = state.records.get(action.dataset.id);
         const form = app.querySelector('[data-form="vegetable"]');
         if (!row || !form) return;

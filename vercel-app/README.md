@@ -9,7 +9,7 @@ Do not copy the parent project's local email/payment configuration files into th
 ## What is included
 
 - Buyer registration, email verification, login, password reset, and logout through Supabase Auth.
-- Buyer, staff, farmer, and administrator roles. Farmers have the same farm-operation permissions as staff; existing staff roles are retained. New registrations are buyers; roles are never chosen in the browser.
+- Buyer, staff, farmer, and administrator roles. Staff can handle daily farm operations, orders, quality checks, and returns. Catalog edits and business reports are limited to administrators and farmers. New registrations are buyers; roles are never chosen in the browser.
 - Product catalog, product details, saved cart, checkout, order history, and receipts. Buyers can reopen tracking from order details while an order is undelivered; the tracking timeline is removed after delivery. Active orders also have shortcuts on the dashboard and shop.
 - Farm dashboard, vegetable catalog, plantings, harvests, inventory, quality inspections, sales, reports, and administrator activity log.
 - Inventory batches: order stock is reserved from the oldest available harvest or stock addition first.
@@ -32,30 +32,28 @@ Follow these steps in order. Keep the original PHP project in the repository; Ve
 6. Run `supabase/migrations/005_seed_catalog.sql` to add the ten sample products to an empty catalog. Existing products with the same names are left unchanged; no inventory is added.
 7. Run `supabase/migrations/007_fix_order_item_ambiguity.sql` to fix cart-item ambiguity in order checkout and call `pgcrypto` functions from Supabase's `extensions` schema. If you already ran an earlier copy of migration 007, run the updated file again; it safely replaces the checkout function.
 8. Run `supabase/migrations/008_xendit_payments.sql` to enable Xendit for new orders while retaining PayMongo processing for existing orders.
-9. Run `supabase/migrations/009_vegetable_photos.sql` to add vegetable photo storage. This creates a public image bucket with staff-only upload, replace, and delete permissions and a 5 MB JPEG/PNG/WebP limit.
+9. Run `supabase/migrations/009_vegetable_photos.sql` to add vegetable photo storage. This creates a public image bucket with farm-staff upload, replace, and delete permissions and a 5 MB JPEG/PNG/WebP limit. Migration 016 narrows write access to administrators and farmers.
 10. Run `supabase/migrations/010_buyer_order_status_realtime.sql` to publish orders for live updates. Buyers receive status updates only for their own orders, while farm staff receive an in-app notification when a new order is placed.
 11. Run `supabase/migrations/011_fifo_inventory.sql` once, after any optional MySQL import in section 4 and before deploying the batch-tracking frontend or accepting new orders. If you are not importing data, run it after migration 010. Existing available stock and active orders are preserved as an opening balance because their original batch dates are not available; new harvests and manual stock additions are tracked as separate batches.
 12. Run `supabase/migrations/012_order_returns.sql` after migration 011 and before deploying the returns-enabled frontend. It adds delivery timestamps, buyer return requests for damaged/quality-issue items within 24 hours, and staff review actions. Previously delivered orders use `updated_at` as the best available delivery-time estimate. Approving or completing a request does not automatically refund payment or restock inventory; staff must handle those steps manually.
 13. `supabase/migrations/013_fifo_sales_visibility.sql` is optional after migration 011. It grants farm staff (including administrators and farmers) read access to inventory allocation records; the current Sales page does not display those records.
 14. Run `supabase/migrations/014_fix_return_quantity_ambiguity.sql` after migration 012. It replaces the return-request function with qualified SQL aliases so the requested quantity is not ambiguous.
 15. Run `supabase/migrations/015_return_request_realtime.sql` after migration 012 to publish return requests for live updates. Staff see new-request notifications and a pending-count badge on the Returns page; buyers see updates when staff change their request status.
-    - If migration 001 finished successfully before, run only the later migrations that have not yet been applied, including migrations 004, 005, and 007.
-   - If you see `relation "profiles" already exists`, stop. Do not run migration 001 again and do not delete the table.
-   - Do not rerun migrations that have already been applied.
-   - If you are unsure whether migration 001 finished, check that the core tables exist with this query:
+16. Run `supabase/migrations/016_staff_permissions.sql` to keep vegetable catalog changes and photo uploads available to administrators and farmers, while staff retain read-only catalog access.
+For an existing project, if migration 001 finished successfully, run only later migrations that have not yet been applied, including migrations 004, 005, and 007. If you see `relation "profiles" already exists`, stop. Do not run migration 001 again or delete the table. Do not rerun migrations that have already been applied. If you are unsure whether migration 001 finished, check that the core tables exist with this query:
 
-     ```sql
-     select table_name
-     from information_schema.tables
-     where table_schema = 'public'
-       and table_name in (
-         'profiles', 'vegetables', 'inventory', 'plantings', 'harvests',
-         'orders', 'sales', 'payment_history', 'quality_inspections', 'activity_logs'
-       )
-     order by table_name;
-     ```
+```sql
+select table_name
+from information_schema.tables
+where table_schema = 'public'
+  and table_name in (
+    'profiles', 'vegetables', 'inventory', 'plantings', 'harvests',
+    'orders', 'sales', 'payment_history', 'quality_inspections', 'activity_logs'
+  )
+order by table_name;
+```
 
-     You should see all ten table names. If any are missing, do not delete existing data or blindly rerun migration 001; ask for help checking the incomplete setup first.
+You should see all ten table names. If any are missing, do not delete existing data or blindly rerun migration 001; ask for help checking the incomplete setup first.
 4. In **Authentication → URL Configuration**, set the Site URL to your Vercel deployment URL and add `https://your-deployment-domain.vercel.app/**` to Redirect URLs. This allows password-reset emails to open `/?page=reset-password`. Repeat with your production domain when you add one.
 5. Configure Supabase Auth email delivery and enable email confirmation. Supabase sends verification and password-reset links; the PHP SMTP configuration is not used. From the login page, users can choose **Forgot password?**, enter their email, then use the email link to open the **Choose a new password** form and sign in with the replacement password.
 
@@ -63,7 +61,7 @@ The schema does not insert user accounts. Migration 005 adds the ten sample prod
 
 ### 2. Install and deploy the converted folder
 
-Before deploying, apply all unapplied migrations through 014. If importing MySQL data, complete section 4 before running migrations 011–014; then run them before deploying this batch-tracking and returns-enabled frontend.
+Before deploying, apply all unapplied migrations through 016. If importing MySQL data, complete section 4 before running migrations 011–016; then run them before deploying this batch-tracking and returns-enabled frontend.
 
 1. Push the repository to GitHub without adding any local configuration files or secrets.
 2. In Vercel, choose **Add New → Project**, then import this GitHub repository.
@@ -115,7 +113,7 @@ set role = 'farmer'
 where lower(email) = lower('your-farmer@example.com');
 ```
 
-Confirm that exactly the intended account was updated. Farmers and existing staff accounts can manage farm operations; only administrators can view the activity log.
+Confirm that exactly the intended account was updated. Staff can work on farm operations, orders, quality checks, and returns, but only browse the vegetable catalog. Farmers and administrators can also manage the catalog and view business reports; only administrators can view the activity log.
 
 ### 4. Import existing MySQL data (optional)
 

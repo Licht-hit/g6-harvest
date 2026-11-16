@@ -38,6 +38,14 @@ expect_authorization(
     'Staff should match their permitted operations role.'
 );
 expect_authorization(
+    !user_has_role(['role' => 'staff'], 'admin', 'farmer'),
+    'Staff must not receive catalog-management or financial-report access.'
+);
+expect_authorization(
+    user_has_role(['role' => 'farmer'], 'admin', 'farmer'),
+    'Farmers should retain catalog-management and business-report access.'
+);
+expect_authorization(
     user_has_role(['role' => 'farmer'], 'farmer', 'staff'),
     'Farmers should match the farm-operation role.'
 );

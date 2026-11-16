@@ -2,9 +2,15 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_role('admin', 'staff', 'farmer');
 
+$canManageCatalog = user_has_role(current_user(), 'admin', 'farmer');
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
+    if (!$canManageCatalog) {
+        http_response_code(403);
+        exit('Only admins and farmers can manage the produce catalog.');
+    }
+
     $action = $_POST['action'] ?? 'create';
     if ($action === 'toggle') {
         $vegetableId = (int) ($_POST['id'] ?? 0);
@@ -145,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $search = trim($_GET['q'] ?? '');
 $editingVegetable = null;
-$editId = filter_var($_GET['edit'] ?? null, FILTER_VALIDATE_INT);
+$editId = $canManageCatalog ? filter_var($_GET['edit'] ?? null, FILTER_VALIDATE_INT) : false;
 if ($editId && $editId > 0) {
     $statement = $db->prepare('SELECT * FROM vegetables WHERE id = ?');
     $statement->execute([$editId]);
@@ -171,12 +177,15 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <section class="module-heading">
     <div>
-        <p class="module-eyebrow">Catalog management</p>
+        <p class="module-eyebrow"><?= $canManageCatalog ? 'Catalog management' : 'Farm operations' ?></p>
         <h1>Vegetables</h1>
-        <p>Create produce listings and control what buyers can see.</p>
+        <p><?= $canManageCatalog
+            ? 'Create produce listings and control what buyers can see.'
+            : 'Browse produce details and current stock. Ask a farmer or admin to change listings or prices.' ?></p>
     </div>
 </section>
 
+<?php if ($canManageCatalog): ?>
 <section class="panel section">
     <h2><?= $editingVegetable ? 'Edit vegetable' : 'Add vegetable' ?></h2>
 
@@ -270,6 +279,7 @@ require __DIR__ . '/../includes/header.php';
         <?php endif; ?>
     </form>
 </section>
+<?php endif; ?>
 
 <section class="panel section">
     <h2>Vegetable list</h2>
@@ -297,8 +307,10 @@ require __DIR__ . '/../includes/header.php';
                         <th>Unit price</th>
                         <th>Stock</th>
                         <th>Status</th>
-                        <th>Edit</th>
-                        <th></th>
+                        <?php if ($canManageCatalog): ?>
+                            <th>Edit</th>
+                            <th></th>
+                        <?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -317,20 +329,22 @@ require __DIR__ . '/../includes/header.php';
                                     <?= $vegetable['active'] ? 'Active' : 'Inactive' ?>
                                 </span>
                             </td>
-                            <td><a href="<?= h(app_url('modules/vegetables.php?edit=' . (int) $vegetable['id'])) ?>">Edit</a></td>
-                            <td>
-                                <form method="post">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="toggle">
-                                    <input
-                                        type="hidden"
-                                        name="id"
-                                        value="<?= (int) $vegetable['id'] ?>">
-                                    <button class="button <?= $vegetable['active'] ? 'danger' : 'secondary' ?>" type="submit">
-                                        <?= $vegetable['active'] ? 'Deactivate' : 'Activate' ?>
-                                    </button>
-                                </form>
-                            </td>
+                            <?php if ($canManageCatalog): ?>
+                                <td><a href="<?= h(app_url('modules/vegetables.php?edit=' . (int) $vegetable['id'])) ?>">Edit</a></td>
+                                <td>
+                                    <form method="post">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="toggle">
+                                        <input
+                                            type="hidden"
+                                            name="id"
+                                            value="<?= (int) $vegetable['id'] ?>">
+                                        <button class="button <?= $vegetable['active'] ? 'danger' : 'secondary' ?>" type="submit">
+                                            <?= $vegetable['active'] ? 'Deactivate' : 'Activate' ?>
+                                        </button>
+                                    </form>
+                                </td>
+                            <?php endif; ?>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

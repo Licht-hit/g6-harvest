@@ -39,8 +39,10 @@ $managementLinks = [
     ['label' => 'Sales', 'path' => 'modules/sales.php', 'icon' => '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 7H6"/>'],
     ['label' => 'Returns', 'path' => 'modules/returns.php', 'icon' => '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>', 'badge_count' => $pendingReturnCount],
     ['label' => 'Quality', 'path' => 'modules/quality_inspection.php', 'icon' => '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>'],
-    ['label' => 'Reports', 'path' => 'modules/reports.php', 'icon' => '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>'],
 ];
+if ($user && in_array($user['role'], ['admin', 'farmer'], true)) {
+    $managementLinks[] = ['label' => 'Reports', 'path' => 'modules/reports.php', 'icon' => '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>'];
+}
 if ($user && $user['role'] === 'admin') {
     $managementLinks[] = ['label' => 'Activity', 'path' => 'modules/activity_logs.php', 'icon' => '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'];
 }
